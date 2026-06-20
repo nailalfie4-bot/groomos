@@ -7,8 +7,8 @@ const MAP: Record<
   { tone: "neutral" | "accent" | "success" | "warning" | "danger"; label: string }
 > = {
   pending: { tone: "warning", label: "Pending" },
-  confirmed: { tone: "accent", label: "Confirmed" },
-  completed: { tone: "success", label: "Completed" },
+  confirmed: { tone: "success", label: "Confirmed" },
+  completed: { tone: "accent", label: "Completed" },
   "no-show": { tone: "danger", label: "No-show" },
   cancelled: { tone: "neutral", label: "Cancelled" },
 };

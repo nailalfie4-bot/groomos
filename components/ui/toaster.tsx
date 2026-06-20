@@ -16,16 +16,16 @@ export function Toaster() {
         unstyled: true,
         classNames: {
           toast:
-            "group flex w-full items-center gap-3 rounded-xl border border-[#EAEAEA] bg-white px-4 py-3 shadow-md",
-          title: "text-sm font-medium text-[#1A1A1A]",
-          description: "text-xs text-[#6B6B66]",
+            "group flex w-full items-center gap-3 rounded-xl border border-[#F1DEDA] bg-white px-4 py-3 shadow-md",
+          title: "text-sm font-medium text-[#2A2422]",
+          description: "text-xs text-[#8A7470]",
           icon: "shrink-0",
           actionButton:
-            "ml-auto rounded-md bg-[#1F7A4D] px-2.5 py-1 text-xs font-medium text-[#FAFAF8]",
+            "ml-auto rounded-md bg-[#C9756B] px-2.5 py-1 text-xs font-medium text-[#FCF6F4]",
           cancelButton:
-            "rounded-md px-2.5 py-1 text-xs font-medium text-[#6B6B66]",
-          success: "[&_[data-icon]]:text-[#1F7A4D]",
-          error: "[&_[data-icon]]:text-[#B23B30]",
+            "rounded-md px-2.5 py-1 text-xs font-medium text-[#8A7470]",
+          success: "[&_[data-icon]]:text-[#5E8C6A]",
+          error: "[&_[data-icon]]:text-[#BD5248]",
         },
       }}
     />

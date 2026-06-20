@@ -4,10 +4,10 @@ import type { Config } from "tailwindcss";
  * GroomOS design tokens.
  *
  * Principles:
- *  - One warm neutral base (stone off-white canvas, near-black ink).
- *  - ONE accent (evergreen) reserved for primary actions and focus.
+ *  - One warm blush-cream base (warm canvas, soft near-black ink).
+ *  - ONE accent (terracotta-rose) reserved for primary actions and focus.
  *  - Everything else is neutral. No rainbow.
- *  - 4px spacing rhythm, deliberate type scale, soft elevation, single radius family.
+ *  - 4px spacing rhythm, deliberate type scale, soft elevation, soft radius.
  */
 const config: Config = {
   content: [
@@ -23,51 +23,51 @@ const config: Config = {
       white: "#FFFFFF",
       black: "#000000",
 
-      // Warm neutral base — the only greys in the system.
-      canvas: "#FAFAF8", // app background
+      // Warm blush-cream base — the only neutrals in the system.
+      canvas: "#FCF6F4", // app background (warm blush-cream)
       surface: "#FFFFFF", // cards / raised surfaces
-      "surface-sunken": "#F4F4F1", // wells, code, table zebra
+      "surface-sunken": "#F7EEEB", // wells, zebra, quiet fills
 
       ink: {
-        DEFAULT: "#1A1A1A", // primary text
-        muted: "#6B6B66", // secondary text
-        subtle: "#9A9A93", // tertiary / placeholder
-        inverse: "#FAFAF8", // text on accent / dark
+        DEFAULT: "#2A2422", // primary text (warm near-black)
+        muted: "#8A7470", // secondary text
+        subtle: "#B3A39E", // tertiary / placeholder
+        inverse: "#FCF6F4", // text on accent / dark
       },
 
       border: {
-        DEFAULT: "#EAEAEA", // hairline 1px borders
-        strong: "#DCDCD6", // emphasized dividers, input borders
+        DEFAULT: "#F1DEDA", // hairline 1px borders
+        strong: "#E7D0CB", // emphasized dividers, input borders
       },
 
-      // ONE accent — evergreen. Used sparingly for primary actions + focus only.
+      // ONE accent — warm terracotta-rose. Primary actions + focus only.
       accent: {
-        50: "#ECF6F0",
-        100: "#D2EBDD",
-        200: "#A8D7BE",
-        300: "#76BD98",
-        400: "#449E72",
-        500: "#1F7A4D", // primary
-        600: "#19663F", // hover
-        700: "#134E31", // active
-        DEFAULT: "#1F7A4D",
+        50: "#FBEEEB", // faint tint
+        100: "#F7E3DF", // soft accent / badge bg
+        200: "#E8A8A0", // soft highlight / selected
+        300: "#DD9189",
+        400: "#D28076",
+        500: "#C9756B", // primary
+        600: "#B25F56", // hover
+        700: "#7A3B36", // active / deep text-on-tint
+        DEFAULT: "#C9756B",
       },
 
-      // Functional states — quiet, desaturated, never decorative.
-      success: { DEFAULT: "#1F7A4D", soft: "#ECF6F0" },
-      warning: { DEFAULT: "#9A6B16", soft: "#FAF2E2" },
-      danger: { DEFAULT: "#B23B30", soft: "#FBEDEC" },
+      // Functional states — gentle, distinct from the rose accent.
+      success: { DEFAULT: "#5E8C6A", soft: "#E8F0E9", deep: "#3E6B4C" }, // soft sage
+      warning: { DEFAULT: "#B08442", soft: "#F8EFDF", deep: "#7A5A26" }, // soft honey
+      danger: { DEFAULT: "#BD5248", soft: "#F8E7E4", deep: "#8A3A33" }, // muted brick
     },
 
     borderColor: {
-      DEFAULT: "#EAEAEA",
-      strong: "#DCDCD6",
+      DEFAULT: "#F1DEDA",
+      strong: "#E7D0CB",
       transparent: "transparent",
-      accent: "#1F7A4D",
-      ink: "#1A1A1A",
-      success: "#1F7A4D",
-      warning: "#9A6B16",
-      danger: "#B23B30",
+      accent: "#C9756B",
+      ink: "#2A2422",
+      success: "#5E8C6A",
+      warning: "#B08442",
+      danger: "#BD5248",
     },
 
     // Spacing uses Tailwind's default 4px-based scale (0.5=2px, 1=4px, 2=8px,
@@ -97,24 +97,25 @@ const config: Config = {
 
     borderRadius: {
       none: "0",
-      sm: "6px",
-      DEFAULT: "8px",
-      md: "8px",
-      lg: "10px",
-      xl: "12px",
+      sm: "8px",
+      DEFAULT: "10px",
+      md: "10px",
+      lg: "12px", // buttons, inputs
+      xl: "16px", // cards
+      "2xl": "20px", // hero / large surfaces
       full: "9999px",
     },
 
     boxShadow: {
       none: "none",
-      // Soft, low-spread elevation only — no heavy drop shadows.
-      xs: "0 1px 1px rgba(26, 26, 26, 0.03)",
-      sm: "0 1px 2px rgba(26, 26, 26, 0.05), 0 1px 1px rgba(26, 26, 26, 0.03)",
-      card: "0 1px 2px rgba(26, 26, 26, 0.04), 0 2px 6px rgba(26, 26, 26, 0.03)",
-      md: "0 4px 12px rgba(26, 26, 26, 0.06), 0 1px 3px rgba(26, 26, 26, 0.04)",
-      lg: "0 12px 32px rgba(26, 26, 26, 0.10), 0 2px 8px rgba(26, 26, 26, 0.05)",
+      // Soft, low-spread, warm-tinted elevation only — no heavy drop shadows.
+      xs: "0 1px 1px rgba(74, 45, 40, 0.03)",
+      sm: "0 1px 2px rgba(74, 45, 40, 0.05), 0 1px 1px rgba(74, 45, 40, 0.03)",
+      card: "0 1px 2px rgba(74, 45, 40, 0.04), 0 4px 12px rgba(74, 45, 40, 0.04)",
+      md: "0 4px 16px rgba(74, 45, 40, 0.07), 0 1px 3px rgba(74, 45, 40, 0.04)",
+      lg: "0 16px 40px rgba(74, 45, 40, 0.12), 0 2px 8px rgba(74, 45, 40, 0.05)",
       // Accent focus ring.
-      focus: "0 0 0 3px rgba(31, 122, 77, 0.18)",
+      focus: "0 0 0 3px rgba(201, 117, 107, 0.22)",
     },
 
     extend: {
