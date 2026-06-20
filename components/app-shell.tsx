@@ -7,12 +7,14 @@ import {
   CalendarDays,
   CreditCard,
   ExternalLink,
+  HeartHandshake,
   LayoutDashboard,
   LogOut,
   Menu,
   PawPrint,
   RotateCcw,
   Scissors,
+  Settings,
   Users,
   X,
 } from "lucide-react";
@@ -25,13 +27,21 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/clients", label: "Clients", icon: Users },
-  { href: "/services", label: "Services", icon: Scissors },
   { href: "/appointments", label: "Appointments", icon: PawPrint },
+  { href: "/retention", label: "Due for a groom", icon: HeartHandshake },
+  { href: "/services", label: "Services", icon: Scissors },
   { href: "/billing", label: "Billing", icon: CreditCard },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-/** Core tabs surfaced in the mobile bottom bar (first five). */
-const MOBILE_TABS = NAV.slice(0, 5);
+/** Core tabs surfaced in the mobile bottom bar. */
+const MOBILE_TABS = [
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/clients", label: "Clients", icon: Users },
+  { href: "/appointments", label: "Diary", icon: PawPrint },
+  { href: "/retention", label: "Due", icon: HeartHandshake },
+] as const;
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
