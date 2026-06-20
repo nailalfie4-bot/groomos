@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CalendarPlus, Check, PawPrint, Undo2, UserX, X } from "lucide-react";
+import { CalendarPlus, Check, Image as ImageIcon, PawPrint, Undo2, UserX, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Avatar } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/status-badge";
 import { BookingForm } from "@/components/booking-form";
+import { CompleteFlow, ReportCard } from "@/components/grooming-report";
 import { useStore } from "@/lib/mock/store";
 import { useDemoLoad } from "@/lib/use-demo-load";
 import type { Appointment, AppointmentStatus } from "@/lib/types";
@@ -38,6 +39,8 @@ export default function AppointmentsPage() {
   const { appointments, services, getPet, getClient, setAppointmentStatus } =
     useStore();
   const [filter, setFilter] = useState<Filter>("all");
+  const [completing, setCompleting] = useState<string | null>(null);
+  const [viewingReport, setViewingReport] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
 
   const rows = useMemo(() => {
@@ -152,11 +155,21 @@ export default function AppointmentsPage() {
                   </div>
 
                   <div className="flex items-center gap-2 pl-20 sm:pl-0">
+                    {a.status === "completed" && a.report && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setViewingReport(a.id)}
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                        Card
+                      </Button>
+                    )}
                     <StatusBadge status={a.status} />
                     <AppointmentActions
                       status={a.status}
                       onConfirm={() => act(a, "confirmed", "Appointment confirmed")}
-                      onComplete={() => act(a, "completed", "Marked completed")}
+                      onComplete={() => setCompleting(a.id)}
                       onNoShow={() => act(a, "no-show", "Marked as no-show")}
                       onCancel={() => act(a, "cancelled", "Appointment cancelled")}
                       onReopen={() => act(a, "confirmed", "Reopened")}
@@ -170,6 +183,8 @@ export default function AppointmentsPage() {
       </Card>
 
       <BookingForm open={booking} onClose={() => setBooking(false)} />
+      <CompleteFlow appointmentId={completing} onClose={() => setCompleting(null)} />
+      <ReportCard appointmentId={viewingReport} onClose={() => setViewingReport(null)} />
     </>
   );
 }
