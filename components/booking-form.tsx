@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useStore } from "@/lib/mock/store";
 import { formatGBP } from "@/lib/format";
+import { findClash } from "@/lib/schedule";
 import { COAT_HELP, COAT_LABEL, SIZE_LABEL } from "@/lib/pricing";
 import type { CoatCondition, DogSize } from "@/lib/types";
 
@@ -34,8 +35,16 @@ export function BookingForm({
   /** Optional ISO datetime to pre-fill (e.g. a clicked calendar slot). */
   defaultStart?: string;
 }) {
-  const { clients, pets, services, createAppointment, getPetsForClient, quoteFor } =
-    useStore();
+  const {
+    clients,
+    pets,
+    services,
+    appointments,
+    settings,
+    createAppointment,
+    getPetsForClient,
+    quoteFor,
+  } = useStore();
   const activeServices = useMemo(
     () => services.filter((s) => s.active),
     [services],
@@ -76,10 +85,18 @@ export function BookingForm({
       setError("Pick a client, pet and service to book.");
       return;
     }
+    const start = new Date(`${date}T${time}`);
+    // Never let the groomer double-book themselves (incl. cleanup buffer).
+    const clash = quote
+      ? findClash(appointments, settings, start.toISOString(), quote.totalDurationMin)
+      : null;
+    if (clash) {
+      setError("That time clashes with another dog (including cleanup time). Pick another slot.");
+      return;
+    }
     setSaving(true);
     setTimeout(() => {
       try {
-        const start = new Date(`${date}T${time}`);
         createAppointment({
           clientId,
           petId: effectivePetId,
