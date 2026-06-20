@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
+import { StoreProvider } from "@/lib/mock/store";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,9 +11,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "GroomOS — Design System",
+  title: "GroomOS — Grooming business, run simply",
   description:
-    "The operating system for modern grooming businesses. Design system foundations.",
+    "The operating system for modern grooming businesses. Bookings, clients, services and billing in one calm place.",
 };
 
 export default function RootLayout({
@@ -23,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body>
-        {children}
+        <StoreProvider>{children}</StoreProvider>
         <Toaster />
       </body>
     </html>
