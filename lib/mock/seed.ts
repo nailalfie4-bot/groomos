@@ -15,10 +15,14 @@ import type {
   AppointmentStatus,
   Business,
   Client,
+  CoatCondition,
+  GroomingReport,
   Pet,
   Service,
+  Settings,
 } from "@/lib/types";
 import { atHour, addDays, startOfWeek } from "@/lib/format";
+import { computeQuote, DEFAULT_SETTINGS } from "@/lib/pricing";
 
 export interface SeedData {
   business: Business;
@@ -26,6 +30,7 @@ export interface SeedData {
   pets: Pet[];
   services: Service[];
   appointments: Appointment[];
+  settings: Settings;
 }
 
 const business: Business = {
@@ -33,7 +38,7 @@ const business: Business = {
   name: "Paws & Co. Grooming",
   openHour: 9,
   closeHour: 17,
-  stations: 2,
+  stations: 1, // one self-employed groomer working from home
   addressLine: "14 Mill Lane",
   city: "Bristol",
   postcode: "BS1 4QA",
@@ -105,6 +110,7 @@ const pets: Pet[] = [
   { id: "pet_5", clientId: "cl_5", name: "Bramble", breed: "Miniature Schnauzer", size: "small", notes: "Classic schnauzer trim. Beard needs hand-stripping.", dateOfBirth: addDays(new Date(), -365 * 6).toISOString() },
   { id: "pet_6", clientId: "cl_6", name: "Nala", breed: "Labradoodle", size: "large", notes: "First few visits — still building confidence on the table.", dateOfBirth: addDays(new Date(), -300).toISOString() },
   { id: "pet_7", clientId: "cl_1", name: "Pip", breed: "Jack Russell Terrier", size: "small", notes: "Just nails and a tidy. In and out, no fuss.", dateOfBirth: addDays(new Date(), -365 * 7).toISOString() },
+  { id: "pet_8", clientId: "cl_3", name: "Bear", breed: "Bernese Mountain Dog", size: "giant", notes: "Gentle giant. Big coat, mats behind the legs — needs extra time.", dateOfBirth: addDays(new Date(), -365 * 2).toISOString() },
 ];
 
 /** Build a varied, realistic appointment book around today. */
@@ -123,8 +129,12 @@ function buildAppointments(): Appointment[] {
     status: AppointmentStatus,
     source: Appointment["source"] = "staff",
     notes = "",
+    coatCondition: CoatCondition = "smooth",
+    report?: GroomingReport,
   ) => {
     const svc = services.find((s) => s.id === serviceId)!;
+    const pet = pets.find((p) => p.id === petId)!;
+    const quote = computeQuote(svc, pet.size, coatCondition, DEFAULT_SETTINGS, pet.name);
     const day = addDays(weekStart, dayOffsetFromWeekStart);
     out.push({
       id: `appt_${++n}`,
@@ -136,7 +146,10 @@ function buildAppointments(): Appointment[] {
       status,
       source,
       notes,
-      priceGBP: svc.priceGBP,
+      priceGBP: quote.totalPriceGBP,
+      coatCondition,
+      durationMin: quote.totalDurationMin,
+      report,
     });
   };
 
@@ -147,25 +160,37 @@ function buildAppointments(): Appointment[] {
   make(todayOffset, 9, "pet_1", "cl_1", "svc_1", "confirmed");
   make(todayOffset, 10.5, "pet_2", "cl_2", "svc_2", "confirmed");
   make(todayOffset, 11.25, "pet_7", "cl_1", "svc_4", "pending", "online");
-  make(todayOffset, 13, "pet_4", "cl_4", "svc_5", "pending");
-  make(todayOffset, 14.5, "pet_5", "cl_5", "svc_1", "confirmed");
-  make(todayOffset, 16, "pet_6", "cl_6", "svc_3", "confirmed", "online");
+  make(todayOffset, 13, "pet_8", "cl_3", "svc_1", "confirmed", "online", "", "matted"); // giant + matted: matting meter in action
+  make(todayOffset, 15.5, "pet_5", "cl_5", "svc_1", "confirmed");
 
   // --- Rest of this week ---
-  make(todayOffset + 1, 9.5, "pet_3", "cl_3", "svc_2", "confirmed");
-  make(todayOffset + 1, 11, "pet_1", "cl_1", "svc_1", "confirmed");
+  make(todayOffset + 1, 9.5, "pet_3", "cl_3", "svc_2", "confirmed", "staff", "", "tangled");
+  make(todayOffset + 1, 11.5, "pet_1", "cl_1", "svc_1", "confirmed");
   make(todayOffset + 2, 10, "pet_4", "cl_4", "svc_5", "pending");
   make(todayOffset + 2, 14, "pet_2", "cl_2", "svc_2", "confirmed", "online");
 
   // --- Earlier this month: history (completed / no-show / cancelled) ---
-  make(todayOffset - 9, 9, "pet_1", "cl_1", "svc_1", "completed", "staff", "Full groom — coat in great condition. Nails done.");
+  make(todayOffset - 9, 9, "pet_1", "cl_1", "svc_1", "completed", "staff", "Full groom — coat in great condition. Nails done.", "smooth", {
+    summary: "Biscuit was a star today — full groom, coat soft and tangle-free, nails trimmed. See you in 6 weeks!",
+    createdAt: addDays(new Date(), -9).toISOString(),
+    beforePhoto: "before",
+    afterPhoto: "after",
+  });
   make(todayOffset - 9, 11, "pet_5", "cl_5", "svc_1", "completed", "staff", "Hand-stripped beard, classic schnauzer outline.");
-  make(todayOffset - 8, 13, "pet_4", "cl_4", "svc_5", "completed", "online", "Big de-shed, lots of undercoat out. Happy boy.");
+  make(todayOffset - 8, 13, "pet_4", "cl_4", "svc_5", "completed", "online", "Big de-shed, lots of undercoat out. Happy boy.", "tangled", {
+    summary: "Cooper had a lovely de-shed — masses of undercoat out, coat gleaming. He enjoyed every minute.",
+    createdAt: addDays(new Date(), -8).toISOString(),
+    beforePhoto: "before",
+    afterPhoto: "after",
+  });
   make(todayOffset - 7, 10, "pet_3", "cl_3", "svc_2", "no-show", "online", "Did not arrive, no answer on phone.");
   make(todayOffset - 6, 15, "pet_2", "cl_2", "svc_2", "completed", "staff", "Oatmeal shampoo, skin looked settled.");
   make(todayOffset - 5, 9.5, "pet_6", "cl_6", "svc_3", "completed", "staff", "Second puppy visit — much calmer on the table.");
   make(todayOffset - 4, 14, "pet_7", "cl_1", "svc_4", "cancelled", "staff", "Client rescheduled.");
   make(todayOffset - 3, 11, "pet_1", "cl_1", "svc_2", "completed", "online", "Bath & tidy between full grooms.");
+  // A couple of older completed grooms so retention/"due for a groom" has signal.
+  make(todayOffset - 40, 10, "pet_6", "cl_6", "svc_1", "completed", "staff", "Full groom.");
+  make(todayOffset - 52, 13, "pet_4", "cl_4", "svc_1", "completed", "staff", "Full groom.");
 
   return out;
 }
@@ -177,5 +202,6 @@ export function createSeed(): SeedData {
     pets,
     services,
     appointments: buildAppointments(),
+    settings: { ...DEFAULT_SETTINGS },
   };
 }

@@ -35,7 +35,10 @@ export interface Client {
   createdAt: string;
 }
 
-export type DogSize = "small" | "medium" | "large";
+export type DogSize = "small" | "medium" | "large" | "giant";
+
+/** Owner-declared coat condition used by the matting meter (no AI involved). */
+export type CoatCondition = "smooth" | "tangled" | "matted";
 
 export interface Pet {
   id: ID;
@@ -47,6 +50,35 @@ export interface Pet {
   notes: string;
   /** ISO date string of birth (optional). */
   dateOfBirth?: string;
+}
+
+/**
+ * Groomer-configurable pricing & scheduling rules. These power the matting
+ * meter and the calendar's automatic buffer time. A single solo groomer owns
+ * one of these; defaults match the brief.
+ */
+export interface Settings {
+  /** Cleanup/buffer minutes automatically reserved after every appointment. */
+  bufferMin: number;
+  tangledFee: number;
+  tangledExtraMin: number;
+  mattedFee: number;
+  mattedExtraMin: number;
+  giantFee: number;
+  giantExtraMin: number;
+  /** Reminders are always on and included — surfaced as a selling point. */
+  remindersEnabled: boolean;
+  /** Default weeks between grooms, used for rebooking suggestions. */
+  defaultRebookWeeks: number;
+}
+
+/** A delightful before/after report card the owner receives after a groom. */
+export interface GroomingReport {
+  /** Mock photo data URLs / placeholders. */
+  beforePhoto?: string;
+  afterPhoto?: string;
+  summary: string;
+  createdAt: string;
 }
 
 export interface Service {
@@ -75,14 +107,36 @@ export interface Appointment {
   petId: ID;
   clientId: ID;
   serviceId: ID;
-  /** ISO datetime of the slot start. End is derived from service duration. */
+  /** ISO datetime of the slot start. End is derived from `durationMin`. */
   start: string;
   status: AppointmentStatus;
   source: AppointmentSource;
   /** Per-visit notes (what was done, observations). */
   notes: string;
-  /** Price captured at booking time, in case the service price later changes. */
+  /** Total price captured at booking, incl. matting/size surcharges. */
   priceGBP: number;
+  /** Owner-declared coat condition at booking (drives the matting meter). */
+  coatCondition: CoatCondition;
+  /** Total minutes reserved (service + matting/size extension), excl. buffer. */
+  durationMin: number;
+  /** Optional before/after report attached on completion. */
+  report?: GroomingReport;
+  /** Mock reminder timestamp — when a "friendly reminder" was sent. */
+  reminderSentAt?: string;
+}
+
+/** Transparent price + time breakdown produced by the matting meter. */
+export interface BookingQuote {
+  basePriceGBP: number;
+  baseDurationMin: number;
+  mattingFee: number;
+  mattingExtraMin: number;
+  sizeFee: number;
+  sizeExtraMin: number;
+  totalPriceGBP: number;
+  totalDurationMin: number;
+  /** Warm, owner-facing explanation of any surcharge (empty if none). */
+  reason: string;
 }
 
 /** A pet's history row, derived by joining appointments + services. */

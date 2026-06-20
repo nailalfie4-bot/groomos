@@ -32,16 +32,22 @@ import {
 import type {
   Appointment,
   AppointmentStatus,
+  BookingQuote,
   Business,
   Client,
+  CoatCondition,
   DogSize,
   GroomingHistoryEntry,
+  GroomingReport,
   Pet,
   Service,
+  Settings,
 } from "@/lib/types";
 import { createSeed } from "@/lib/mock/seed";
+import { computeQuote } from "@/lib/pricing";
 
-const STORAGE_KEY = "groomos.demo.v1";
+// Bumped to v2 when the data shape changed (matting, reports, settings).
+const STORAGE_KEY = "groomos.demo.v2";
 
 /** Input shapes for create operations (server-assigned fields omitted). */
 export interface NewClientInput {
@@ -71,6 +77,10 @@ export interface NewAppointmentInput {
   source?: Appointment["source"];
   status?: AppointmentStatus;
   notes?: string;
+  /** Owner-declared coat condition (matting meter). Defaults to "smooth". */
+  coatCondition?: CoatCondition;
+  /** Optional size override for this booking; defaults to the pet's size. */
+  size?: DogSize;
 }
 
 interface StoreState {
@@ -79,6 +89,7 @@ interface StoreState {
   pets: Pet[];
   services: Service[];
   appointments: Appointment[];
+  settings: Settings;
 }
 
 interface StoreContextValue extends StoreState {
@@ -97,6 +108,17 @@ interface StoreContextValue extends StoreState {
   getService: (id: string) => Service | undefined;
   getPetsForClient: (clientId: string) => Pet[];
   getHistoryForPet: (petId: string) => GroomingHistoryEntry[];
+  /** Most recent completed groom date for a pet, or undefined. */
+  getLastGroomedAt: (petId: string) => string | undefined;
+  /** Pets overdue for a groom with no upcoming booking — for retention. */
+  getDueForGroom: () => DueForGroom[];
+  /** Live matting-meter quote for a prospective booking. */
+  quoteFor: (
+    serviceId: string,
+    size: DogSize,
+    coat: CoatCondition,
+    petName?: string,
+  ) => BookingQuote | null;
 
   // Writes
   addClient: (input: NewClientInput) => Client;
@@ -108,6 +130,22 @@ interface StoreContextValue extends StoreState {
   createAppointment: (input: NewAppointmentInput) => Appointment;
   setAppointmentStatus: (id: string, status: AppointmentStatus) => void;
   updateAppointmentNotes: (id: string, notes: string) => void;
+  /** Reschedule an appointment to a new ISO start (calendar drag). */
+  rescheduleAppointment: (id: string, start: string) => void;
+  /** Attach a before/after report to a completed appointment. */
+  attachReport: (id: string, report: GroomingReport) => void;
+  /** Mark a friendly retention reminder as sent (mock). */
+  markReminderSent: (petId: string) => void;
+  updateSettings: (patch: Partial<Settings>) => void;
+}
+
+/** A pet that's overdue for a groom, with retention context. */
+export interface DueForGroom {
+  pet: Pet;
+  client: Client;
+  lastGroomedAt: string;
+  weeksSince: number;
+  lastPriceGBP: number;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -199,6 +237,66 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [state.appointments, state.services],
   );
 
+  const getLastGroomedAt = useCallback(
+    (petId: string): string | undefined =>
+      state.appointments
+        .filter((a) => a.petId === petId && a.status === "completed")
+        .map((a) => a.start)
+        .sort()
+        .at(-1),
+    [state.appointments],
+  );
+
+  const getDueForGroom = useCallback((): DueForGroom[] => {
+    const now = Date.now();
+    const weeks = (ms: number) => ms / (1000 * 60 * 60 * 24 * 7);
+    return state.pets
+      .map((pet): DueForGroom | null => {
+        const past = state.appointments
+          .filter((a) => a.petId === pet.id && a.status === "completed")
+          .sort((a, b) => (a.start < b.start ? 1 : -1));
+        const last = past[0];
+        if (!last) return null;
+        // Skip pets that already have something on the books ahead.
+        const hasUpcoming = state.appointments.some(
+          (a) =>
+            a.petId === pet.id &&
+            new Date(a.start).getTime() >= now &&
+            (a.status === "pending" || a.status === "confirmed"),
+        );
+        if (hasUpcoming) return null;
+        const weeksSince = Math.floor(
+          weeks(now - new Date(last.start).getTime()),
+        );
+        if (weeksSince < state.settings.defaultRebookWeeks) return null;
+        const client = state.clients.find((c) => c.id === pet.clientId);
+        if (!client) return null;
+        return {
+          pet,
+          client,
+          lastGroomedAt: last.start,
+          weeksSince,
+          lastPriceGBP: last.priceGBP,
+        };
+      })
+      .filter((d): d is DueForGroom => d !== null)
+      .sort((a, b) => b.weeksSince - a.weeksSince);
+  }, [state.pets, state.appointments, state.clients, state.settings]);
+
+  const quoteFor = useCallback(
+    (
+      serviceId: string,
+      size: DogSize,
+      coat: CoatCondition,
+      petName = "your dog",
+    ): BookingQuote | null => {
+      const svc = state.services.find((s) => s.id === serviceId);
+      if (!svc) return null;
+      return computeQuote(svc, size, coat, state.settings, petName);
+    },
+    [state.services, state.settings],
+  );
+
   // ── Writes ───────────────────────────────────────────────────────────────
   const addClient = useCallback((input: NewClientInput): Client => {
     const client: Client = {
@@ -258,6 +356,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const createAppointment = useCallback(
     (input: NewAppointmentInput): Appointment => {
       const svc = state.services.find((s) => s.id === input.serviceId);
+      const pet = state.pets.find((p) => p.id === input.petId);
+      const coat = input.coatCondition ?? "smooth";
+      const size = input.size ?? pet?.size ?? "medium";
+      // Price + duration come from the matting meter so surcharges are baked in.
+      const quote = svc
+        ? computeQuote(svc, size, coat, state.settings, pet?.name)
+        : null;
       const appointment: Appointment = {
         id: makeId("appt"),
         businessId: "biz_1",
@@ -268,7 +373,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         status: input.status ?? "pending",
         source: input.source ?? "staff",
         notes: input.notes ?? "",
-        priceGBP: svc?.priceGBP ?? 0,
+        priceGBP: quote?.totalPriceGBP ?? svc?.priceGBP ?? 0,
+        coatCondition: coat,
+        durationMin: quote?.totalDurationMin ?? svc?.durationMin ?? 60,
       };
       setState((s) => ({
         ...s,
@@ -276,8 +383,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }));
       return appointment;
     },
-    [state.services],
+    [state.services, state.pets, state.settings],
   );
+
+  const rescheduleAppointment = useCallback((id: string, start: string) => {
+    setState((s) => ({
+      ...s,
+      appointments: s.appointments.map((a) =>
+        a.id === id ? { ...a, start } : a,
+      ),
+    }));
+  }, []);
+
+  const attachReport = useCallback((id: string, report: GroomingReport) => {
+    setState((s) => ({
+      ...s,
+      appointments: s.appointments.map((a) =>
+        a.id === id ? { ...a, report, status: "completed" } : a,
+      ),
+    }));
+  }, []);
+
+  const markReminderSent = useCallback((petId: string) => {
+    const when = new Date().toISOString();
+    setState((s) => ({
+      ...s,
+      appointments: s.appointments.map((a) =>
+        a.petId === petId && a.status === "completed"
+          ? { ...a, reminderSentAt: when }
+          : a,
+      ),
+    }));
+  }, []);
+
+  const updateSettings = useCallback((patch: Partial<Settings>) => {
+    setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
+  }, []);
 
   const setAppointmentStatus = useCallback(
     (id: string, status: AppointmentStatus) => {
@@ -313,6 +454,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getService,
       getPetsForClient,
       getHistoryForPet,
+      getLastGroomedAt,
+      getDueForGroom,
+      quoteFor,
       addClient,
       addPet,
       updatePetNotes,
@@ -322,6 +466,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       createAppointment,
       setAppointmentStatus,
       updateAppointmentNotes,
+      rescheduleAppointment,
+      attachReport,
+      markReminderSent,
+      updateSettings,
     }),
     [
       state,
@@ -335,6 +483,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getService,
       getPetsForClient,
       getHistoryForPet,
+      getLastGroomedAt,
+      getDueForGroom,
+      quoteFor,
       addClient,
       addPet,
       updatePetNotes,
@@ -344,6 +495,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       createAppointment,
       setAppointmentStatus,
       updateAppointmentNotes,
+      rescheduleAppointment,
+      attachReport,
+      markReminderSent,
+      updateSettings,
     ],
   );
 
