@@ -50,7 +50,11 @@ export function computeMetrics(
   // Utilisation: booked minutes today vs total chair-minutes available.
   const bookedMinutesToday = todays
     .filter((a) => ACTIVE_TODAY.includes(a.status))
-    .reduce((sum, a) => sum + (serviceById.get(a.serviceId)?.durationMin ?? 0), 0);
+    .reduce(
+      (sum, a) =>
+        sum + (a.durationMin || serviceById.get(a.serviceId)?.durationMin || 0),
+      0,
+    );
   const capacityMinutes =
     (business.closeHour - business.openHour) * 60 * business.stations;
   const utilisationPct =

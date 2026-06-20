@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarPlus, PawPrint } from "lucide-react";
+import { ArrowRight, CalendarPlus, HeartHandshake, PawPrint } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
@@ -19,13 +19,37 @@ import { formatGBP, formatTime, initials, isSameDay } from "@/lib/format";
 
 export default function DashboardPage() {
   const loading = useDemoLoad();
-  const { appointments, services, business, getPet, getClient } = useStore();
+  const { appointments, services, business, getPet, getClient, getDueForGroom, pets } =
+    useStore();
   const [booking, setBooking] = useState(false);
 
   const metrics = useMemo(
     () => computeMetrics(appointments, services, business),
     [appointments, services, business],
   );
+
+  // Retention signals.
+  const due = getDueForGroom();
+  const incomeAtRisk = useMemo(
+    () => due.reduce((sum, d) => sum + d.lastPriceGBP, 0),
+    [due],
+  );
+  const rebookingRate = useMemo(() => {
+    const now = Date.now();
+    const petsWithHistory = pets.filter((p) =>
+      appointments.some((a) => a.petId === p.id && a.status === "completed"),
+    );
+    if (petsWithHistory.length === 0) return 0;
+    const withUpcoming = petsWithHistory.filter((p) =>
+      appointments.some(
+        (a) =>
+          a.petId === p.id &&
+          new Date(a.start).getTime() >= now &&
+          (a.status === "pending" || a.status === "confirmed"),
+      ),
+    );
+    return Math.round((withUpcoming.length / petsWithHistory.length) * 100);
+  }, [pets, appointments]);
 
   const todays = useMemo(
     () =>
@@ -49,9 +73,9 @@ export default function DashboardPage() {
       />
 
       {/* Metrics */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         {loading ? (
-          Array.from({ length: 5 }).map((_, i) => (
+          Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}>
               <CardContent className="pt-6">
                 <Skeleton className="h-4 w-20" />
@@ -102,9 +126,39 @@ export default function DashboardPage() {
                 />
               </CardContent>
             </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <Stat
+                  label="Rebooking rate"
+                  value={`${rebookingRate}%`}
+                  delta={rebookingRate >= 60 ? "+6%" : "-4%"}
+                />
+              </CardContent>
+            </Card>
           </>
         )}
       </div>
+
+      {/* Retention nudge */}
+      {!loading && due.length > 0 && (
+        <Link
+          href="/retention"
+          className="mt-4 flex items-center gap-4 rounded-xl border border-DEFAULT bg-surface p-5 shadow-card transition-colors hover:bg-surface-sunken"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-100 text-accent-700">
+            <HeartHandshake className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-ink">
+              {due.length} dog{due.length === 1 ? "" : "s"} due for a groom
+            </p>
+            <p className="text-xs text-ink-muted">
+              {formatGBP(incomeAtRisk)} of repeat income at risk — send a friendly nudge.
+            </p>
+          </div>
+          <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle" />
+        </Link>
+      )}
 
       {/* Today's schedule */}
       <div className="mt-8">
