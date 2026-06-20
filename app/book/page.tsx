@@ -9,8 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { QuoteBreakdown } from "@/components/booking-form";
 import { useStore } from "@/lib/mock/store";
 import { formatGBP } from "@/lib/format";
+import { COAT_HELP, COAT_LABEL, SIZE_LABEL } from "@/lib/pricing";
+import type { CoatCondition, DogSize } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,6 +33,7 @@ export default function PublicBookingPage() {
     addClient,
     addPet,
     createAppointment,
+    quoteFor,
   } = useStore();
   const activeServices = useMemo(
     () => services.filter((s) => s.active),
@@ -45,6 +49,8 @@ export default function PublicBookingPage() {
   const [phone, setPhone] = useState("");
   const [petName, setPetName] = useState("");
   const [breed, setBreed] = useState("");
+  const [size, setSize] = useState<DogSize>("medium");
+  const [coat, setCoat] = useState<CoatCondition>("smooth");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState<null | { time: string; date: string }>(null);
 
@@ -59,6 +65,7 @@ export default function PublicBookingPage() {
   }, [business.openHour, business.closeHour]);
 
   const service = activeServices.find((s) => s.id === serviceId);
+  const quote = quoteFor(serviceId, size, coat, petName.trim() || "your dog");
 
   function submit() {
     const next: Record<string, string> = {};
@@ -93,7 +100,7 @@ export default function PublicBookingPage() {
         clientId: client.id,
         name: petName.trim(),
         breed: breed.trim() || "Unknown",
-        size: "medium",
+        size,
         notes: "",
       });
 
@@ -105,6 +112,8 @@ export default function PublicBookingPage() {
       start: start.toISOString(),
       source: "online",
       status: "pending",
+      coatCondition: coat,
+      size,
     });
     setDone({ time, date });
   }
@@ -187,6 +196,45 @@ export default function PublicBookingPage() {
                   <p className="-mt-2 text-xs text-ink-muted">
                     {service.description}
                   </p>
+                )}
+
+                {/* Matting meter — helps us set aside the right time for your dog */}
+                <div className="grid grid-cols-2 gap-3">
+                  <Select
+                    label="Your dog's size"
+                    value={size}
+                    onChange={(e) => setSize(e.target.value as DogSize)}
+                  >
+                    {(["small", "medium", "large", "giant"] as const).map((s) => (
+                      <option key={s} value={s}>
+                        {SIZE_LABEL[s]}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select
+                    label="Coat condition"
+                    value={coat}
+                    onChange={(e) => setCoat(e.target.value as CoatCondition)}
+                  >
+                    {(["smooth", "tangled", "matted"] as const).map((c) => (
+                      <option key={c} value={c}>
+                        {COAT_LABEL[c]}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <p className="-mt-2 text-xs text-ink-subtle">{COAT_HELP[coat]}</p>
+
+                {quote && (
+                  <QuoteBreakdown
+                    base={quote.basePriceGBP}
+                    baseMin={quote.baseDurationMin}
+                    mattingFee={quote.mattingFee}
+                    sizeFee={quote.sizeFee}
+                    total={quote.totalPriceGBP}
+                    totalMin={quote.totalDurationMin}
+                    reason={quote.reason}
+                  />
                 )}
 
                 <Input
