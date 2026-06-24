@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DogEmpty } from "@/components/illustrations";
 import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { useStore } from "@/lib/mock/store";
@@ -77,12 +78,13 @@ export default function ClientsPage() {
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState
-            icon={<Users />}
+            icon={query ? <Users /> : undefined}
+            art={query ? undefined : <DogEmpty />}
             title={query ? "No matches" : "No clients yet"}
             description={
               query
                 ? "Try a different name, email or phone number."
-                : "Add your first client and their pet to start booking."
+                : "Add your first dog owner and we'll handle the reminders from here."
             }
             action={
               !query && (

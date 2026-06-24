@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DogEmpty } from "@/components/illustrations";
 import { Modal } from "@/components/ui/modal";
 import { useStore } from "@/lib/mock/store";
 import { useDemoLoad } from "@/lib/use-demo-load";
@@ -46,9 +47,9 @@ export default function ServicesPage() {
       ) : services.length === 0 ? (
         <Card>
           <EmptyState
-            icon={<Scissors />}
+            art={<DogEmpty />}
             title="No services yet"
-            description="Add the services you offer so clients can book the right slot."
+            description="Add the services you offer so clients can book the right groom."
             action={
               <Button size="sm" onClick={() => setCreating(true)}>
                 <Plus className="h-4 w-4" />

@@ -22,6 +22,7 @@ import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
+import { DogSitting, PawTrail } from "@/components/illustrations";
 import { useStore } from "@/lib/mock/store";
 
 const FEATURES = [
@@ -232,15 +233,21 @@ export default function LandingPage() {
                 ))}
               </div>
             </div>
+            {/* Friendly flat-dog accent peeking from the booking card */}
+            <DogSitting
+              className="absolute -bottom-7 -left-7 hidden w-24 drop-shadow-sm lg:block"
+              bow
+            />
           </motion.div>
         </div>
       </section>
 
       {/* How it works */}
       <section id="how" className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
-        <div className="mb-10 text-center">
+        <div className="mb-10 flex flex-col items-center text-center">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">How it works</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">Up and running before your next dog</h2>
+          <PawTrail className="mt-4" />
         </div>
         <div className="grid gap-6 sm:grid-cols-3">
           {STEPS.map((s) => (
@@ -301,6 +308,57 @@ export default function LandingPage() {
               </figcaption>
             </figure>
           ))}
+        </div>
+      </section>
+
+      {/* Before & After */}
+      <section className="border-t border-DEFAULT bg-surface/60">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+          <div className="mb-10 flex flex-col items-center text-center">
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">Before &amp; after</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+              Every groom, worth showing off
+            </h2>
+            <p className="mt-3 max-w-md text-base text-ink-muted">
+              A lovely little card after each visit — the kind clients share on
+              Facebook. Add your own photos and these fill with real
+              before-and-afters.
+            </p>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-3">
+            {[
+              { name: "Biscuit", breed: "Cockapoo" },
+              { name: "Bear", breed: "Bernese Mountain Dog" },
+              { name: "Maple", breed: "Cavalier" },
+            ].map((d) => (
+              <figure
+                key={d.name}
+                className="overflow-hidden rounded-xl border border-DEFAULT bg-surface shadow-card"
+              >
+                <div className="grid grid-cols-2 gap-px bg-DEFAULT">
+                  <div className="relative flex items-end justify-center bg-surface-sunken px-4 pt-6">
+                    <span className="absolute left-2 top-2 rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-inverse">
+                      Before
+                    </span>
+                    <DogSitting className="w-20" scruff />
+                  </div>
+                  <div className="relative flex items-end justify-center bg-accent-50 px-4 pt-6">
+                    <span className="absolute right-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-inverse">
+                      After
+                    </span>
+                    <DogSitting className="w-20" bow />
+                  </div>
+                </div>
+                <figcaption className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-ink">{d.name}</p>
+                    <p className="text-xs text-ink-subtle">{d.breed}</p>
+                  </div>
+                  <p className="text-xs font-medium text-accent">Your real grooms go here</p>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
         </div>
       </section>
 

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Stat } from "@/components/ui/stat";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DogEmpty } from "@/components/illustrations";
 import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
@@ -84,7 +85,7 @@ export default function RetentionPage() {
           </div>
         ) : due.length === 0 ? (
           <EmptyState
-            icon={<HeartHandshake />}
+            art={<DogEmpty />}
             title="You're all caught up"
             description="Every dog with a history has their next groom booked. Lovely work."
           />
