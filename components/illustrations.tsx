@@ -123,3 +123,42 @@ export function PawTrail({ className }: { className?: string }) {
     </div>
   );
 }
+
+/**
+ * A crisp fine-line sitting dog — the line-art counterpart to DogSitting.
+ * Uses `currentColor` so it can be tinted by the parent's text colour.
+ * Decorative only.
+ */
+export function DogLine({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 200 200"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("h-auto w-full", className)}
+      aria-hidden="true"
+      stroke="currentColor"
+      strokeWidth={3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {/* tail */}
+      <path d="M150 158q28-10 26-46q-19 8-23 31" />
+      {/* body */}
+      <path d="M62 188q-11-78 38-86q50 8 39 86" />
+      {/* front legs */}
+      <path d="M86 176v12M114 176v12" />
+      {/* ears */}
+      <path d="M64 50q-16 8-13 41M136 50q16 8 13 41" />
+      {/* head */}
+      <ellipse cx="100" cy="72" rx="41" ry="39" />
+      {/* muzzle */}
+      <path d="M79 86q21 20 42 0" />
+      {/* eyes */}
+      <circle cx="86" cy="66" r="2.6" fill="currentColor" stroke="none" />
+      <circle cx="114" cy="66" r="2.6" fill="currentColor" stroke="none" />
+      {/* nose + smile */}
+      <path d="M100 80v6M100 86q-6 4-11 1M100 86q6 4 11 1" />
+    </svg>
+  );
+}

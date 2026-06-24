@@ -76,6 +76,8 @@ const config: Config = {
 
     fontFamily: {
       sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
+      // Editorial display serif — landing headlines only.
+      display: ["var(--font-display)", "ui-serif", "Georgia", "Cambria", "serif"],
     },
 
     // Deliberate type scale: 12 / 14 / 16 / 20 / 28 / 40 / 56.
@@ -114,6 +116,8 @@ const config: Config = {
       card: "0 1px 2px rgba(74, 45, 40, 0.04), 0 4px 12px rgba(74, 45, 40, 0.04)",
       md: "0 4px 16px rgba(74, 45, 40, 0.07), 0 1px 3px rgba(74, 45, 40, 0.04)",
       lg: "0 16px 40px rgba(74, 45, 40, 0.12), 0 2px 8px rgba(74, 45, 40, 0.05)",
+      // Premium elevation for hero surfaces and lifted cards.
+      xl: "0 28px 64px rgba(74, 45, 40, 0.16), 0 6px 16px rgba(74, 45, 40, 0.06)",
       // Accent focus ring.
       focus: "0 0 0 3px rgba(201, 117, 107, 0.22)",
     },
@@ -141,10 +145,15 @@ const config: Config = {
         shimmer: {
           "100%": { transform: "translateX(100%)" },
         },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 200ms cubic-bezier(0.22, 1, 0.36, 1)",
         "fade-up": "fade-up 240ms cubic-bezier(0.22, 1, 0.36, 1)",
+        float: "float 6s cubic-bezier(0.42, 0, 0.58, 1) infinite",
       },
     },
   },

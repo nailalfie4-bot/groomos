@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Fraunces } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import { StoreProvider } from "@/lib/mock/store";
 import "./globals.css";
@@ -8,6 +8,16 @@ const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-inter",
+});
+
+// Editorial display serif — warm, soft, optical-sized. Pairs with Inter for
+// the landing page's headlines (the only place the serif appears).
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-display",
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -22,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${fraunces.variable}`}>
       <body>
         <StoreProvider>{children}</StoreProvider>
         <Toaster />

@@ -10,6 +10,9 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+    /* Keep anchored sections clear of the sticky header. */
+    scroll-padding-top: 5rem;
   }
 
   body {
@@ -31,9 +34,31 @@
   ::selection {
     background-color: rgba(201, 117, 107, 0.20);
   }
+
+  /* Respect users who prefer reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer utilities {
+  /* Tidy headline wrapping for editorial display type. */
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
   /* Skeleton shimmer used by the loading primitives. */
   .skeleton-shimmer::after {
     content: "";

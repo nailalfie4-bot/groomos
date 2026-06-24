@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
-type Size = "sm" | "md";
+type Size = "sm" | "md" | "lg";
 
 const base =
   "relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-all duration-fast ease-out-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:pointer-events-none disabled:opacity-50";
@@ -27,6 +27,8 @@ const variants: Record<Variant, string> = {
 const sizes: Record<Size, string> = {
   sm: "h-8 px-3 text-sm",
   md: "h-10 px-4 text-sm",
+  // Prominent — for landing-page hero / CTA actions.
+  lg: "h-12 px-6 text-base",
 };
 
 export interface ButtonProps
