@@ -9,6 +9,7 @@ import { Stat } from "@/components/ui/stat";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DogEmpty } from "@/components/illustrations";
 import { Avatar } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/status-badge";
 import { BookingForm } from "@/components/booking-form";
@@ -190,7 +191,7 @@ export default function DashboardPage() {
             </div>
           ) : todays.length === 0 ? (
             <EmptyState
-              icon={<PawPrint />}
+              art={<DogEmpty />}
               title="Nothing booked today"
               description="Your day is clear. Add an appointment to fill a slot."
               action={

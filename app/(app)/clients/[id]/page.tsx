@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DogEmpty } from "@/components/illustrations";
 import { ErrorState } from "@/components/ui/error-state";
 import { Modal } from "@/components/ui/modal";
 import { StatusBadge } from "@/components/status-badge";
@@ -117,6 +118,7 @@ export default function ClientDetailPage() {
       {pets.length === 0 ? (
         <Card>
           <EmptyState
+            art={<DogEmpty />}
             title="No pets on file"
             description="Add this client's dog to start booking grooming appointments."
             action={

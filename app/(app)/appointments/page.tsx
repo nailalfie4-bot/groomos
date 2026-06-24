@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DogEmpty } from "@/components/illustrations";
 import { Avatar } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/status-badge";
 import { BookingForm } from "@/components/booking-form";
@@ -111,7 +112,7 @@ export default function AppointmentsPage() {
           </div>
         ) : rows.length === 0 ? (
           <EmptyState
-            icon={<PawPrint />}
+            art={<DogEmpty />}
             title="No appointments here"
             description="Nothing matches this filter yet."
             action={
