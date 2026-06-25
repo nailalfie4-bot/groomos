@@ -1,12 +1,21 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="32" height="32" rx="9" fill="#C9756B"/>
-  <ellipse cx="9.6" cy="13" rx="3.4" ry="5.3" transform="rotate(-22 9.6 13)" fill="#FCF6F4"/>
-  <ellipse cx="22.4" cy="13" rx="3.4" ry="5.3" transform="rotate(22 22.4 13)" fill="#FCF6F4"/>
-  <ellipse cx="10.1" cy="13.4" rx="1.7" ry="3" transform="rotate(-22 10.1 13.4)" fill="#E8A8A0"/>
-  <ellipse cx="21.9" cy="13.4" rx="1.7" ry="3" transform="rotate(22 21.9 13.4)" fill="#E8A8A0"/>
-  <ellipse cx="16" cy="16.6" rx="7.5" ry="6.9" fill="#FCF6F4"/>
-  <circle cx="12.9" cy="15.6" r="1.15" fill="#7A3B36"/>
-  <circle cx="19.1" cy="15.6" r="1.15" fill="#7A3B36"/>
-  <ellipse cx="16" cy="19" rx="1.7" ry="1.45" fill="#7A3B36"/>
-  <path d="M16 20.4c0 1.1-.9 1.7-2 1.7M16 20.4c0 1.1.9 1.7 2 1.7" stroke="#7A3B36" stroke-width="0.9" stroke-linecap="round"/>
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="64" height="64" rx="16" fill="#C9756B"/>
+  <g fill="none" stroke="#FCF6F4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 14 C 27 11, 20 12, 17 17 C 13 21, 10 25, 11 31 C 12 37, 14 42, 16 46 C 18 50, 20 53, 24 52 C 27 51, 29 49, 32 49 C 35 49, 37 51, 40 52 C 44 53, 46 50, 48 46 C 50 42, 52 37, 53 31 C 54 25, 51 21, 47 17 C 44 12, 37 11, 32 14 Z"/>
+    <path d="M32 15 C 32 18, 32 20.5, 32 23"/>
+    <path d="M32 18 C 28 21, 24 23, 22 28"/>
+    <path d="M32 18 C 36 21, 40 23, 42 28"/>
+    <path d="M30 44 C 30 47, 30 49, 31 51"/>
+    <path d="M34 44 C 34 47, 34 49, 33 51"/>
+    <path d="M32 39 C 32 41.5, 30 42.5, 28 41.5"/>
+    <path d="M32 39 C 32 41.5, 34 42.5, 36 41.5"/>
+    <path d="M32 11 C 27 6, 22 8, 25 12 C 27 14, 31 13, 32 11"/>
+    <path d="M32 11 C 37 6, 42 8, 39 12 C 37 14, 33 13, 32 11"/>
+    <path d="M31 12 C 30 14.5, 29.5 16, 28.5 17"/>
+    <path d="M33 12 C 34 14.5, 34.5 16, 35.5 17"/>
+  </g>
+  <circle cx="25" cy="30" r="3" fill="#FCF6F4"/>
+  <circle cx="39" cy="30" r="3" fill="#FCF6F4"/>
+  <ellipse cx="32" cy="36.5" rx="3" ry="2.5" fill="#FCF6F4"/>
+  <ellipse cx="32" cy="11.2" rx="2.2" ry="1.9" fill="#FCF6F4"/>
 </svg>
