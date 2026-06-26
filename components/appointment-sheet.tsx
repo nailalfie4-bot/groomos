@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   CalendarClock,
   CalendarPlus,
+  Camera,
   Check,
   Clock,
   Heart,
@@ -12,6 +13,7 @@ import {
   Repeat,
   Save,
   Scissors,
+  Share2,
   UserRound,
   X,
 } from "lucide-react";
@@ -21,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BookingForm } from "@/components/booking-form";
+import { CompleteFlow, ReportCard } from "@/components/grooming-report";
 import { useStore } from "@/lib/mock/store";
 import type { AppointmentStatus } from "@/lib/types";
 import { findClash } from "@/lib/schedule";
@@ -56,6 +59,8 @@ export function AppointmentSheet({
 
   const appt = appointments.find((a) => a.id === appointmentId) ?? null;
   const [rebooking, setRebooking] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [viewingCard, setViewingCard] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
   const [notes, setNotes] = useState("");
   const [rDate, setRDate] = useState("");
@@ -69,6 +74,8 @@ export function AppointmentSheet({
     setRTime(toTimeValue(d));
     setShowReschedule(false);
     setRebooking(false);
+    setCompleting(false);
+    setViewingCard(false);
   }, [appt?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!appt) return null;
@@ -112,7 +119,7 @@ export function AppointmentSheet({
   return (
     <>
       <Sheet
-        open={appointmentId !== null && !rebooking}
+        open={appointmentId !== null && !rebooking && !completing && !viewingCard}
         onClose={onClose}
         title={pet?.name ?? "Appointment"}
         subtitle={
@@ -179,7 +186,7 @@ export function AppointmentSheet({
                 </StatusButton>
               )}
               {upcoming && (
-                <StatusButton onClick={() => setStatus("completed", "Marked complete")}>
+                <StatusButton onClick={() => setCompleting(true)}>
                   <Check className="h-4 w-4" /> Mark complete
                 </StatusButton>
               )}
@@ -254,15 +261,28 @@ export function AppointmentSheet({
             )}
           </div>
 
-          {/* report */}
-          {appt.report && (
-            <div className="rounded-xl border border-accent/30 bg-accent-50 p-4">
-              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-accent-700">
-                <Heart className="h-3.5 w-3.5" /> Before &amp; after sent
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-ink">{appt.report.summary}</p>
-            </div>
-          )}
+          {/* before & after card */}
+          {appt.status === "completed" &&
+            (appt.report ? (
+              <button
+                onClick={() => setViewingCard(true)}
+                className="w-full rounded-xl border border-accent/30 bg-accent-50 p-4 text-left transition-colors hover:bg-accent-100"
+              >
+                <p className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-accent-700">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Heart className="h-3.5 w-3.5" /> Before &amp; after card
+                  </span>
+                  <span className="inline-flex items-center gap-1 tracking-normal">
+                    <Share2 className="h-3.5 w-3.5" /> View &amp; share
+                  </span>
+                </p>
+                <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-ink">{appt.report.summary}</p>
+              </button>
+            ) : (
+              <Button variant="secondary" size="md" className="w-full" onClick={() => setCompleting(true)}>
+                <Camera className="h-4 w-4" /> Add a before &amp; after card
+              </Button>
+            ))}
         </div>
       </Sheet>
 
@@ -278,6 +298,18 @@ export function AppointmentSheet({
           addDays(new Date(), settings.defaultRebookWeeks * 7),
           9,
         )}
+      />
+
+      <CompleteFlow
+        appointmentId={completing ? appt.id : null}
+        onClose={() => {
+          setCompleting(false);
+          onClose();
+        }}
+      />
+      <ReportCard
+        appointmentId={viewingCard ? appt.id : null}
+        onClose={() => setViewingCard(false)}
       />
     </>
   );

@@ -2,7 +2,14 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { CalendarHeart, Camera, Check, Heart, Sparkles } from "lucide-react";
+import {
+  CalendarHeart,
+  Camera,
+  Check,
+  Heart,
+  Share2,
+  Sparkles,
+} from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,9 +54,7 @@ function PhotoUpload({
       <button
         type="button"
         onClick={() => ref.current?.click()}
-        className={cn(
-          "relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-strong bg-surface-sunken text-ink-subtle transition-colors hover:border-accent hover:text-accent",
-        )}
+        className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-strong bg-surface-sunken text-ink-subtle transition-colors hover:border-accent hover:text-accent"
       >
         {isReal ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -78,6 +83,17 @@ function PhotoUpload({
   );
 }
 
+/** Warm auto-written note, so a busy groomer can send a lovely card in one tap. */
+function suggestSummary(name: string, service: string): string {
+  const openers = [
+    `${name} was an absolute star today`,
+    `${name} did so well today`,
+    `Lovely session with ${name} today`,
+  ];
+  const opener = openers[Math.floor(Math.random() * openers.length)];
+  return `${opener} — ${service.toLowerCase()} all done, coat soft and looking gorgeous, nails neat and a happy pup at the end. See you next time! 🐾`;
+}
+
 /**
  * The complete-and-rebook flow: attach a before/after report, then a one-tap
  * rebooking nudge. Opened when the groomer marks an appointment complete.
@@ -89,9 +105,18 @@ export function CompleteFlow({
   appointmentId: string | null;
   onClose: () => void;
 }) {
-  const { appointments, getPet, attachReport, createAppointment } = useStore();
+  const {
+    appointments,
+    getPet,
+    getService,
+    attachReport,
+    setAppointmentStatus,
+    createAppointment,
+    settings,
+  } = useStore();
   const appt = appointments.find((a) => a.id === appointmentId) ?? null;
   const pet = appt ? getPet(appt.petId) : undefined;
+  const service = appt ? getService(appt.serviceId) : undefined;
 
   const [step, setStep] = useState<"report" | "rebook">("report");
   const [before, setBefore] = useState<string | undefined>();
@@ -104,7 +129,6 @@ export function CompleteFlow({
     setAfter(undefined);
     setSummary("");
   }
-
   function close() {
     reset();
     onClose();
@@ -116,13 +140,17 @@ export function CompleteFlow({
     const report: GroomingReport = {
       beforePhoto: before,
       afterPhoto: after,
-      summary:
-        summary.trim() ||
-        `${pet!.name} was a star today — all done and looking lovely.`,
+      summary: summary.trim() || suggestSummary(pet!.name, service?.name ?? "groom"),
       createdAt: new Date().toISOString(),
     };
     attachReport(appt!.id, report);
-    toast.success("Marked complete", { description: `${pet!.name}'s report is ready` });
+    toast.success("Complete — card ready to share", { description: `${pet!.name}'s before & after is done` });
+    setStep("rebook");
+  }
+
+  function completeOnly() {
+    setAppointmentStatus(appt!.id, "completed");
+    toast.success(`${pet!.name} marked complete`);
     setStep("rebook");
   }
 
@@ -137,7 +165,7 @@ export function CompleteFlow({
       status: "confirmed",
       coatCondition: "smooth",
     });
-    toast.success(`${pet!.name} rebooked`, { description: `${formatDate(start.toISOString())}` });
+    toast.success(`${pet!.name} rebooked`, { description: formatDate(start.toISOString()) });
     close();
   }
 
@@ -145,21 +173,21 @@ export function CompleteFlow({
     <Modal
       open={appointmentId !== null}
       onClose={close}
-      title={step === "report" ? "Finish up & send a report" : `Rebook ${pet.name}?`}
+      title={step === "report" ? "Finish up & send a card" : `Rebook ${pet.name}?`}
       description={
         step === "report"
-          ? "Add a couple of photos and a friendly note — the owner gets a lovely card."
+          ? "Add a couple of photos and a friendly note — the owner gets a lovely before & after card."
           : "Get the next groom in the diary before they leave."
       }
       footer={
         step === "report" ? (
           <>
-            <Button variant="ghost" size="sm" onClick={close}>
-              Skip
+            <Button variant="ghost" size="sm" onClick={completeOnly}>
+              Complete without card
             </Button>
             <Button size="sm" onClick={saveReport}>
               <Check className="h-4 w-4" />
-              Complete & send card
+              Complete &amp; send card
             </Button>
           </>
         ) : (
@@ -175,17 +203,27 @@ export function CompleteFlow({
             <PhotoUpload label="before" value={before} onChange={setBefore} />
             <PhotoUpload label="after" value={after} onChange={setAfter} />
           </div>
-          <Textarea
-            label="A note for the owner"
-            placeholder={`How did ${pet.name} get on today?`}
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-          />
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-sm font-medium text-ink">A note for the owner</span>
+              <button
+                onClick={() => setSummary(suggestSummary(pet.name, service?.name ?? "groom"))}
+                className="inline-flex items-center gap-1 text-xs font-medium text-accent transition-colors hover:text-accent-600"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Suggest a note
+              </button>
+            </div>
+            <Textarea
+              placeholder={`How did ${pet.name} get on today?`}
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+            />
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-3 pb-2">
           <div className="grid grid-cols-3 gap-2">
-            {[6, 8, 12].map((w) => (
+            {[settings.defaultRebookWeeks, settings.defaultRebookWeeks + 2, settings.defaultRebookWeeks + 6].map((w) => (
               <button
                 key={w}
                 onClick={() => rebook(w)}
@@ -222,8 +260,36 @@ export function ReportCard({
   const service = appt ? getService(appt.serviceId) : undefined;
   if (!appt || !pet || !appt.report) return null;
 
+  async function share() {
+    const text = `${pet!.name}'s ${service?.name ?? "groom"} at ${business.name} 🐾 ${appt!.report!.summary}`;
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: `${pet!.name}'s groom`, text });
+      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+        toast.success("Card message copied");
+      }
+    } catch {
+      /* user dismissed the share sheet */
+    }
+  }
+
   return (
-    <Modal open={appointmentId !== null} onClose={onClose}>
+    <Modal
+      open={appointmentId !== null}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Close
+          </Button>
+          <Button size="sm" onClick={share}>
+            <Share2 className="h-4 w-4" />
+            Share card
+          </Button>
+        </>
+      }
+    >
       <div className="-mx-6 -mt-2 flex flex-col">
         <div className="bg-accent px-6 py-5 text-center">
           <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-inverse/80">
@@ -241,7 +307,7 @@ export function ReportCard({
             <Photo src={appt.report.beforePhoto} label="before" />
             <Photo src={appt.report.afterPhoto} label="after" />
           </div>
-          <p className="mt-4 flex items-start gap-2 rounded-xl bg-accent-50 p-3 text-sm text-accent-700">
+          <p className="mt-4 flex items-start gap-2 rounded-xl bg-accent-50 p-3 text-sm leading-relaxed text-accent-700">
             <Heart className="mt-0.5 h-4 w-4 shrink-0" />
             {appt.report.summary}
           </p>
