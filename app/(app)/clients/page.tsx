@@ -3,9 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ChevronRight, Search, UserPlus, Users } from "lucide-react";
+import { ChevronRight, PawPrint, Search, UserPlus, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -24,7 +23,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ClientsPage() {
   const loading = useDemoLoad();
-  const { clients, getPetsForClient, addClient, addPet } = useStore();
+  const { clients, pets, getPetsForClient, addClient, addPet } = useStore();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -34,20 +33,21 @@ export default function ClientsPage() {
       `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
     );
     if (!q) return sorted;
-    return sorted.filter((c) =>
-      `${c.firstName} ${c.lastName} ${c.email} ${c.phone}`
+    return sorted.filter((c) => {
+      const petNames = getPetsForClient(c.id).map((p) => p.name).join(" ");
+      return `${c.firstName} ${c.lastName} ${c.email} ${c.phone} ${petNames}`
         .toLowerCase()
-        .includes(q),
-    );
-  }, [clients, query]);
+        .includes(q);
+    });
+  }, [clients, query, getPetsForClient]);
 
   return (
     <>
       <PageHeader
         title="Clients & pets"
-        subtitle={`${clients.length} client${clients.length === 1 ? "" : "s"}`}
+        subtitle={`${clients.length} client${clients.length === 1 ? "" : "s"} · ${pets.length} dog${pets.length === 1 ? "" : "s"}`}
         actions={
-          <Button size="sm" onClick={() => setOpen(true)}>
+          <Button size="md" onClick={() => setOpen(true)} className="w-full sm:w-auto">
             <UserPlus className="h-4 w-4" />
             Add client
           </Button>
@@ -57,18 +57,18 @@ export default function ClientsPage() {
       <div className="mb-4">
         <Input
           leadingIcon={<Search />}
-          placeholder="Search by name, email or phone…"
+          placeholder="Search name, dog, email or phone…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
-      <Card className="overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-DEFAULT bg-surface shadow-card">
         {loading ? (
           <div className="divide-y divide-border">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-5 py-4">
-                <Skeleton className="h-9 w-9 rounded-full" />
+              <div key={i} className="flex items-center gap-4 px-4 py-4 sm:px-5">
+                <Skeleton className="h-10 w-10 rounded-full" />
                 <div className="flex flex-1 flex-col gap-2">
                   <Skeleton className="h-3.5 w-40" />
                   <Skeleton className="h-3 w-28" />
@@ -83,7 +83,7 @@ export default function ClientsPage() {
             title={query ? "No matches" : "No clients yet"}
             description={
               query
-                ? "Try a different name, email or phone number."
+                ? "Try a different name, dog, email or phone number."
                 : "Add your first dog owner and we'll handle the reminders from here."
             }
             action={
@@ -96,34 +96,42 @@ export default function ClientsPage() {
             }
           />
         ) : (
-          <div className="divide-y divide-border">
+          <ul className="divide-y divide-border">
             {filtered.map((c) => {
-              const pets = getPetsForClient(c.id);
+              const clientPets = getPetsForClient(c.id);
               return (
-                <Link
-                  key={c.id}
-                  href={`/clients/${c.id}`}
-                  className="flex items-center gap-4 px-5 py-4 transition-colors duration-fast hover:bg-surface-sunken"
-                >
-                  <Avatar initials={initials(c.firstName, c.lastName)} />
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm font-medium text-ink">
-                      {c.firstName} {c.lastName}
-                    </span>
-                    <span className="truncate text-xs text-ink-muted">
-                      {pets.length > 0
-                        ? pets.map((p) => p.name).join(", ")
-                        : "No pets yet"}{" "}
-                      · {c.phone}
-                    </span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle" />
-                </Link>
+                <li key={c.id}>
+                  <Link
+                    href={`/clients/${c.id}`}
+                    className="flex items-center gap-3 px-4 py-3.5 transition-colors duration-fast hover:bg-surface-sunken sm:gap-4 sm:px-5"
+                  >
+                    <Avatar
+                      initials={initials(c.firstName, c.lastName)}
+                      className="h-10 w-10 text-sm"
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-sm font-medium text-ink">
+                        {c.firstName} {c.lastName}
+                      </span>
+                      <span className="flex items-center gap-1 truncate text-xs text-ink-muted">
+                        {clientPets.length > 0 ? (
+                          <>
+                            <PawPrint className="h-3 w-3 shrink-0 text-ink-subtle" />
+                            {clientPets.map((p) => p.name).join(", ")}
+                          </>
+                        ) : (
+                          "No pets yet"
+                        )}
+                      </span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle" />
+                  </Link>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
-      </Card>
+      </div>
 
       <AddClientModal
         open={open}
@@ -148,6 +156,8 @@ interface PetDraft {
   name: string;
   breed: string;
   size: DogSize;
+  coatType: string;
+  temperament: string;
   notes: string;
 }
 
@@ -158,10 +168,7 @@ function AddClientModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (
-    client: ClientDraft,
-    pet?: { name: string; breed: string; size: DogSize; notes: string },
-  ) => void;
+  onCreate: (client: ClientDraft, pet?: PetDraft) => void;
 }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -170,6 +177,8 @@ function AddClientModal({
   const [petName, setPetName] = useState("");
   const [breed, setBreed] = useState("");
   const [size, setSize] = useState<DogSize>("medium");
+  const [coatType, setCoatType] = useState("");
+  const [temperament, setTemperament] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -181,6 +190,8 @@ function AddClientModal({
     setPetName("");
     setBreed("");
     setSize("medium");
+    setCoatType("");
+    setTemperament("");
     setNotes("");
     setErrors({});
   }
@@ -197,7 +208,14 @@ function AddClientModal({
     onCreate(
       { firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), phone: phone.trim() },
       petName.trim()
-        ? { name: petName.trim(), breed: breed.trim() || "Unknown", size, notes: notes.trim() }
+        ? {
+            name: petName.trim(),
+            breed: breed.trim() || "Unknown",
+            size,
+            coatType: coatType.trim(),
+            temperament: temperament.trim(),
+            notes: notes.trim(),
+          }
         : undefined,
     );
     reset();
@@ -207,25 +225,16 @@ function AddClientModal({
   return (
     <Modal
       open={open}
-      onClose={() => {
-        reset();
-        onClose();
-      }}
+      onClose={() => { reset(); onClose(); }}
       title="Add client"
-      description="Create a client record, and optionally their first pet."
+      description="Create a client, and optionally their first dog."
       footer={
         <>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              reset();
-              onClose();
-            }}
-          >
+          <Button variant="ghost" size="sm" onClick={() => { reset(); onClose(); }}>
             Cancel
           </Button>
           <Button size="sm" onClick={submit}>
+            <UserPlus className="h-4 w-4" />
             Add client
           </Button>
         </>
@@ -233,65 +242,34 @@ function AddClientModal({
     >
       <div className="flex flex-col gap-4 pb-2">
         <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="First name"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            error={errors.firstName}
-          />
-          <Input
-            label="Last name"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            error={errors.lastName}
-          />
+          <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errors.firstName} />
+          <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errors.lastName} />
         </div>
-        <Input
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          error={errors.email}
-        />
-        <Input
-          label="Phone"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          error={errors.phone}
-        />
+        <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} />
+        <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} error={errors.phone} />
 
         <div className="border-t border-DEFAULT pt-4">
           <p className="mb-3 text-sm font-medium text-ink">
-            First pet{" "}
-            <span className="font-normal text-ink-subtle">(optional)</span>
+            First dog <span className="font-normal text-ink-subtle">(optional)</span>
           </p>
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Pet name"
-                placeholder="e.g. Biscuit"
-                value={petName}
-                onChange={(e) => setPetName(e.target.value)}
-              />
-              <Input
-                label="Breed"
-                placeholder="e.g. Cockapoo"
-                value={breed}
-                onChange={(e) => setBreed(e.target.value)}
-              />
+              <Input label="Pet name" placeholder="e.g. Biscuit" value={petName} onChange={(e) => setPetName(e.target.value)} />
+              <Input label="Breed" placeholder="e.g. Cockapoo" value={breed} onChange={(e) => setBreed(e.target.value)} />
             </div>
-            <Select
-              label="Size"
-              value={size}
-              onChange={(e) => setSize(e.target.value as DogSize)}
-            >
-              <option value="small">Small</option>
-              <option value="medium">Medium</option>
-              <option value="large">Large</option>
-            </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <Select label="Size" value={size} onChange={(e) => setSize(e.target.value as DogSize)}>
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+                <option value="giant">Giant</option>
+              </Select>
+              <Input label="Coat type" placeholder="e.g. Curly" value={coatType} onChange={(e) => setCoatType(e.target.value)} />
+            </div>
+            <Input label="Temperament" placeholder="e.g. Easygoing" value={temperament} onChange={(e) => setTemperament(e.target.value)} />
             <Textarea
               label="Grooming notes"
-              placeholder="Temperament, coat, allergies, handling…"
+              placeholder="Allergies, handling, coat care…"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />

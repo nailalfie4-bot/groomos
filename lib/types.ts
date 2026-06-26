@@ -46,6 +46,10 @@ export interface Pet {
   name: string;
   breed: string;
   size: DogSize;
+  /** Coat type, e.g. "Curly", "Double", "Wiry" — quick grooming context. */
+  coatType?: string;
+  /** One-word temperament, e.g. "Easygoing", "Nervous" — sets the tone. */
+  temperament?: string;
   /** Free-text standing notes: temperament, allergies, coat, handling. */
   notes: string;
   /** ISO date string of birth (optional). */

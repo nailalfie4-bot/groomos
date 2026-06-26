@@ -34,13 +34,13 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-/** Core tabs surfaced in the mobile bottom bar. */
+/** Core tabs surfaced in the mobile bottom bar — every screen one tap away. */
 const MOBILE_TABS = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/clients", label: "Clients", icon: Users },
-  { href: "/appointments", label: "Diary", icon: PawPrint },
-  { href: "/retention", label: "Due", icon: HeartHandshake },
+  { href: "/services", label: "Services", icon: Scissors },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
@@ -199,21 +199,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
-      {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-DEFAULT bg-surface/95 backdrop-blur-md md:hidden">
-        {MOBILE_TABS.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              "flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px]",
-              isActive(pathname, href) ? "text-accent" : "text-ink-subtle",
-            )}
-          >
-            <Icon className="h-5 w-5" />
-            {label}
-          </Link>
-        ))}
+      {/* Mobile bottom nav — thumb-friendly, every screen one tap away */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-DEFAULT bg-surface/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden">
+        {MOBILE_TABS.map(({ href, label, icon: Icon }) => {
+          const active = isActive(pathname, href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={active ? "page" : undefined}
+              className="flex flex-1 flex-col items-center gap-1 pb-1.5 pt-2 text-[11px] font-medium"
+            >
+              <span
+                className={cn(
+                  "flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-fast",
+                  active ? "bg-accent-100 text-accent-700" : "text-ink-subtle",
+                )}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </span>
+              <span className={active ? "text-accent-700" : "text-ink-subtle"}>
+                {label}
+              </span>
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );

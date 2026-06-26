@@ -46,8 +46,8 @@ import type {
 import { createSeed } from "@/lib/mock/seed";
 import { computeQuote } from "@/lib/pricing";
 
-// Bumped to v2 when the data shape changed (matting, reports, settings).
-const STORAGE_KEY = "groomos.demo.v2";
+// Bumped when the data shape changes (v3: pet coatType/temperament).
+const STORAGE_KEY = "groomos.demo.v3";
 
 /** Input shapes for create operations (server-assigned fields omitted). */
 export interface NewClientInput {
@@ -61,6 +61,8 @@ export interface NewPetInput {
   name: string;
   breed: string;
   size: DogSize;
+  coatType?: string;
+  temperament?: string;
   notes?: string;
 }
 export interface NewServiceInput {

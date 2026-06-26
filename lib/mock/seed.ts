@@ -103,14 +103,14 @@ const clients: Client[] = [
 ];
 
 const pets: Pet[] = [
-  { id: "pet_1", clientId: "cl_1", name: "Biscuit", breed: "Cockapoo", size: "medium", notes: "Loves the dryer. Slightly matted behind ears — keep on top of it.", dateOfBirth: addDays(new Date(), -365 * 3).toISOString() },
-  { id: "pet_2", clientId: "cl_2", name: "Maple", breed: "Cavalier King Charles Spaniel", size: "small", notes: "Sensitive skin — use the oatmeal shampoo only.", dateOfBirth: addDays(new Date(), -365 * 2).toISOString() },
-  { id: "pet_3", clientId: "cl_3", name: "Juno", breed: "Border Collie", size: "medium", notes: "Nervous of clippers around the face. Go slow, lots of breaks.", dateOfBirth: addDays(new Date(), -365 * 5).toISOString() },
-  { id: "pet_4", clientId: "cl_4", name: "Cooper", breed: "Golden Retriever", size: "large", notes: "Heavy double coat. De-shed every visit. Very food motivated.", dateOfBirth: addDays(new Date(), -365 * 4).toISOString() },
-  { id: "pet_5", clientId: "cl_5", name: "Bramble", breed: "Miniature Schnauzer", size: "small", notes: "Classic schnauzer trim. Beard needs hand-stripping.", dateOfBirth: addDays(new Date(), -365 * 6).toISOString() },
-  { id: "pet_6", clientId: "cl_6", name: "Nala", breed: "Labradoodle", size: "large", notes: "First few visits — still building confidence on the table.", dateOfBirth: addDays(new Date(), -300).toISOString() },
-  { id: "pet_7", clientId: "cl_1", name: "Pip", breed: "Jack Russell Terrier", size: "small", notes: "Just nails and a tidy. In and out, no fuss.", dateOfBirth: addDays(new Date(), -365 * 7).toISOString() },
-  { id: "pet_8", clientId: "cl_3", name: "Bear", breed: "Bernese Mountain Dog", size: "giant", notes: "Gentle giant. Big coat, mats behind the legs — needs extra time.", dateOfBirth: addDays(new Date(), -365 * 2).toISOString() },
+  { id: "pet_1", clientId: "cl_1", name: "Biscuit", breed: "Cockapoo", size: "medium", coatType: "Curly", temperament: "Easygoing", notes: "Loves the dryer. Slightly matted behind ears — keep on top of it.", dateOfBirth: addDays(new Date(), -365 * 3).toISOString() },
+  { id: "pet_2", clientId: "cl_2", name: "Maple", breed: "Cavalier King Charles Spaniel", size: "small", coatType: "Silky", temperament: "Sensitive", notes: "Sensitive skin — use the oatmeal shampoo only.", dateOfBirth: addDays(new Date(), -365 * 2).toISOString() },
+  { id: "pet_3", clientId: "cl_3", name: "Juno", breed: "Border Collie", size: "medium", coatType: "Double", temperament: "Nervous", notes: "Nervous of clippers around the face. Go slow, lots of breaks.", dateOfBirth: addDays(new Date(), -365 * 5).toISOString() },
+  { id: "pet_4", clientId: "cl_4", name: "Cooper", breed: "Golden Retriever", size: "large", coatType: "Double", temperament: "Friendly", notes: "Heavy double coat. De-shed every visit. Very food motivated.", dateOfBirth: addDays(new Date(), -365 * 4).toISOString() },
+  { id: "pet_5", clientId: "cl_5", name: "Bramble", breed: "Miniature Schnauzer", size: "small", coatType: "Wiry", temperament: "Confident", notes: "Classic schnauzer trim. Beard needs hand-stripping.", dateOfBirth: addDays(new Date(), -365 * 6).toISOString() },
+  { id: "pet_6", clientId: "cl_6", name: "Nala", breed: "Labradoodle", size: "large", coatType: "Curly", temperament: "Shy", notes: "First few visits — still building confidence on the table.", dateOfBirth: addDays(new Date(), -300).toISOString() },
+  { id: "pet_7", clientId: "cl_1", name: "Pip", breed: "Jack Russell Terrier", size: "small", coatType: "Smooth", temperament: "Busy", notes: "Just nails and a tidy. In and out, no fuss.", dateOfBirth: addDays(new Date(), -365 * 7).toISOString() },
+  { id: "pet_8", clientId: "cl_3", name: "Bear", breed: "Bernese Mountain Dog", size: "giant", coatType: "Double", temperament: "Gentle", notes: "Gentle giant. Big coat, mats behind the legs — needs extra time.", dateOfBirth: addDays(new Date(), -365 * 2).toISOString() },
 ];
 
 /** Build a varied, realistic appointment book around today. */

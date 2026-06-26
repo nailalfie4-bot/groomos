@@ -29,11 +29,17 @@ export function BookingForm({
   open,
   onClose,
   defaultStart,
+  defaultClientId,
+  defaultPetId,
 }: {
   open: boolean;
   onClose: () => void;
   /** Optional ISO datetime to pre-fill (e.g. a clicked calendar slot). */
   defaultStart?: string;
+  /** Pre-select a client (e.g. rebooking from a pet profile). */
+  defaultClientId?: string;
+  /** Pre-select a pet. */
+  defaultPetId?: string;
 }) {
   const {
     clients,
@@ -51,8 +57,8 @@ export function BookingForm({
   );
 
   const initialDate = defaultStart ? new Date(defaultStart) : new Date();
-  const [clientId, setClientId] = useState(clients[0]?.id ?? "");
-  const [petId, setPetId] = useState("");
+  const [clientId, setClientId] = useState(defaultClientId ?? clients[0]?.id ?? "");
+  const [petId, setPetId] = useState(defaultPetId ?? "");
   const [serviceId, setServiceId] = useState(activeServices[0]?.id ?? "");
   const [size, setSize] = useState<DogSize>("medium");
   const [coat, setCoat] = useState<CoatCondition>("smooth");
@@ -63,6 +69,19 @@ export function BookingForm({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reflect the latest defaults each time the form opens (slot click, rebook).
+  useEffect(() => {
+    if (!open) return;
+    const d = defaultStart ? new Date(defaultStart) : new Date();
+    setDate(toDateValue(d));
+    setTime(defaultStart ? toTimeValue(d) : "09:00");
+    if (defaultClientId) setClientId(defaultClientId);
+    setPetId(defaultPetId ?? "");
+    setNotes("");
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultStart, defaultClientId, defaultPetId]);
 
   const clientPets = clientId ? getPetsForClient(clientId) : [];
   const effectivePetId =
