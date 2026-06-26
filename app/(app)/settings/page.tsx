@@ -1,203 +1,235 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Bell, Check, Clock, Heart, Save } from "lucide-react";
+import {
+  Bell,
+  Building2,
+  CalendarClock,
+  Check,
+  Clock,
+  Heart,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/mock/store";
-import type { Settings } from "@/lib/types";
+import { computeQuote } from "@/lib/pricing";
+import { formatGBP } from "@/lib/format";
+import type { Business, Settings } from "@/lib/types";
+
+const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00–21:00
+const hhmm = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 export default function SettingsPage() {
-  const { settings, business, updateSettings } = useStore();
-  const [form, setForm] = useState<Settings>(settings);
+  const { settings, business, updateSettings, updateBusiness } = useStore();
+  const [s, setS] = useState<Settings>(settings);
+  const [b, setB] = useState<Business>(business);
 
-  function set<K extends keyof Settings>(key: K, value: Settings[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
+  const dirty =
+    JSON.stringify(s) !== JSON.stringify(settings) ||
+    JSON.stringify(b) !== JSON.stringify(business);
+
+  function setSet<K extends keyof Settings>(key: K, value: Settings[K]) {
+    setS((f) => ({ ...f, [key]: value }));
   }
-  function num(v: string): number {
+  function setBiz<K extends keyof Business>(key: K, value: Business[K]) {
+    setB((f) => ({ ...f, [key]: value }));
+  }
+  const num = (v: string) => {
     const n = Number(v);
     return Number.isFinite(n) && n >= 0 ? n : 0;
-  }
+  };
 
   function save() {
-    updateSettings(form);
+    updateSettings(s);
+    updateBusiness(b);
     toast.success("Settings saved");
   }
+
+  // Live matting-meter example, updates as fees change.
+  const preview = useMemo(
+    () => computeQuote({ priceGBP: 45, durationMin: 90 }, "giant", "matted", s),
+    [s],
+  );
 
   return (
     <>
       <PageHeader
         title="Settings"
-        subtitle="A few choices, then you're done — change them any time"
+        subtitle="The few choices that make GroomOS smart — change them any time."
         actions={
-          <Button size="sm" onClick={save}>
-            <Save className="h-4 w-4" />
-            Save changes
+          <Button size="sm" onClick={save} disabled={!dirty}>
+            <Check className="h-4 w-4" />
+            Save
           </Button>
         }
       />
 
-      <div className="flex flex-col gap-6">
-        {/* Reminders — selling point */}
-        <Card>
-          <CardHeader className="flex-row items-start justify-between">
-            <div>
-              <CardTitle>Reminders</CardTitle>
-              <CardDescription>
-                Friendly text and email reminders before every appointment.
-              </CardDescription>
+      <div className="flex flex-col gap-5">
+        {/* Business */}
+        <Section icon={<Building2 className="h-[18px] w-[18px]" />} title="Your business" description="Shown to clients on your booking page and receipts.">
+          <div className="flex flex-col gap-3">
+            <Input label="Business name" value={b.name} onChange={(e) => setBiz("name", e.target.value)} />
+            <Input label="Phone" value={b.phone} onChange={(e) => setBiz("phone", e.target.value)} />
+            <Input label="Address" value={b.addressLine} onChange={(e) => setBiz("addressLine", e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Town / city" value={b.city} onChange={(e) => setBiz("city", e.target.value)} />
+              <Input label="Postcode" value={b.postcode} onChange={(e) => setBiz("postcode", e.target.value)} />
             </div>
-            <Badge tone="success" dot>
-              On & included
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-start gap-3 rounded-xl bg-accent-50 p-4">
-              <Bell className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
-              <div>
-                <p className="text-sm font-medium text-accent-700">
-                  Reminders are included — and never metered.
-                </p>
-                <p className="mt-0.5 text-sm text-ink-muted">
-                  Send as many as you like. No per-message fees, no surprise bills
-                  at the end of the month. It&apos;s all part of your plan.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </Section>
+
+        {/* Opening hours */}
+        <Section
+          icon={<CalendarClock className="h-[18px] w-[18px]" />}
+          title="Working hours"
+          description="Sets the range your calendar board shows and what clients can book."
+        >
+          <div className="grid max-w-sm grid-cols-2 gap-3">
+            <Select label="Opens" value={String(b.openHour)} onChange={(e) => setBiz("openHour", num(e.target.value))}>
+              {HOURS.filter((h) => h < b.closeHour).map((h) => (
+                <option key={h} value={h}>{hhmm(h)}</option>
+              ))}
+            </Select>
+            <Select label="Closes" value={String(b.closeHour)} onChange={(e) => setBiz("closeHour", num(e.target.value))}>
+              {HOURS.filter((h) => h > b.openHour).map((h) => (
+                <option key={h} value={h}>{hhmm(h)}</option>
+              ))}
+            </Select>
+          </div>
+        </Section>
 
         {/* Cleanup buffer */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Cleanup time</CardTitle>
-            <CardDescription>
-              We add this automatically after every dog so you&apos;re never rushed
-              and can never be double-booked.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="max-w-xs">
-              <Input
-                label="Minutes between dogs"
-                type="number"
-                min={0}
-                step={5}
-                value={String(form.bufferMin)}
-                onChange={(e) => set("bufferMin", num(e.target.value))}
-                leadingIcon={<Clock />}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <Section
+          icon={<Clock className="h-[18px] w-[18px]" />}
+          title="Cleanup time"
+          description="Added automatically after every dog so you're never rushed — and never double-booked."
+        >
+          <div className="max-w-xs">
+            <Input
+              label="Minutes between dogs"
+              type="number"
+              min={0}
+              step={5}
+              value={String(s.bufferMin)}
+              onChange={(e) => setSet("bufferMin", num(e.target.value))}
+              leadingIcon={<Clock />}
+            />
+          </div>
+        </Section>
 
         {/* Matting meter */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Matting meter</CardTitle>
-            <CardDescription>
-              Fair, automatic surcharges for tricky coats and big dogs — added to
-              the price and the time set aside, and explained kindly to owners.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-5">
-            <Row
-              icon={<Heart className="h-4 w-4 text-accent" />}
-              title="A bit tangled"
-              fee={form.tangledFee}
-              mins={form.tangledExtraMin}
-              onFee={(v) => set("tangledFee", v)}
-              onMins={(v) => set("tangledExtraMin", v)}
-            />
-            <Row
-              icon={<Heart className="h-4 w-4 text-accent" />}
-              title="Matted / pelted"
-              fee={form.mattedFee}
-              mins={form.mattedExtraMin}
-              onFee={(v) => set("mattedFee", v)}
-              onMins={(v) => set("mattedExtraMin", v)}
-            />
-            <Row
-              icon={<Heart className="h-4 w-4 text-accent" />}
-              title="Giant breed"
-              fee={form.giantFee}
-              mins={form.giantExtraMin}
-              onFee={(v) => set("giantFee", v)}
-              onMins={(v) => set("giantExtraMin", v)}
-            />
-          </CardContent>
-        </Card>
+        <Section
+          icon={<Heart className="h-[18px] w-[18px]" />}
+          title="Matting meter"
+          description="Fair, automatic surcharges for tricky coats and big dogs — added to price and time, explained kindly to owners."
+        >
+          <div className="flex flex-col gap-3">
+            <FeeRow title="A bit tangled" fee={s.tangledFee} mins={s.tangledExtraMin} onFee={(v) => setSet("tangledFee", v)} onMins={(v) => setSet("tangledExtraMin", v)} />
+            <FeeRow title="Matted / pelted" fee={s.mattedFee} mins={s.mattedExtraMin} onFee={(v) => setSet("mattedFee", v)} onMins={(v) => setSet("mattedExtraMin", v)} />
+            <FeeRow title="Giant breed" fee={s.giantFee} mins={s.giantExtraMin} onFee={(v) => setSet("giantFee", v)} onMins={(v) => setSet("giantExtraMin", v)} />
+          </div>
+          <div className="mt-4 flex items-start gap-2 rounded-xl bg-accent-50 p-3">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent-700" />
+            <p className="text-sm text-accent-700">
+              For example, a matted, giant Full Groom comes to{" "}
+              <span className="font-semibold tabular-nums">{formatGBP(preview.totalPriceGBP)}</span> over{" "}
+              <span className="font-semibold tabular-nums">{preview.totalDurationMin} min</span> — with{" "}
+              {formatGBP(preview.mattingFee + preview.sizeFee)} and {preview.mattingExtraMin + preview.sizeExtraMin} extra minutes set aside for care.
+            </p>
+          </div>
+        </Section>
 
         {/* Rebooking */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Rebooking</CardTitle>
-            <CardDescription>
-              We&apos;ll flag dogs as &ldquo;due&rdquo; once it&apos;s been this long since
-              their last groom.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="max-w-xs">
-              <Input
-                label="Default weeks between grooms"
-                type="number"
-                min={1}
-                step={1}
-                value={String(form.defaultRebookWeeks)}
-                onChange={(e) => set("defaultRebookWeeks", num(e.target.value))}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <Section
+          icon={<RefreshCw className="h-[18px] w-[18px]" />}
+          title="Rebooking"
+          description="We'll flag a dog as “due for a groom” once it's been this long since their last visit."
+        >
+          <div className="max-w-xs">
+            <Input
+              label="Default weeks between grooms"
+              type="number"
+              min={1}
+              step={1}
+              value={String(s.defaultRebookWeeks)}
+              onChange={(e) => setSet("defaultRebookWeeks", num(e.target.value))}
+            />
+          </div>
+        </Section>
 
-        {/* Business (read-only summary) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Your business</CardTitle>
-            <CardDescription>{business.name}</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 text-sm text-ink-muted sm:grid-cols-2">
-            <div>
-              <p className="text-ink">Opening hours</p>
-              <p className="tabular-nums">
-                {String(business.openHour).padStart(2, "0")}:00 –{" "}
-                {String(business.closeHour).padStart(2, "0")}:00
-              </p>
-            </div>
-            <div>
-              <p className="text-ink">Where</p>
-              <p>
-                {business.addressLine}, {business.city} · {business.postcode}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end pb-4">
-          <Button onClick={save}>
-            <Check className="h-4 w-4" />
-            Save changes
-          </Button>
-        </div>
+        {/* Reminders — the selling point */}
+        <Section icon={<Bell className="h-[18px] w-[18px]" />} title="Reminders" description="Friendly text & email reminders before every appointment." action={<Badge tone="success" dot>On & included</Badge>}>
+          <p className="rounded-xl bg-surface-sunken p-3 text-sm text-ink-muted">
+            Send as many as you like — no per-message fees and no surprise bills.
+            It&apos;s all part of your plan, by design.
+          </p>
+        </Section>
       </div>
+
+      {/* Unsaved changes bar */}
+      {dirty && (
+        <div className="sticky bottom-20 z-20 mt-4 flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-surface/95 p-3 pl-4 shadow-lg backdrop-blur md:bottom-4">
+          <span className="text-sm font-medium text-ink">You have unsaved changes</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => { setS(settings); setB(business); }}>
+              Discard
+            </Button>
+            <Button size="sm" onClick={save}>
+              <Check className="h-4 w-4" />
+              Save changes
+            </Button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
-function Row({
+function Section({
   icon,
+  title,
+  description,
+  action,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-DEFAULT bg-surface p-5 shadow-card sm:p-6">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-muted">
+            {icon}
+          </span>
+          <div>
+            <h2 className="text-base font-semibold text-ink">{title}</h2>
+            {description && <p className="mt-0.5 text-sm text-ink-muted">{description}</p>}
+          </div>
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function FeeRow({
   title,
   fee,
   mins,
   onFee,
   onMins,
 }: {
-  icon: React.ReactNode;
   title: string;
   fee: number;
   mins: number;
@@ -210,27 +242,13 @@ function Row({
   };
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-DEFAULT bg-surface-sunken p-4 sm:flex-row sm:items-end">
-      <div className="flex flex-1 items-center gap-2 pb-2 sm:pb-0">
-        {icon}
+      <div className="flex flex-1 items-center gap-2">
+        <Heart className="h-4 w-4 text-accent" />
         <span className="text-sm font-medium text-ink">{title}</span>
       </div>
       <div className="grid flex-1 grid-cols-2 gap-3">
-        <Input
-          label="Extra charge (£)"
-          type="number"
-          min={0}
-          step={1}
-          value={String(fee)}
-          onChange={(e) => onFee(num(e.target.value))}
-        />
-        <Input
-          label="Extra time (min)"
-          type="number"
-          min={0}
-          step={5}
-          value={String(mins)}
-          onChange={(e) => onMins(num(e.target.value))}
-        />
+        <Input label="Extra charge (£)" type="number" min={0} step={1} value={String(fee)} onChange={(e) => onFee(num(e.target.value))} />
+        <Input label="Extra time (min)" type="number" min={0} step={5} value={String(mins)} onChange={(e) => onMins(num(e.target.value))} />
       </div>
     </div>
   );

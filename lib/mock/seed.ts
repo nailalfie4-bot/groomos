@@ -100,6 +100,8 @@ const clients: Client[] = [
   { id: "cl_4", businessId: business.id, firstName: "Liam", lastName: "O'Shea", email: "liam.oshea@hotmail.co.uk", phone: "07533 902 188", createdAt: addDays(new Date(), -54).toISOString() },
   { id: "cl_5", businessId: business.id, firstName: "Sophie", lastName: "Clarke", email: "sophie.clarke@gmail.com", phone: "07419 233 770", createdAt: addDays(new Date(), -33).toISOString() },
   { id: "cl_6", businessId: business.id, firstName: "Marcus", lastName: "Bennett", email: "m.bennett@gmail.com", phone: "07688 512 904", createdAt: addDays(new Date(), -12).toISOString() },
+  { id: "cl_7", businessId: business.id, firstName: "Erin", lastName: "Walsh", email: "erin.walsh@gmail.com", phone: "07566 201 884", createdAt: addDays(new Date(), -150).toISOString() },
+  { id: "cl_8", businessId: business.id, firstName: "Owen", lastName: "Pryce", email: "owen.pryce@outlook.com", phone: "07722 640 117", createdAt: addDays(new Date(), -200).toISOString() },
 ];
 
 const pets: Pet[] = [
@@ -111,6 +113,8 @@ const pets: Pet[] = [
   { id: "pet_6", clientId: "cl_6", name: "Nala", breed: "Labradoodle", size: "large", coatType: "Curly", temperament: "Shy", notes: "First few visits — still building confidence on the table.", dateOfBirth: addDays(new Date(), -300).toISOString() },
   { id: "pet_7", clientId: "cl_1", name: "Pip", breed: "Jack Russell Terrier", size: "small", coatType: "Smooth", temperament: "Busy", notes: "Just nails and a tidy. In and out, no fuss.", dateOfBirth: addDays(new Date(), -365 * 7).toISOString() },
   { id: "pet_8", clientId: "cl_3", name: "Bear", breed: "Bernese Mountain Dog", size: "giant", coatType: "Double", temperament: "Gentle", notes: "Gentle giant. Big coat, mats behind the legs — needs extra time.", dateOfBirth: addDays(new Date(), -365 * 2).toISOString() },
+  { id: "pet_9", clientId: "cl_7", name: "Coco", breed: "Toy Poodle", size: "small", coatType: "Curly", temperament: "Lively", notes: "Pom-pom feet, loves a bow. Hasn't been in for a while.", dateOfBirth: addDays(new Date(), -365 * 4).toISOString() },
+  { id: "pet_10", clientId: "cl_8", name: "Rusty", breed: "Cocker Spaniel", size: "medium", coatType: "Feathered", temperament: "Soppy", notes: "Ears need regular attention. Due a proper groom.", dateOfBirth: addDays(new Date(), -365 * 5).toISOString() },
 ];
 
 /** Build a varied, realistic appointment book around today. */
@@ -191,6 +195,10 @@ function buildAppointments(): Appointment[] {
   // A couple of older completed grooms so retention/"due for a groom" has signal.
   make(todayOffset - 40, 10, "pet_6", "cl_6", "svc_1", "completed", "staff", "Full groom.");
   make(todayOffset - 52, 13, "pet_4", "cl_4", "svc_1", "completed", "staff", "Full groom.");
+
+  // --- Lapsed clients: overdue with nothing booked ahead (powers retention) ---
+  make(todayOffset - 63, 11, "pet_9", "cl_7", "svc_1", "completed", "staff", "Full groom — lovely curly coat.");
+  make(todayOffset - 78, 14, "pet_10", "cl_8", "svc_1", "completed", "staff", "Full groom, ears cleaned.");
 
   return out;
 }

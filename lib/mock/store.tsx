@@ -46,8 +46,8 @@ import type {
 import { createSeed } from "@/lib/mock/seed";
 import { computeQuote } from "@/lib/pricing";
 
-// Bumped when the data shape changes (v4: retimed today for the board).
-const STORAGE_KEY = "groomos.demo.v4";
+// Bumped when seed/shape changes (v5: lapsed clients for retention).
+const STORAGE_KEY = "groomos.demo.v5";
 
 /** Input shapes for create operations (server-assigned fields omitted). */
 export interface NewClientInput {
@@ -139,6 +139,8 @@ interface StoreContextValue extends StoreState {
   /** Mark a friendly retention reminder as sent (mock). */
   markReminderSent: (petId: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
+  /** Update business details (name, hours, contact) from Settings. */
+  updateBusiness: (patch: Partial<Business>) => void;
 }
 
 /** A pet that's overdue for a groom, with retention context. */
@@ -422,6 +424,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
   }, []);
 
+  const updateBusiness = useCallback((patch: Partial<Business>) => {
+    setState((s) => ({ ...s, business: { ...s.business, ...patch } }));
+  }, []);
+
   const setAppointmentStatus = useCallback(
     (id: string, status: AppointmentStatus) => {
       setState((s) => ({
@@ -472,6 +478,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       attachReport,
       markReminderSent,
       updateSettings,
+      updateBusiness,
     }),
     [
       state,
@@ -501,6 +508,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       attachReport,
       markReminderSent,
       updateSettings,
+      updateBusiness,
     ],
   );
 
