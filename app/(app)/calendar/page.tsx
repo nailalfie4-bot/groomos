@@ -2,8 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CalendarPlus, ChevronLeft, ChevronRight, Heart, Plus } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { CalendarPlus, Check, ChevronLeft, ChevronRight, Heart, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookingForm } from "@/components/booking-form";
@@ -11,11 +10,7 @@ import { AppointmentSheet } from "@/components/appointment-sheet";
 import { useStore } from "@/lib/mock/store";
 import { useDemoLoad } from "@/lib/use-demo-load";
 import { findClash } from "@/lib/schedule";
-import {
-  LEGEND_STATUSES,
-  STATUS_LABEL,
-  STATUS_STYLE,
-} from "@/lib/appointment-ui";
+import type { Appointment, AppointmentStatus } from "@/lib/types";
 import {
   addDays,
   atHour,
@@ -28,7 +23,59 @@ import { cn } from "@/lib/utils";
 
 type View = "day" | "week";
 
-const HOUR_PX = 76;
+const HOUR_PX = 58;
+const MIN_PX = 28;
+
+/**
+ * Warm "marker on the board" colour-coding — blush palette, no green. The
+ * left edge reads like a little magnet strip; the dot like a marker dot.
+ */
+const MARKER: Record<AppointmentStatus, { edge: string; label: string }> = {
+  confirmed: { edge: "bg-accent", label: "Confirmed" },
+  pending: { edge: "bg-warning", label: "Pending" },
+  completed: { edge: "bg-border-strong", label: "Done" },
+  "no-show": { edge: "bg-danger", label: "No-show" },
+  cancelled: { edge: "bg-border-strong", label: "Cancelled" },
+};
+const LEGEND: AppointmentStatus[] = ["confirmed", "pending", "completed", "no-show"];
+
+function hourLabel(h: number): string {
+  const n = h > 12 ? h - 12 : h;
+  return String(n);
+}
+
+/** Pack overlapping appointments into side-by-side columns (per cluster). */
+function packColumns(items: Appointment[]): Record<string, { col: number; cols: number }> {
+  const out: Record<string, { col: number; cols: number }> = {};
+  const sorted = [...items].sort((a, b) => (a.start < b.start ? -1 : 1));
+  const ms = (a: Appointment) => new Date(a.start).getTime();
+  const end = (a: Appointment) => ms(a) + a.durationMin * 60_000;
+  let i = 0;
+  while (i < sorted.length) {
+    const cluster = [sorted[i]];
+    let clusterEnd = end(sorted[i]);
+    let j = i + 1;
+    while (j < sorted.length && ms(sorted[j]) < clusterEnd) {
+      cluster.push(sorted[j]);
+      clusterEnd = Math.max(clusterEnd, end(sorted[j]));
+      j++;
+    }
+    const colEnds: number[] = [];
+    for (const a of cluster) {
+      let c = colEnds.findIndex((e) => e <= ms(a));
+      if (c === -1) {
+        c = colEnds.length;
+        colEnds.push(end(a));
+      } else {
+        colEnds[c] = end(a);
+      }
+      out[a.id] = { col: c, cols: 0 };
+    }
+    for (const a of cluster) out[a.id].cols = colEnds.length;
+    i = j;
+  }
+  return out;
+}
 
 export default function CalendarPage() {
   const loading = useDemoLoad();
@@ -60,6 +107,7 @@ export default function CalendarPage() {
         .sort((a, b) => (a.start < b.start ? -1 : 1)),
     [appointments, cursor],
   );
+  const cols = useMemo(() => packColumns(dayAppts), [dayAppts]);
 
   const dayTotal = dayAppts
     .filter((a) => a.status !== "no-show")
@@ -96,7 +144,7 @@ export default function CalendarPage() {
     if (!appt) return;
     const rect = timelineRef.current.getBoundingClientRect();
     const y = e.clientY - rect.top;
-    let mins = (Math.round((y / HOUR_PX) * 60 / 15) * 15); // snap 15 min
+    let mins = Math.round((y / HOUR_PX) * 60 / 15) * 15;
     mins = Math.max(0, Math.min(mins, dayLen - appt.durationMin));
     const start = atHour(cursor, business.openHour + mins / 60);
     if (start === appt.start) return;
@@ -111,33 +159,27 @@ export default function CalendarPage() {
     toast.success(`Moved to ${formatTime(start)}`);
   }
 
+  const handDate =
+    view === "day"
+      ? cursor.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
+      : `Week of ${weekStart.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`;
+
   return (
     <>
-      {/* Header */}
-      <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      {/* Handwritten heading — like the date scrawled at the top of the board */}
+      <header className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">
-            Calendar
-          </h1>
-          <p className="text-sm text-ink-muted">
-            {view === "day"
-              ? cursor.toLocaleDateString("en-GB", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                })
-              : `Week of ${weekStart.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`}
-            {view === "day" && dayAppts.length > 0 && (
-              <span className="text-ink-subtle">
-                {" "}
-                · {dayAppts.length} dog{dayAppts.length === 1 ? "" : "s"} · {formatGBP(dayTotal)}
-              </span>
-            )}
-          </p>
+          <h1 className="font-hand text-3xl leading-none text-ink">{handDate}</h1>
+          {view === "day" && (
+            <p className="mt-1.5 text-xs text-ink-muted">
+              {dayAppts.length} dog{dayAppts.length === 1 ? "" : "s"} in
+              {dayAppts.length > 0 && <> · {formatGBP(dayTotal)}</>}
+            </p>
+          )}
         </div>
-        <Button size="md" onClick={() => setBooking(atHour(cursor, business.openHour))} className="w-full sm:w-auto">
+        <Button size="md" onClick={() => setBooking(atHour(cursor, business.openHour))} className="shrink-0">
           <CalendarPlus className="h-4 w-4" />
-          New booking
+          New
         </Button>
       </header>
 
@@ -170,43 +212,30 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-        {LEGEND_STATUSES.map((s) => (
-          <span key={s} className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
-            <span className={cn("h-2 w-2 rounded-full", STATUS_STYLE[s].bar)} />
-            {STATUS_LABEL[s]}
-          </span>
-        ))}
-      </div>
-
       {loading ? (
-        <Card className="p-5">
-          <div className="space-y-3">
+        <BoardFrame>
+          <div className="space-y-3 p-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              <Skeleton key={i} className="h-12 w-full rounded-lg" />
             ))}
           </div>
-        </Card>
+        </BoardFrame>
       ) : view === "day" ? (
-        /* ── Day timeline ── */
-        <Card className="overflow-hidden p-0">
-          <p className="border-b border-DEFAULT px-4 py-2.5 text-xs text-ink-subtle">
-            Tap a free time to book · tap a dog to view or edit
-          </p>
+        /* ── Day board ── */
+        <BoardFrame>
           <div className="flex">
-            {/* Hour gutter */}
-            <div className="w-14 shrink-0">
+            {/* Time row labels */}
+            <div className="w-10 shrink-0 sm:w-12">
               {hours.map((h) => (
-                <div key={h} style={{ height: HOUR_PX }} className="relative border-b border-DEFAULT/60">
-                  <span className="tabular-nums absolute right-2 top-1.5 text-[11px] font-medium text-ink-subtle">
-                    {String(h).padStart(2, "0")}:00
+                <div key={h} style={{ height: HOUR_PX }} className="relative">
+                  <span className="font-hand absolute right-1.5 top-1 text-base font-semibold text-ink-subtle sm:text-lg">
+                    {hourLabel(h)}
                   </span>
                 </div>
               ))}
             </div>
 
-            {/* Timeline */}
+            {/* Board surface */}
             <div
               ref={timelineRef}
               onDragOver={(e) => e.preventDefault()}
@@ -214,14 +243,14 @@ export default function CalendarPage() {
               className="relative flex-1 border-l border-DEFAULT"
               style={{ height: hours.length * HOUR_PX }}
             >
-              {/* Clickable empty hour cells */}
+              {/* Hour rows — clean even lines, tap an empty one to book */}
               {hours.map((h, i) => (
                 <button
                   key={h}
                   onClick={() => setBooking(atHour(cursor, h))}
                   aria-label={`Book ${h}:00`}
                   style={{ top: i * HOUR_PX, height: HOUR_PX }}
-                  className="group absolute inset-x-0 border-b border-DEFAULT/60 text-left hover:bg-surface-sunken/40"
+                  className="group absolute inset-x-0 border-t border-border-strong/35 text-left first:border-t-0 hover:bg-accent-50/40"
                 >
                   <span className="ml-2 mt-1.5 inline-flex items-center gap-1 rounded-md bg-surface px-1.5 py-0.5 text-[11px] text-ink-subtle opacity-0 shadow-xs transition-opacity group-hover:opacity-100">
                     <Plus className="h-3 w-3" /> Book
@@ -235,127 +264,153 @@ export default function CalendarPage() {
                   className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
                   style={{ top: (nowMins / 60) * HOUR_PX }}
                 >
-                  <span className="-ml-1 h-2.5 w-2.5 rounded-full bg-accent shadow-sm" />
-                  <span className="h-px flex-1 bg-accent/50" />
+                  <span className="-ml-[5px] h-2.5 w-2.5 rounded-full bg-accent shadow-sm ring-2 ring-surface" />
+                  <span className="h-px flex-1 bg-accent/45" />
                 </div>
               )}
 
-              {/* Appointment blocks + buffers */}
+              {/* Appointment notes */}
               {dayAppts.map((a) => {
                 const top = (minutesFromOpen(a.start) / 60) * HOUR_PX;
-                const height = Math.max((a.durationMin / 60) * HOUR_PX, 40);
-                const bufferH = (settings.bufferMin / 60) * HOUR_PX;
-                const s = STATUS_STYLE[a.status];
+                const height = Math.max((a.durationMin / 60) * HOUR_PX, MIN_PX);
+                const place = cols[a.id] ?? { col: 0, cols: 1 };
+                const widthPct = 100 / place.cols;
+                const m = MARKER[a.status];
                 const pet = getPet(a.petId);
                 const svc = services.find((x) => x.id === a.serviceId);
                 const special = pet?.size === "giant" || a.coatCondition === "matted";
+                const done = a.status === "completed";
+                const compact = height < 48;
                 return (
-                  <div key={a.id} className="absolute inset-x-1.5 sm:inset-x-2" style={{ top }}>
-                    <div
-                      draggable
-                      onDragStart={() => setDragId(a.id)}
-                      onDragEnd={() => setDragId(null)}
-                      onClick={() => setOpenAppt(a.id)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => e.key === "Enter" && setOpenAppt(a.id)}
-                      style={{ height }}
-                      className={cn(
-                        "relative flex cursor-pointer flex-col justify-center overflow-hidden rounded-xl border border-DEFAULT pl-3.5 pr-2.5 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing",
-                        s.block,
-                        dragId === a.id && "opacity-50",
-                      )}
-                    >
-                      <span className={cn("absolute inset-y-2 left-2 w-1 rounded-full", s.bar)} />
-                      <p className="truncate text-sm font-semibold text-ink">
+                  <div
+                    key={a.id}
+                    draggable
+                    onDragStart={() => setDragId(a.id)}
+                    onDragEnd={() => setDragId(null)}
+                    onClick={() => setOpenAppt(a.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === "Enter" && setOpenAppt(a.id)}
+                    style={{
+                      top: top + 2,
+                      height: height - 4,
+                      left: `calc(${place.col * widthPct}% + 4px)`,
+                      width: `calc(${widthPct}% - 8px)`,
+                    }}
+                    className={cn(
+                      "absolute z-10 cursor-pointer overflow-hidden rounded-xl border border-[#f0d9d3] bg-accent-50 pl-3 pr-2 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing",
+                      done && "opacity-70",
+                      dragId === a.id && "opacity-50",
+                    )}
+                  >
+                    {/* magnet edge */}
+                    <span className={cn("absolute inset-y-1.5 left-1 w-1 rounded-full", m.edge)} />
+                    <div className="flex h-full flex-col justify-center">
+                      <p className="flex items-center gap-1.5 truncate font-hand text-base font-semibold leading-none text-ink sm:text-[17px]">
+                        {done ? (
+                          <Check className="h-3 w-3 shrink-0 text-ink-subtle" />
+                        ) : (
+                          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", m.edge)} />
+                        )}
                         {pet?.name}
-                        {special && <Heart className="ml-1 inline h-3 w-3 text-accent" />}
+                        {special && <Heart className="h-3 w-3 shrink-0 text-accent" />}
                       </p>
-                      <p className="tabular-nums truncate text-xs text-ink-muted">
-                        {formatTime(a.start)} · {svc?.name}
-                      </p>
+                      {compact ? (
+                        <span className="tabular-nums mt-0.5 truncate text-[10px] text-ink-subtle">
+                          {formatTime(a.start)}
+                        </span>
+                      ) : (
+                        <span className="tabular-nums mt-1 truncate text-[11px] text-ink-muted">
+                          {formatTime(a.start)} · {svc?.name}
+                        </span>
+                      )}
                     </div>
-                    {/* Cleanup buffer */}
-                    <div
-                      style={{
-                        height: bufferH,
-                        backgroundImage:
-                          "repeating-linear-gradient(45deg, rgba(138,116,112,0.10) 0 6px, transparent 6px 12px)",
-                      }}
-                      className="mx-0.5 rounded-b-md"
-                      title={`${settings.bufferMin} min cleanup`}
-                    />
                   </div>
                 );
               })}
             </div>
           </div>
-        </Card>
+        </BoardFrame>
       ) : (
         /* ── Week board ── */
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
-          {weekDays.map((day) => {
-            const dayList = appointments
-              .filter((a) => isSameDay(a.start, day) && a.status !== "cancelled")
-              .sort((a, b) => (a.start < b.start ? -1 : 1));
-            const today = isSameDay(day, new Date());
-            return (
-              <div
-                key={day.toISOString()}
-                className={cn(
-                  "flex flex-col rounded-xl border bg-surface p-2.5 shadow-card",
-                  today ? "border-accent ring-1 ring-accent/20" : "border-DEFAULT",
-                )}
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-xs text-ink-subtle">
-                      {day.toLocaleDateString("en-GB", { weekday: "short" })}
-                    </span>
-                    <span className={cn("tabular-nums text-sm font-semibold", today ? "text-accent" : "text-ink")}>
-                      {day.getDate()}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setBooking(atHour(day, business.openHour))}
-                    aria-label="Add appointment"
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-ink-subtle hover:bg-surface-sunken hover:text-ink"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {dayList.length === 0 ? (
-                    <span className="px-1 py-2 text-xs text-ink-subtle">—</span>
-                  ) : (
-                    dayList.map((a) => {
-                      const s = STATUS_STYLE[a.status];
-                      return (
-                        <button
-                          key={a.id}
-                          onClick={() => setOpenAppt(a.id)}
-                          className={cn(
-                            "flex flex-col rounded-lg border-l-[3px] px-2 py-1.5 text-left transition-shadow hover:shadow-sm",
-                            s.block,
-                            s.border,
-                          )}
-                        >
-                          <span className="tabular-nums text-[11px] font-semibold text-ink">
-                            {formatTime(a.start)}
-                          </span>
-                          <span className="truncate text-[11px] text-ink-muted">
-                            {getPet(a.petId)?.name}
-                          </span>
-                        </button>
-                      );
-                    })
+        <BoardFrame>
+          <div className="grid grid-cols-2 gap-2 p-2.5 sm:grid-cols-4 lg:grid-cols-7">
+            {weekDays.map((day) => {
+              const list = appointments
+                .filter((a) => isSameDay(a.start, day) && a.status !== "cancelled")
+                .sort((a, b) => (a.start < b.start ? -1 : 1));
+              const today = isSameDay(day, new Date());
+              return (
+                <div
+                  key={day.toISOString()}
+                  className={cn(
+                    "flex min-h-[120px] flex-col rounded-xl border p-2",
+                    today ? "border-accent/40 bg-accent-50/50" : "border-DEFAULT/70 bg-canvas/40",
                   )}
+                >
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-hand text-base font-semibold text-ink-muted">
+                        {day.toLocaleDateString("en-GB", { weekday: "short" })}
+                      </span>
+                      <span className={cn("font-hand text-base font-semibold", today ? "text-accent" : "text-ink")}>
+                        {day.getDate()}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setBooking(atHour(day, business.openHour))}
+                      aria-label="Add appointment"
+                      className="flex h-5 w-5 items-center justify-center rounded text-ink-subtle hover:bg-surface hover:text-ink"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {list.length === 0 ? (
+                      <span className="px-1 py-1 text-[11px] text-ink-subtle">—</span>
+                    ) : (
+                      list.map((a) => {
+                        const m = MARKER[a.status];
+                        return (
+                          <button
+                            key={a.id}
+                            onClick={() => setOpenAppt(a.id)}
+                            className={cn(
+                              "relative overflow-hidden rounded-md border border-[#f0d9d3] bg-surface py-1 pl-2.5 pr-1.5 text-left shadow-xs transition-shadow hover:shadow-sm",
+                              a.status === "completed" && "opacity-70",
+                            )}
+                          >
+                            <span className={cn("absolute inset-y-1 left-1 w-0.5 rounded-full", m.edge)} />
+                            <span className="tabular-nums block text-[10px] font-medium text-ink-subtle">
+                              {formatTime(a.start)}
+                            </span>
+                            <span className="font-hand block truncate text-sm font-semibold leading-tight text-ink">
+                              {getPet(a.petId)?.name}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </BoardFrame>
       )}
+
+      {/* Pen tray — the legend, like markers resting on the board's lip */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+        {LEGEND.map((s) => (
+          <span key={s} className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
+            <span className={cn("h-2.5 w-4 rounded-full shadow-xs", MARKER[s].edge)} />
+            {MARKER[s].label}
+          </span>
+        ))}
+        <span className="ml-auto hidden text-[11px] text-ink-subtle sm:inline">
+          Tap a slot to book · tap a dog to edit
+        </span>
+      </div>
 
       <BookingForm
         open={booking !== null}
@@ -364,5 +419,16 @@ export default function CalendarPage() {
       />
       <AppointmentSheet appointmentId={openAppt} onClose={() => setOpenAppt(null)} />
     </>
+  );
+}
+
+/** The physical whiteboard: a warm frame around a clean white writing surface. */
+function BoardFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-[22px] bg-gradient-to-b from-[#efdfd9] to-[#e0c8c2] p-2 shadow-[0_14px_34px_rgba(74,45,40,0.14)]">
+      <div className="overflow-hidden rounded-2xl bg-surface shadow-[inset_0_1px_3px_rgba(74,45,40,0.06)]">
+        {children}
+      </div>
+    </div>
   );
 }

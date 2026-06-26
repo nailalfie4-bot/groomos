@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces } from "next/font/google";
+import { Inter, Fraunces, Caveat } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import { StoreProvider } from "@/lib/mock/store";
 import "./globals.css";
@@ -20,6 +20,14 @@ const fraunces = Fraunces({
   style: ["normal", "italic"],
 });
 
+// Neat handwriting — the "marker on the whiteboard" voice on the calendar.
+const caveat = Caveat({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-hand",
+  weight: ["500", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: "GroomOS — Grooming business, run simply",
   description:
@@ -32,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${fraunces.variable}`}>
+    <html lang="en" className={`${inter.variable} ${fraunces.variable} ${caveat.variable}`}>
       <body>
         <StoreProvider>{children}</StoreProvider>
         <Toaster />

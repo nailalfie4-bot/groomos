@@ -78,6 +78,8 @@ const config: Config = {
       sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
       // Editorial display serif — landing headlines only.
       display: ["var(--font-display)", "ui-serif", "Georgia", "Cambria", "serif"],
+      // Neat handwriting — calendar "whiteboard marker" accents.
+      hand: ["var(--font-hand)", "ui-rounded", "Segoe Print", "cursive"],
     },
 
     // Deliberate type scale: 12 / 14 / 16 / 20 / 28 / 40 / 56.

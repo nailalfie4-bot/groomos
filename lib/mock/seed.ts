@@ -156,12 +156,12 @@ function buildAppointments(): Appointment[] {
   // Today (weekStart + getDay offset). Compute today's offset within the week.
   const todayOffset = (today.getDay() + 6) % 7;
 
-  // --- Today: a full, clickable day ---
+  // --- Today: a full, realistic day that fits the board with no overlaps ---
   make(todayOffset, 9, "pet_1", "cl_1", "svc_1", "confirmed");
-  make(todayOffset, 10.5, "pet_2", "cl_2", "svc_2", "confirmed");
-  make(todayOffset, 11.25, "pet_7", "cl_1", "svc_4", "pending", "online");
-  make(todayOffset, 13, "pet_8", "cl_3", "svc_1", "confirmed", "online", "", "matted"); // giant + matted: matting meter in action
-  make(todayOffset, 15.5, "pet_5", "cl_5", "svc_1", "confirmed");
+  make(todayOffset, 11, "pet_2", "cl_2", "svc_2", "confirmed");
+  make(todayOffset, 12.5, "pet_7", "cl_1", "svc_4", "pending", "online");
+  make(todayOffset, 13, "pet_8", "cl_3", "svc_1", "confirmed", "online", "", "matted"); // giant + matted: matting meter + buffer in action
+  make(todayOffset, 16, "pet_5", "cl_5", "svc_2", "confirmed");
 
   // --- Rest of this week ---
   make(todayOffset + 1, 9.5, "pet_3", "cl_3", "svc_2", "confirmed", "staff", "", "tangled");

@@ -46,8 +46,8 @@ import type {
 import { createSeed } from "@/lib/mock/seed";
 import { computeQuote } from "@/lib/pricing";
 
-// Bumped when the data shape changes (v3: pet coatType/temperament).
-const STORAGE_KEY = "groomos.demo.v3";
+// Bumped when the data shape changes (v4: retimed today for the board).
+const STORAGE_KEY = "groomos.demo.v4";
 
 /** Input shapes for create operations (server-assigned fields omitted). */
 export interface NewClientInput {
