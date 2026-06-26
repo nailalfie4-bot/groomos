@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar } from "@/components/ui/avatar";
+import { PetAvatar } from "@/components/pet-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DogEmpty } from "@/components/illustrations";
@@ -199,7 +200,7 @@ function PetProfile({ pet, onBook }: { pet: Pet; onBook: () => void }) {
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3 pb-3">
         <div className="flex items-center gap-3">
-          <Avatar initials={initials(pet.name)} tone="accent" className="h-11 w-11 text-sm" />
+          <PetAvatar petId={pet.id} name={pet.name} className="h-11 w-11" />
           <div>
             <h2 className="text-base font-semibold tracking-tight text-ink">{pet.name}</h2>
             <p className="text-xs text-ink-muted">

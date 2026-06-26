@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { MotionConfig } from "framer-motion";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -72,6 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="min-h-screen bg-canvas">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-DEFAULT bg-surface md:flex">
@@ -226,5 +228,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         })}
       </nav>
     </div>
+    </MotionConfig>
   );
 }

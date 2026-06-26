@@ -15,14 +15,14 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DogEmpty } from "@/components/illustrations";
-import { Avatar } from "@/components/ui/avatar";
+import { PetAvatar } from "@/components/pet-avatar";
 import { StatusBadge } from "@/components/status-badge";
 import { BookingForm } from "@/components/booking-form";
 import { AppointmentSheet } from "@/components/appointment-sheet";
 import { useStore } from "@/lib/mock/store";
 import { useDemoLoad } from "@/lib/use-demo-load";
 import { computeMetrics } from "@/lib/metrics";
-import { formatGBP, formatTime, initials, isSameDay } from "@/lib/format";
+import { formatGBP, formatTime, isSameDay } from "@/lib/format";
 
 export default function DashboardPage() {
   const loading = useDemoLoad();
@@ -206,7 +206,7 @@ export default function DashboardPage() {
                       <span className="tabular-nums w-12 shrink-0 text-sm font-semibold text-ink">
                         {formatTime(a.start)}
                       </span>
-                      <Avatar initials={initials(pet?.name ?? "?")} tone="accent" />
+                      <PetAvatar petId={a.petId} name={pet?.name ?? ""} />
                       <div className="flex min-w-0 flex-1 flex-col">
                         <span className="flex items-center gap-2 truncate text-sm font-medium text-ink">
                           {pet?.name}
