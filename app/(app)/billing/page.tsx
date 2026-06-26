@@ -3,7 +3,6 @@
 import { toast } from "sonner";
 import { Check, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -74,11 +73,11 @@ export default function BillingPage() {
         {PLANS.map((plan) => {
           const current = plan.id === CURRENT_PLAN;
           return (
-            <Card
+            <div
               key={plan.id}
               className={cn(
-                "relative flex flex-col p-6",
-                plan.highlighted && "border-accent shadow-md ring-1 ring-accent/20",
+                "relative flex flex-col rounded-2xl border bg-surface p-6 shadow-card",
+                plan.highlighted ? "border-accent shadow-md ring-1 ring-accent/20" : "border-DEFAULT",
               )}
             >
               {plan.highlighted && (
@@ -128,7 +127,7 @@ export default function BillingPage() {
                   {current ? "Current plan" : `Choose ${plan.name}`}
                 </Button>
               </div>
-            </Card>
+            </div>
           );
         })}
       </div>

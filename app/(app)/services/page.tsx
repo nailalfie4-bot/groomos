@@ -20,7 +20,7 @@ import { formatGBP } from "@/lib/format";
 
 export default function ServicesPage() {
   const loading = useDemoLoad();
-  const { services, addService, updateService, deleteService } = useStore();
+  const { services, appointments, addService, updateService, deleteService } = useStore();
   const [editing, setEditing] = useState<Service | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Service | null>(null);
@@ -61,7 +61,7 @@ export default function ServicesPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {services.map((s) => (
-            <Card key={s.id} className="flex flex-col p-5">
+            <div key={s.id} className="flex flex-col rounded-2xl border border-DEFAULT bg-surface p-5 shadow-card">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="text-base font-semibold tracking-tight text-ink">
@@ -94,8 +94,11 @@ export default function ServicesPage() {
                 <span className="tabular-nums font-semibold text-ink">
                   {formatGBP(s.priceGBP)}
                 </span>
+                <span className="ml-auto text-xs text-ink-subtle">
+                  {appointments.filter((a) => a.serviceId === s.id && a.status !== "cancelled").length} booked
+                </span>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}

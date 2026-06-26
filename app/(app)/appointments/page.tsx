@@ -4,19 +4,18 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CalendarPlus, Check, Image as ImageIcon, PawPrint, Undo2, UserX, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DogEmpty } from "@/components/illustrations";
-import { Avatar } from "@/components/ui/avatar";
+import { PetAvatar } from "@/components/pet-avatar";
 import { StatusBadge } from "@/components/status-badge";
 import { BookingForm } from "@/components/booking-form";
 import { CompleteFlow, ReportCard } from "@/components/grooming-report";
 import { useStore } from "@/lib/mock/store";
 import { useDemoLoad } from "@/lib/use-demo-load";
 import type { Appointment, AppointmentStatus } from "@/lib/types";
-import { formatDate, formatGBP, formatTime, initials } from "@/lib/format";
+import { formatDate, formatGBP, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | "pending" | "confirmed" | "completed" | "cancelled";
@@ -96,7 +95,7 @@ export default function AppointmentsPage() {
         ))}
       </div>
 
-      <Card className="overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-DEFAULT bg-surface shadow-card">
         {loading ? (
           <div className="divide-y divide-border">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -140,7 +139,7 @@ export default function AppointmentsPage() {
                       </div>
                       <div>{formatDate(a.start)}</div>
                     </div>
-                    <Avatar initials={initials(pet?.name ?? "?")} tone="accent" />
+                    <PetAvatar petId={a.petId} name={pet?.name ?? ""} />
                     <div className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate text-sm font-medium text-ink">
                         {pet?.name}{" "}
@@ -181,7 +180,7 @@ export default function AppointmentsPage() {
             })}
           </div>
         )}
-      </Card>
+      </div>
 
       <BookingForm open={booking} onClose={() => setBooking(false)} />
       <CompleteFlow appointmentId={completing} onClose={() => setCompleting(null)} />
