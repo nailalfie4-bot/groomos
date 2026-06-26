@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Fraunces, Caveat } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import { StoreProvider } from "@/lib/mock/store";
+import { SWRegister } from "@/components/sw-register";
 import "./globals.css";
 
 const inter = Inter({
@@ -32,6 +33,18 @@ export const metadata: Metadata = {
   title: "GroomOS — Grooming business, run simply",
   description:
     "The operating system for modern grooming businesses. Bookings, clients, services and billing in one calm place.",
+  applicationName: "GroomOS",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "GroomOS",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#FCF6F4",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -44,6 +57,7 @@ export default function RootLayout({
       <body>
         <StoreProvider>{children}</StoreProvider>
         <Toaster />
+        <SWRegister />
       </body>
     </html>
   );
