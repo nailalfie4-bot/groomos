@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, MotionConfig } from "framer-motion";
@@ -10,8 +10,8 @@ import {
   CalendarDays,
   Camera,
   Check,
-  Clock,
   Heart,
+  Minus,
   Moon,
   PawPrint,
   Scissors,
@@ -108,27 +108,59 @@ const FOUNDING_INVITES = [
   "Loved using GroomOS? We'd love to feature you next.",
 ];
 
-const PLANS = [
+type Plan = {
+  name: string;
+  /** Per-month price billed monthly. */
+  monthly: number;
+  /** Per-month price when billed annually (~2 months free). */
+  annual: number;
+  tagline: string;
+  /** Tier this one builds on — rendered as an "Everything in X, plus" lead-in. */
+  inherits?: string;
+  features: string[];
+  /** Notable things this tier deliberately leaves out (shown muted). */
+  excluded?: string[];
+  /** Short reassurance line under the price (e.g. Pro's "pays for itself"). */
+  note?: string;
+  highlighted?: boolean;
+};
+
+const PLANS: Plan[] = [
   {
-    name: "Solo",
-    price: 19,
-    tagline: "Everything one home groomer needs.",
-    features: ["Unlimited clients & pets", "Calendar & online booking", "Reminders included", "Before & after cards"],
-    highlighted: false,
+    name: "Starter",
+    monthly: 29,
+    annual: 24,
+    tagline: "The essentials, beautifully organised.",
+    features: [
+      "Smart colour-coded calendar",
+      "24/7 online booking page",
+      "Unlimited client & pet records",
+    ],
+    excluded: ["Automated reminders", "Deposits & no-show protection"],
   },
   {
     name: "Pro",
-    price: 29,
-    tagline: "For a busy book that's filling up.",
-    features: ["Everything in Solo", "Matting meter & smart pricing", "Rebooking & retention nudges", "Deposits & no-show protection"],
+    monthly: 39,
+    annual: 32,
+    tagline: "Everything that saves time and makes money.",
+    inherits: "Starter",
+    features: [
+      "Automated text & email reminders",
+      "Deposits & no-show protection",
+      "Matting meter & smart pricing",
+      "Rebooking & retention engine",
+      "Before & after grooming reports",
+    ],
+    note: "Pays for itself — one no-show costs more than a month.",
     highlighted: true,
   },
   {
-    name: "Salon",
-    price: 49,
-    tagline: "When you're ready to grow.",
-    features: ["Everything in Pro", "Multiple groomers", "Multiple locations", "Priority support"],
-    highlighted: false,
+    name: "Team",
+    monthly: 59,
+    annual: 49,
+    tagline: "For when you've grown past one person.",
+    inherits: "Pro",
+    features: ["Unlimited groomers", "Unlimited locations", "Priority support"],
   },
 ];
 
@@ -305,6 +337,7 @@ function initials(name: string) {
 export default function LandingPage() {
   const router = useRouter();
   const { session, hydrated, loginAsDemo } = useStore();
+  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
 
   useEffect(() => {
     if (hydrated && session) router.replace("/dashboard");
@@ -697,63 +730,136 @@ export default function LandingPage() {
             <Reveal className="mx-auto mb-10 max-w-2xl text-center sm:mb-14">
               <Eyebrow>Honest pricing</Eyebrow>
               <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
-                Flat monthly price. Nothing metered.
+                Simple plans that grow with you
               </h2>
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full border border-DEFAULT bg-surface px-4 py-1.5 text-sm font-medium text-ink shadow-xs">
-                  <Bell className="h-4 w-4 text-accent" /> Reminders included — no hidden SMS fees
-                </span>
-                <span className="inline-flex items-center gap-2 rounded-full border border-DEFAULT bg-surface px-4 py-1.5 text-sm font-medium text-ink shadow-xs">
-                  <Clock className="h-4 w-4 text-accent" /> Set up in 10 minutes, not 10 days
-                </span>
+              <p className="mt-4 text-base leading-relaxed text-ink-muted">
+                Start free for a week. No setup fees, no metered SMS, cancel any time.
+              </p>
+
+              {/* Monthly / annual billing toggle */}
+              <div className="mt-7 inline-flex items-center gap-1 rounded-full border border-DEFAULT bg-surface-sunken p-1">
+                <button
+                  type="button"
+                  onClick={() => setBilling("monthly")}
+                  aria-pressed={billing === "monthly"}
+                  className={cn(
+                    "rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-fast",
+                    billing === "monthly"
+                      ? "bg-surface text-ink shadow-xs ring-1 ring-border/60"
+                      : "text-ink-muted hover:text-ink",
+                  )}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBilling("annual")}
+                  aria-pressed={billing === "annual"}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-fast",
+                    billing === "annual"
+                      ? "bg-surface text-ink shadow-xs ring-1 ring-border/60"
+                      : "text-ink-muted hover:text-ink",
+                  )}
+                >
+                  Annual
+                  <span className="rounded-full bg-accent-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-700">
+                    2 months free
+                  </span>
+                </button>
               </div>
             </Reveal>
 
             <div className="grid items-stretch gap-5 lg:grid-cols-3 lg:gap-6">
-              {PLANS.map((p, i) => (
-                <RevealCard
-                  key={p.name}
-                  delay={i * 0.08}
-                  className={cn(
-                    "relative flex h-full flex-col rounded-2xl border bg-surface p-7 transition-shadow duration-300",
-                    p.highlighted
-                      ? "border-accent shadow-lg ring-1 ring-accent/20 lg:-my-2 lg:py-9"
-                      : "border-DEFAULT shadow-card hover:shadow-md",
-                  )}
-                >
-                  {p.highlighted && (
-                    <div className="absolute -top-3 left-7">
-                      <Badge tone="accent"><Sparkles className="h-3.5 w-3.5" /> Most popular</Badge>
-                    </div>
-                  )}
-                  <h3 className="text-lg font-semibold text-ink">{p.name}</h3>
-                  <p className="mt-1 text-sm text-ink-muted">{p.tagline}</p>
-                  <div className="mt-5 flex items-baseline gap-1">
-                    <span className="font-display text-[40px] font-semibold leading-none tracking-tight text-ink tabular-nums">£{p.price}</span>
-                    <span className="text-sm text-ink-muted">/ month</span>
-                  </div>
-                  <ul className="mt-6 flex flex-1 flex-col gap-3">
-                    {p.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2.5 text-sm text-ink">
-                        <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent-100 text-accent-700">
-                          <Check className="h-3 w-3" />
-                        </span>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    className="mt-7 w-full"
-                    size="lg"
-                    variant={p.highlighted ? "primary" : "secondary"}
-                    onClick={startDemo}
+              {PLANS.map((p, i) => {
+                const price = billing === "annual" ? p.annual : p.monthly;
+                const yearly = p.annual * 12;
+                const saved = (p.monthly - p.annual) * 12;
+                return (
+                  <RevealCard
+                    key={p.name}
+                    delay={i * 0.08}
+                    className={cn(
+                      "relative flex h-full flex-col rounded-2xl border p-7 transition-shadow duration-300",
+                      p.highlighted
+                        ? "border-accent bg-gradient-to-b from-accent-50/70 to-surface shadow-xl ring-2 ring-accent/30 lg:-my-3 lg:py-10"
+                        : "border-DEFAULT bg-surface shadow-card hover:shadow-md",
+                    )}
                   >
-                    Start your free week
-                  </Button>
-                </RevealCard>
-              ))}
+                    {p.highlighted && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                        <Badge tone="accent"><Sparkles className="h-3.5 w-3.5" /> Most popular</Badge>
+                      </div>
+                    )}
+
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
+                      {p.name}
+                    </p>
+                    <p className="mt-2 text-sm text-ink-muted">{p.tagline}</p>
+
+                    <div className="mt-5 flex items-baseline gap-1">
+                      <span className="font-display text-[44px] font-semibold leading-none tracking-tight text-ink tabular-nums">
+                        £{price}
+                      </span>
+                      <span className="text-sm text-ink-muted">/ mo</span>
+                    </div>
+                    <p className="mt-1.5 h-4 text-xs text-ink-subtle">
+                      {billing === "annual"
+                        ? `£${yearly} billed yearly · save £${saved}`
+                        : "billed monthly"}
+                    </p>
+
+                    {p.note && (
+                      <p className="mt-4 flex items-start gap-2 rounded-lg bg-accent-50 px-3 py-2 text-xs font-medium text-accent-700">
+                        <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        {p.note}
+                      </p>
+                    )}
+
+                    <div className="mt-6 flex flex-1 flex-col gap-3">
+                      {p.inherits && (
+                        <p className="text-sm font-medium text-ink">
+                          Everything in {p.inherits}, plus:
+                        </p>
+                      )}
+                      <ul className="flex flex-col gap-3">
+                        {p.features.map((f) => (
+                          <li key={f} className="flex items-start gap-2.5 text-sm text-ink">
+                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent-100 text-accent-700">
+                              <Check className="h-3 w-3" />
+                            </span>
+                            {f}
+                          </li>
+                        ))}
+                        {p.excluded?.map((f) => (
+                          <li key={f} className="flex items-start gap-2.5 text-sm text-ink-subtle">
+                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-surface-sunken text-ink-subtle">
+                              <Minus className="h-3 w-3" />
+                            </span>
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="mt-7">
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        variant={p.highlighted ? "primary" : "secondary"}
+                        onClick={startDemo}
+                      >
+                        Start your free week
+                      </Button>
+                      <p className="mt-2 text-center text-xs text-ink-subtle">No card needed</p>
+                    </div>
+                  </RevealCard>
+                );
+              })}
             </div>
-            <p className="mt-6 text-center text-xs text-ink-subtle">Free for 7 days. No card needed. Cancel any time.</p>
+            <p className="mt-8 text-center text-xs text-ink-subtle">
+              7-day free trial on every plan · cancel any time.
+            </p>
           </div>
         </section>
 
