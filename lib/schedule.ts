@@ -74,6 +74,52 @@ export function availableSlots(
   return out;
 }
 
+/** A working-day start time with whether a groom can actually begin there. */
+export interface DaySlot {
+  /** "HH:MM" 24h start time. */
+  time: string;
+  /** True when a groom of `durationMin` can start here without clashing. */
+  available: boolean;
+  /** Why it's unavailable (for a11y/tooltip): taken, in the past, or too late. */
+  reason?: "taken" | "past" | "tooLate";
+}
+
+/**
+ * Every start time across the working day (stepped at SLOT_STEP_MIN), each
+ * flagged with whether a groom of `durationMin` can begin there. Unlike
+ * availableSlots this keeps the unavailable slots, so a booking grid can show
+ * the whole day with taken / past / too-late buttons disabled. Past times are
+ * judged against `now`; `excludeId` skips an appointment being rescheduled.
+ */
+export function daySlots(
+  appointments: Appointment[],
+  settings: Settings,
+  business: Pick<Business, "openHour" | "closeHour">,
+  day: Date,
+  durationMin: number,
+  now: Date = new Date(),
+  excludeId?: string,
+): DaySlot[] {
+  const openMin = business.openHour * 60;
+  const closeMin = business.closeHour * 60;
+  const nowMs = now.getTime();
+  const out: DaySlot[] = [];
+  for (let m = openMin; m < closeMin; m += SLOT_STEP_MIN) {
+    const start = new Date(day);
+    start.setHours(Math.floor(m / 60), m % 60, 0, 0);
+    const time = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(
+      m % 60,
+    ).padStart(2, "0")}`;
+    let reason: DaySlot["reason"];
+    if (start.getTime() <= nowMs) reason = "past";
+    else if (m + durationMin > closeMin) reason = "tooLate";
+    else if (findClash(appointments, settings, start.toISOString(), durationMin, excludeId))
+      reason = "taken";
+    out.push({ time, available: !reason, reason });
+  }
+  return out;
+}
+
 /**
  * The first day from `from` (inclusive) within `horizonDays` that has at least
  * one available slot for `durationMin`, or null if the book is clear that far

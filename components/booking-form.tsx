@@ -11,9 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
 import { useStore } from "@/lib/mock/store";
 import { formatGBP } from "@/lib/format";
-import { findClash } from "@/lib/schedule";
+import { daySlots, findClash } from "@/lib/schedule";
 import { COAT_HELP, COAT_LABEL, SIZE_LABEL } from "@/lib/pricing";
 import type { CoatCondition, DogSize } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 function toDateValue(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
@@ -48,6 +49,7 @@ export function BookingForm({
     services,
     appointments,
     settings,
+    business,
     createAppointment,
     getPetsForClient,
     quoteFor,
@@ -65,7 +67,7 @@ export function BookingForm({
   const [coat, setCoat] = useState<CoatCondition>("smooth");
   const [date, setDate] = useState(toDateValue(initialDate));
   const [time, setTime] = useState(
-    defaultStart ? toTimeValue(initialDate) : "09:00",
+    defaultStart ? toTimeValue(initialDate) : "",
   );
   const [notes, setNotes] = useState("");
   const [deposit, setDeposit] = useState(settings.depositEnabled);
@@ -77,7 +79,7 @@ export function BookingForm({
     if (!open) return;
     const d = defaultStart ? new Date(defaultStart) : new Date();
     setDate(toDateValue(d));
-    setTime(defaultStart ? toTimeValue(d) : "09:00");
+    setTime(defaultStart ? toTimeValue(d) : "");
     if (defaultClientId) setClientId(defaultClientId);
     setPetId(defaultPetId ?? "");
     setNotes("");
@@ -101,10 +103,29 @@ export function BookingForm({
     [quoteFor, serviceId, size, coat, pet?.name],
   );
 
+  // The day's start times, with taken / past / too-late ones flagged. The
+  // groom's true length (incl. matting/size) drives what can fit.
+  const groomMinutes = quote?.totalDurationMin ?? 60;
+  const selectedDay = useMemo(() => new Date(`${date}T00:00:00`), [date]);
+  const slots = useMemo(
+    () => daySlots(appointments, settings, business, selectedDay, groomMinutes),
+    [appointments, settings, business, selectedDay, groomMinutes],
+  );
+  const hasFree = slots.some((s) => s.available);
+
+  // Drop a chosen time if a longer groom or a new day makes it unavailable.
+  useEffect(() => {
+    if (time && !slots.some((s) => s.available && s.time === time)) setTime("");
+  }, [slots, time]);
+
   function submit() {
     setError(null);
     if (!clientId || !effectivePetId || !serviceId) {
       setError("Pick a client, pet and service to book.");
+      return;
+    }
+    if (!time) {
+      setError("Tap an available time slot to book.");
       return;
     }
     const start = new Date(`${date}T${time}`);
@@ -260,9 +281,64 @@ export function BookingForm({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <Input label="Time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        <Input
+          label="Date"
+          type="date"
+          value={date}
+          onChange={(e) => {
+            setDate(e.target.value);
+            setTime("");
+            setError(null);
+          }}
+        />
+
+        {/* Tap an available slot — no free-form times, so no overlaps. */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-ink">Time</span>
+            <span className="text-xs text-ink-subtle">{groomMinutes} min slot</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {slots.map((s) => {
+              const selected = time === s.time;
+              return (
+                <button
+                  key={s.time}
+                  type="button"
+                  disabled={!s.available}
+                  aria-pressed={selected}
+                  title={
+                    s.reason === "taken"
+                      ? "Already booked"
+                      : s.reason === "past"
+                        ? "Already passed"
+                        : s.reason === "tooLate"
+                          ? "Not enough time before closing"
+                          : undefined
+                  }
+                  onClick={() => {
+                    setTime(s.time);
+                    setError(null);
+                  }}
+                  className={cn(
+                    "tabular-nums rounded-lg border px-1 py-2 text-sm font-medium transition-colors duration-fast",
+                    selected
+                      ? "border-accent bg-accent text-ink-inverse shadow-sm"
+                      : s.available
+                        ? "border-strong bg-surface text-ink hover:border-accent hover:bg-accent-50 hover:text-accent-700"
+                        : "cursor-not-allowed border-transparent bg-surface-sunken text-ink-subtle/60",
+                  )}
+                >
+                  {s.time}
+                </button>
+              );
+            })}
+          </div>
+          {!hasFree && (
+            <p className="text-xs text-ink-muted">
+              No free slots on this day — try another date.
+            </p>
+          )}
         </div>
 
         <Textarea
