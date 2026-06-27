@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, Clock, Heart } from "lucide-react";
+import { Check, Clock, Heart, ShieldCheck } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Toggle } from "@/components/ui/toggle";
 import { useStore } from "@/lib/mock/store";
 import { formatGBP } from "@/lib/format";
 import { findClash } from "@/lib/schedule";
@@ -67,6 +68,7 @@ export function BookingForm({
     defaultStart ? toTimeValue(initialDate) : "09:00",
   );
   const [notes, setNotes] = useState("");
+  const [deposit, setDeposit] = useState(settings.depositEnabled);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +81,7 @@ export function BookingForm({
     if (defaultClientId) setClientId(defaultClientId);
     setPetId(defaultPetId ?? "");
     setNotes("");
+    setDeposit(settings.depositEnabled);
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultStart, defaultClientId, defaultPetId]);
@@ -126,6 +129,7 @@ export function BookingForm({
           coatCondition: coat,
           size,
           notes,
+          deposit: deposit && settings.depositAmount > 0 ? settings.depositAmount : undefined,
         });
         toast.success("Appointment booked", {
           description: `${pet?.name ?? "Pet"} · ${date} ${time}`,
@@ -238,6 +242,23 @@ export function BookingForm({
             reason={quote.reason}
           />
         )}
+
+        {/* Deposit & no-show protection */}
+        <div className="rounded-xl border border-DEFAULT p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+              <ShieldCheck className="h-4 w-4 text-accent" />
+              Take a {formatGBP(settings.depositAmount)} deposit
+            </span>
+            <Toggle checked={deposit} onChange={setDeposit} label="Require a deposit" />
+          </div>
+          {deposit && (
+            <p className="mt-2 text-xs text-ink-muted">
+              Applied to the {quote ? formatGBP(quote.totalPriceGBP) : "groom"} · kept if they no-show ·
+              free cancellation up to {settings.cancellationNoticeHours}h before.
+            </p>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />

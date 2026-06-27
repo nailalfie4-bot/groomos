@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   HeartHandshake,
   PawPrint,
+  ShieldCheck,
   TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ import { formatGBP, formatTime, isSameDay } from "@/lib/format";
 
 export default function DashboardPage() {
   const loading = useDemoLoad();
-  const { appointments, services, business, getPet, getClient, getDueForGroom } =
+  const { appointments, services, business, settings, getPet, getClient, getDueForGroom } =
     useStore();
   const [booking, setBooking] = useState(false);
   const [openAppt, setOpenAppt] = useState<string | null>(null);
@@ -67,6 +68,23 @@ export default function DashboardPage() {
 
   const due = getDueForGroom();
   const incomeAtRisk = due.reduce((sum, d) => sum + d.lastPriceGBP, 0);
+
+  // No-show protection: deposits securing this month's book.
+  const protection = useMemo(() => {
+    const month = appointments.filter((a) => {
+      const d = new Date(a.start);
+      return (
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear() &&
+        a.status !== "cancelled" &&
+        a.deposit
+      );
+    });
+    const secured = month.reduce((sum, a) => sum + (a.deposit ?? 0), 0);
+    const noShows = month.filter((a) => a.status === "no-show");
+    const kept = noShows.reduce((sum, a) => sum + (a.deposit ?? 0), 0);
+    return { secured, count: month.length, noShowCount: noShows.length, kept };
+  }, [appointments]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -127,6 +145,27 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      {/* No-show protection */}
+      {!loading && settings.depositEnabled && protection.secured > 0 && (
+        <div className="mt-3 flex items-center gap-4 rounded-2xl border border-accent/20 bg-accent-50 p-4 shadow-card sm:p-5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-ink-inverse">
+            <ShieldCheck className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-accent-700">Protected by deposits this month</p>
+            <p className="tabular-nums text-[26px] font-semibold leading-none text-ink">
+              {formatGBP(protection.secured)}
+            </p>
+            <p className="mt-1 text-xs text-ink-muted">
+              {protection.count} booking{protection.count === 1 ? "" : "s"} secured
+              {protection.noShowCount > 0
+                ? ` · ${protection.noShowCount} no-show${protection.noShowCount === 1 ? "" : "s"} covered — ${formatGBP(protection.kept)} kept, not lost`
+                : " · no-shows covered automatically"}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Retention nudge */}
       {!loading && due.length > 0 && (

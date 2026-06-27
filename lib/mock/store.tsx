@@ -46,8 +46,8 @@ import type {
 import { createSeed } from "@/lib/mock/seed";
 import { computeQuote } from "@/lib/pricing";
 
-// Bumped when seed/shape changes (v5: lapsed clients for retention).
-const STORAGE_KEY = "groomos.demo.v5";
+// Bumped when seed/shape changes (v6: booking deposits / no-show protection).
+const STORAGE_KEY = "groomos.demo.v6";
 
 /** Input shapes for create operations (server-assigned fields omitted). */
 export interface NewClientInput {
@@ -83,6 +83,8 @@ export interface NewAppointmentInput {
   coatCondition?: CoatCondition;
   /** Optional size override for this booking; defaults to the pet's size. */
   size?: DogSize;
+  /** Deposit taken to secure the booking (GBP). */
+  deposit?: number;
 }
 
 interface StoreState {
@@ -380,6 +382,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         priceGBP: quote?.totalPriceGBP ?? svc?.priceGBP ?? 0,
         coatCondition: coat,
         durationMin: quote?.totalDurationMin ?? svc?.durationMin ?? 60,
+        deposit: input.deposit,
       };
       setState((s) => ({
         ...s,

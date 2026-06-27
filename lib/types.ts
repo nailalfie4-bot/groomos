@@ -74,6 +74,12 @@ export interface Settings {
   remindersEnabled: boolean;
   /** Default weeks between grooms, used for rebooking suggestions. */
   defaultRebookWeeks: number;
+  /** Require a deposit to confirm a booking (no-show protection). */
+  depositEnabled: boolean;
+  /** Deposit amount (GBP) — applied to the groom, or kept on a no-show. */
+  depositAmount: number;
+  /** Cancellation notice required (hours), shown to clients at booking. */
+  cancellationNoticeHours: number;
 }
 
 /** A delightful before/after report card the owner receives after a groom. */
@@ -127,6 +133,8 @@ export interface Appointment {
   report?: GroomingReport;
   /** Mock reminder timestamp — when a "friendly reminder" was sent. */
   reminderSentAt?: string;
+  /** Deposit taken to secure the booking (GBP). Applied on completion, kept on a no-show. */
+  deposit?: number;
 }
 
 /** Transparent price + time breakdown produced by the matting meter. */

@@ -200,6 +200,11 @@ function buildAppointments(): Appointment[] {
   make(todayOffset - 63, 11, "pet_9", "cl_7", "svc_1", "completed", "staff", "Full groom — lovely curly coat.");
   make(todayOffset - 78, 14, "pet_10", "cl_8", "svc_1", "completed", "staff", "Full groom, ears cleaned.");
 
+  // Deposits secure most bookings — no-show protection working in the demo.
+  for (const a of out) {
+    if (a.status !== "cancelled") a.deposit = DEFAULT_SETTINGS.depositAmount;
+  }
+
   return out;
 }
 

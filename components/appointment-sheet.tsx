@@ -14,6 +14,7 @@ import {
   Save,
   Scissors,
   Share2,
+  ShieldCheck,
   UserRound,
   X,
 } from "lucide-react";
@@ -87,6 +88,13 @@ export function AppointmentSheet({
   const end = new Date(start.getTime() + appt.durationMin * 60_000);
   const careNeeded = appt.coatCondition !== "smooth" || pet?.size === "giant";
   const notesDirty = notes !== appt.notes;
+  const depositLabel = appt.deposit
+    ? appt.status === "completed"
+      ? `${formatGBP(appt.deposit)} applied to groom`
+      : appt.status === "no-show"
+        ? `${formatGBP(appt.deposit)} kept (no-show)`
+        : `${formatGBP(appt.deposit)} held`
+    : null;
 
   function setStatus(status: AppointmentStatus, label: string) {
     setAppointmentStatus(appt!.id, status);
@@ -157,6 +165,9 @@ export function AppointmentSheet({
           <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-DEFAULT bg-border">
             <Detail icon={<Scissors className="h-4 w-4" />} label="Service" value={service?.name ?? "—"} />
             <Detail icon={<PoundSterling className="h-4 w-4" />} label="Price" value={formatGBP(appt.priceGBP)} />
+            {depositLabel && (
+              <Detail icon={<ShieldCheck className="h-4 w-4" />} label="Deposit" value={depositLabel} />
+            )}
             <Detail
               icon={<Heart className="h-4 w-4" />}
               label="Coat & size"

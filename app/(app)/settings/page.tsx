@@ -10,6 +10,7 @@ import {
   Clock,
   Heart,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -17,9 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Toggle } from "@/components/ui/toggle";
 import { useStore } from "@/lib/mock/store";
 import { computeQuote } from "@/lib/pricing";
 import { formatGBP } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { Business, Settings } from "@/lib/types";
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00–21:00
@@ -101,6 +104,41 @@ export default function SettingsPage() {
                 <option key={h} value={h}>{hhmm(h)}</option>
               ))}
             </Select>
+          </div>
+        </Section>
+
+        {/* Deposits & no-show protection */}
+        <Section
+          icon={<ShieldCheck className="h-[18px] w-[18px]" />}
+          title="Deposits & no-show protection"
+          description="Take a small deposit to confirm a booking — applied to the groom, or kept if they don't show."
+          action={<Toggle checked={s.depositEnabled} onChange={(v) => setSet("depositEnabled", v)} label="Require deposits" />}
+        >
+          <div className={cn("grid max-w-sm grid-cols-2 gap-3 transition-opacity", !s.depositEnabled && "pointer-events-none opacity-50")}>
+            <Input
+              label="Deposit amount (£)"
+              type="number"
+              min={0}
+              step={1}
+              value={String(s.depositAmount)}
+              onChange={(e) => setSet("depositAmount", num(e.target.value))}
+            />
+            <Select
+              label="Free cancellation up to"
+              value={String(s.cancellationNoticeHours)}
+              onChange={(e) => setSet("cancellationNoticeHours", num(e.target.value))}
+            >
+              <option value="24">24 hours before</option>
+              <option value="48">48 hours before</option>
+              <option value="72">72 hours before</option>
+            </Select>
+          </div>
+          <div className="mt-4 flex items-start gap-2 rounded-xl bg-accent-50 p-3">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent-700" />
+            <p className="text-sm text-accent-700">
+              Clients pay <span className="font-semibold tabular-nums">{formatGBP(s.depositAmount)}</span> to confirm, free to cancel up to{" "}
+              <span className="font-semibold">{s.cancellationNoticeHours}h</span> before. One no-show covered pays for months of GroomOS.
+            </p>
           </div>
         </Section>
 

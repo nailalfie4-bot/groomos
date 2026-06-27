@@ -24,6 +24,9 @@ export const DEFAULT_SETTINGS: Settings = {
   giantExtraMin: 15,
   remindersEnabled: true,
   defaultRebookWeeks: 6,
+  depositEnabled: true,
+  depositAmount: 10,
+  cancellationNoticeHours: 48,
 };
 
 export const SIZE_LABEL: Record<DogSize, string> = {

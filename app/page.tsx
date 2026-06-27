@@ -15,6 +15,7 @@ import {
   Moon,
   PawPrint,
   Scissors,
+  ShieldCheck,
   Sparkles,
   Star,
   type LucideIcon,
@@ -119,7 +120,7 @@ const PLANS = [
     name: "Pro",
     price: 29,
     tagline: "For a busy book that's filling up.",
-    features: ["Everything in Solo", "Matting meter & smart pricing", "Rebooking & retention nudges", "No-show insights"],
+    features: ["Everything in Solo", "Matting meter & smart pricing", "Rebooking & retention nudges", "Deposits & no-show protection"],
     highlighted: true,
   },
   {
@@ -233,6 +234,61 @@ function MeterVisual() {
       </div>
       <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-accent-50 px-2.5 py-1 text-[11px] font-medium text-accent-700">
         <Sparkles className="h-3 w-3" /> Fair +£8 added, explained kindly
+      </div>
+    </div>
+  );
+}
+
+/** Deposit outcome mock used in the no-show protection spotlight. */
+function DepositVisual() {
+  return (
+    <div className="mx-auto w-full max-w-sm rounded-2xl border border-DEFAULT bg-surface p-5 shadow-lg ring-1 ring-border/60">
+      {/* Booking header */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-100 text-[11px] font-semibold text-accent-700">
+            B
+          </span>
+          <div>
+            <p className="text-sm font-medium text-ink">Biscuit · Full Groom</p>
+            <p className="text-xs text-ink-subtle">Tue · 09:00 · £45</p>
+          </div>
+        </div>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-50 px-2 py-0.5 text-[11px] font-semibold text-accent-700">
+          <ShieldCheck className="h-3 w-3" /> £10 held
+        </span>
+      </div>
+
+      <div className="my-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-subtle">
+        <span className="h-px flex-1 bg-DEFAULT" />
+        Two ways it pays
+        <span className="h-px flex-1 bg-DEFAULT" />
+      </div>
+
+      {/* Outcome: shows up */}
+      <div className="flex items-start gap-3 rounded-xl border border-DEFAULT bg-canvas p-3">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success-soft text-success-deep">
+          <Check className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-ink">They show up</p>
+          <p className="text-xs text-ink-muted">
+            The £10 comes off the groom — they pay £35 on the day.
+          </p>
+        </div>
+      </div>
+
+      {/* Outcome: no-show */}
+      <div className="mt-2.5 flex items-start gap-3 rounded-xl border border-accent/20 bg-accent-50 p-3">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-ink-inverse">
+          <ShieldCheck className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-ink">No-show</p>
+          <p className="text-xs text-accent-700">
+            You keep the £10. The empty slot is covered, not lost.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -464,6 +520,59 @@ export default function LandingPage() {
                 <DogLine className="w-24" />
                 <PawTrail />
               </RevealCard>
+            </div>
+          </div>
+        </section>
+
+        {/* Deposits & no-show protection — the feature that pays for itself */}
+        <section className="border-t border-DEFAULT bg-canvas">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+            <div className="overflow-hidden rounded-3xl border border-accent/15 bg-gradient-to-br from-accent-50 via-surface to-surface shadow-card">
+              <div className="grid items-center gap-10 p-7 sm:p-10 lg:grid-cols-2 lg:gap-14 lg:p-14">
+                {/* Copy */}
+                <Reveal>
+                  <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-700">
+                    <ShieldCheck className="h-3.5 w-3.5" /> Deposits & no-show protection
+                  </span>
+                  <h2 className="mt-4 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
+                    The feature that pays for itself
+                  </h2>
+                  <p className="mt-4 text-base leading-relaxed text-ink-muted sm:text-lg">
+                    One no-show costs more than a month of GroomOS. Take a small
+                    deposit to confirm every booking and never eat the cost of an
+                    empty chair again.
+                  </p>
+                  <ul className="mt-6 flex flex-col gap-3">
+                    {[
+                      "Set your own deposit — clients pay it to lock in the slot.",
+                      "They show up? It comes straight off the price of the groom.",
+                      "They don't? You keep it — the wasted slot is covered, not lost.",
+                      "Set a fair cancellation window so everyone knows the rules.",
+                    ].map((line) => (
+                      <li
+                        key={line}
+                        className="flex items-start gap-2.5 text-sm text-ink sm:text-base"
+                      >
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-100 text-accent-700">
+                          <Check className="h-3 w-3" />
+                        </span>
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-7">
+                    <Button size="lg" onClick={startDemo} className="w-full sm:w-auto">
+                      Protect your book
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </Reveal>
+
+                {/* Visual mock */}
+                <Reveal delay={0.1}>
+                  <DepositVisual />
+                </Reveal>
+              </div>
             </div>
           </div>
         </section>
