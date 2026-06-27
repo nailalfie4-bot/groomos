@@ -4,10 +4,13 @@
  * configured cleanup buffer; two appointments clash if those windows overlap.
  */
 
-import type { Appointment, Settings } from "@/lib/types";
+import type { Appointment, Business, Settings } from "@/lib/types";
 
 /** Statuses that actually occupy a slot (cancelled/no-show free it up). */
 const BLOCKING: Appointment["status"][] = ["pending", "confirmed", "completed"];
+
+/** Granularity of the start times offered to clients (clean :00 / :30 chips). */
+export const SLOT_STEP_MIN = 30;
 
 function windowFor(a: Appointment, bufferMin: number): [number, number] {
   const start = new Date(a.start).getTime();
@@ -33,6 +36,64 @@ export function findClash(
     if (!BLOCKING.includes(a.status)) continue;
     const [aStart, aEnd] = windowFor(a, settings.bufferMin);
     if (start < aEnd && aStart < end) return a;
+  }
+  return null;
+}
+
+/**
+ * The bookable start times on `day` for a groom lasting `durationMin`, as
+ * "HH:MM" 24h strings. A slot is offered only when the whole groom fits inside
+ * opening hours and doesn't clash with an existing appointment (including the
+ * cleanup buffer on either side), so the client can never create an overlap.
+ * Past times are excluded when `day` is today, judged against `now`.
+ */
+export function availableSlots(
+  appointments: Appointment[],
+  settings: Settings,
+  business: Pick<Business, "openHour" | "closeHour">,
+  day: Date,
+  durationMin: number,
+  now: Date = new Date(),
+): string[] {
+  if (durationMin <= 0) return [];
+  const openMin = business.openHour * 60;
+  const closeMin = business.closeHour * 60;
+  const nowMs = now.getTime();
+  const out: string[] = [];
+  // Step across the day; the groom itself must finish by closing time.
+  for (let m = openMin; m + durationMin <= closeMin; m += SLOT_STEP_MIN) {
+    const start = new Date(day);
+    start.setHours(Math.floor(m / 60), m % 60, 0, 0);
+    if (start.getTime() <= nowMs) continue; // never offer a past slot
+    if (!findClash(appointments, settings, start.toISOString(), durationMin)) {
+      const hh = String(Math.floor(m / 60)).padStart(2, "0");
+      const mm = String(m % 60).padStart(2, "0");
+      out.push(`${hh}:${mm}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * The first day from `from` (inclusive) within `horizonDays` that has at least
+ * one available slot for `durationMin`, or null if the book is clear that far
+ * out. Used to point a client at the next day they can actually book.
+ */
+export function nextAvailableDay(
+  appointments: Appointment[],
+  settings: Settings,
+  business: Pick<Business, "openHour" | "closeHour">,
+  from: Date,
+  durationMin: number,
+  horizonDays = 60,
+  now: Date = new Date(),
+): Date | null {
+  for (let i = 0; i < horizonDays; i++) {
+    const day = new Date(from);
+    day.setDate(day.getDate() + i);
+    if (availableSlots(appointments, settings, business, day, durationMin, now).length > 0) {
+      return day;
+    }
   }
   return null;
 }

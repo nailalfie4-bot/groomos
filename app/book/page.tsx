@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarCheck, Check, PawPrint } from "lucide-react";
+import { CalendarCheck, CalendarX2, Check, Clock, PawPrint, Sparkles } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,8 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { QuoteBreakdown } from "@/components/booking-form";
 import { useStore } from "@/lib/mock/store";
-import { formatGBP } from "@/lib/format";
+import { addDays, formatGBP } from "@/lib/format";
+import { availableSlots, findClash, nextAvailableDay } from "@/lib/schedule";
 import { COAT_HELP, COAT_LABEL, SIZE_LABEL } from "@/lib/pricing";
 import type { CoatCondition, DogSize } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -24,11 +25,30 @@ function toDateValue(d: Date): string {
   ).padStart(2, "0")}`;
 }
 
+/** Friendly 12-hour chip label: "13:00" → "1:00", "09:00" → "9:00". */
+function slotLabel(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const hour12 = ((h + 11) % 12) + 1;
+  return `${hour12}:${String(m).padStart(2, "0")}`;
+}
+
+/** Short, warm day label, e.g. "Tue 30 Jun". */
+function dayLabel(d: Date): string {
+  return d.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
 export default function PublicBookingPage() {
   const {
     business,
     services,
     clients,
+    appointments,
+    settings,
+    hydrated,
     getPetsForClient,
     addClient,
     addPet,
@@ -54,18 +74,54 @@ export default function PublicBookingPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState<null | { time: string; date: string }>(null);
 
-  // 30-minute slots across the salon's opening hours.
-  const slots = useMemo(() => {
-    const out: string[] = [];
-    for (let h = business.openHour; h < business.closeHour; h++) {
-      out.push(`${String(h).padStart(2, "0")}:00`);
-      out.push(`${String(h).padStart(2, "0")}:30`);
-    }
-    return out;
-  }, [business.openHour, business.closeHour]);
-
   const service = activeServices.find((s) => s.id === serviceId);
   const quote = quoteFor(serviceId, size, coat, petName.trim() || "your dog");
+
+  // How long the chosen groom actually takes (incl. matting/size time) — this
+  // is what we fit into the day, so longer grooms naturally show fewer slots.
+  const groomMinutes = quote?.totalDurationMin ?? service?.durationMin ?? 60;
+  const selectedDay = useMemo(() => new Date(`${date}T00:00:00`), [date]);
+
+  // Only the genuinely free start times for the chosen day + service. Gated on
+  // `hydrated` so server and first client render agree (no hydration flash),
+  // and so it reflects any bookings restored from storage.
+  const slots = useMemo(
+    () =>
+      hydrated
+        ? availableSlots(appointments, settings, business, selectedDay, groomMinutes)
+        : [],
+    [hydrated, appointments, settings, business, selectedDay, groomMinutes],
+  );
+
+  // When the day is full, find the next one the client can actually book.
+  const nextDay = useMemo(() => {
+    if (!hydrated || slots.length > 0) return null;
+    return nextAvailableDay(
+      appointments,
+      settings,
+      business,
+      addDays(selectedDay, 1),
+      groomMinutes,
+    );
+  }, [hydrated, slots.length, appointments, settings, business, selectedDay, groomMinutes]);
+
+  // Land the client on the soonest bookable day instead of a full one (once).
+  const didInit = useRef(false);
+  useEffect(() => {
+    if (!hydrated || didInit.current) return;
+    didInit.current = true;
+    const today = new Date();
+    if (availableSlots(appointments, settings, business, today, groomMinutes).length === 0) {
+      const next = nextAvailableDay(appointments, settings, business, today, groomMinutes);
+      if (next) setDate(toDateValue(next));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
+  // Drop a chosen time if a longer groom or a new day makes it unavailable.
+  useEffect(() => {
+    if (time && !slots.includes(time)) setTime("");
+  }, [slots, time]);
 
   function submit() {
     const next: Record<string, string> = {};
@@ -105,6 +161,14 @@ export default function PublicBookingPage() {
       });
 
     const start = new Date(`${date}T${time}`);
+    // Safety net: never let a public booking overlap (incl. cleanup buffer).
+    if (
+      quote &&
+      findClash(appointments, settings, start.toISOString(), quote.totalDurationMin)
+    ) {
+      setErrors({ time: "Sorry, that time was just taken — please pick another." });
+      return;
+    }
     createAppointment({
       clientId: client.id,
       petId: pet.id,
@@ -245,30 +309,96 @@ export default function PublicBookingPage() {
                   onChange={(e) => {
                     setDate(e.target.value);
                     setTime("");
+                    setErrors((x) => ({ ...x, time: "" }));
                   }}
                 />
 
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-ink">Time</span>
-                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-                    {slots.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setTime(s)}
-                        className={cn(
-                          "tabular-nums rounded-lg border px-2 py-2 text-sm transition-colors duration-fast",
-                          time === s
-                            ? "border-accent bg-accent-50 font-medium text-accent-700"
-                            : "border-strong bg-surface text-ink-muted hover:border-accent/40 hover:text-ink",
-                        )}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-ink">Pick a time</span>
+                    {hydrated && slots.length > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs text-ink-subtle">
+                        <Clock className="h-3 w-3" />
+                        {groomMinutes} min · {slots.length} free
+                      </span>
+                    )}
                   </div>
-                  {errors.time && (
-                    <p className="text-xs text-danger">{errors.time}</p>
+
+                  {!hydrated ? (
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="h-11 animate-pulse rounded-xl bg-surface-sunken"
+                        />
+                      ))}
+                    </div>
+                  ) : slots.length > 0 ? (
+                    <>
+                      <p className="text-xs text-ink-muted">
+                        Free slots for {dayLabel(selectedDay)} — tap one to book it.
+                      </p>
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                        {slots.map((s) => {
+                          const selected = time === s;
+                          return (
+                            <button
+                              key={s}
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() => {
+                                setTime(s);
+                                setErrors((x) => ({ ...x, time: "" }));
+                              }}
+                              className={cn(
+                                "tabular-nums rounded-xl border px-2 py-2.5 text-sm font-medium transition-colors duration-fast",
+                                selected
+                                  ? "border-accent bg-accent text-ink-inverse shadow-sm"
+                                  : "border-strong bg-surface text-ink hover:border-accent hover:bg-accent-50 hover:text-accent-700",
+                              )}
+                            >
+                              {slotLabel(s)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center rounded-xl border border-dashed border-strong bg-surface-sunken px-4 py-6 text-center">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-50 text-accent-700">
+                        <CalendarX2 className="h-5 w-5" />
+                      </span>
+                      <p className="mt-3 text-sm font-medium text-ink">
+                        {dayLabel(selectedDay)} is fully booked
+                      </p>
+                      <p className="mt-1 max-w-xs text-xs text-ink-muted">
+                        No room for a {groomMinutes}-minute groom that day — every booking
+                        keeps cleanup time so no dog is ever rushed.
+                      </p>
+                      {nextDay ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="mt-4"
+                          onClick={() => {
+                            setDate(toDateValue(nextDay));
+                            setTime("");
+                            setErrors((x) => ({ ...x, time: "" }));
+                          }}
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          Try {dayLabel(nextDay)}
+                        </Button>
+                      ) : (
+                        <p className="mt-3 text-xs text-ink-subtle">
+                          Nothing free in the next few weeks — please get in touch.
+                        </p>
+                      )}
+                    </div>
                   )}
+
+                  {errors.time && <p className="text-xs text-danger">{errors.time}</p>}
                 </div>
 
                 <div className="border-t border-DEFAULT pt-5">
