@@ -51,7 +51,7 @@ export function Modal({
             role="dialog"
             aria-modal="true"
             className={cn(
-              "relative w-full max-w-md overflow-hidden rounded-xl border border-DEFAULT bg-surface shadow-lg",
+              "relative flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-DEFAULT bg-surface shadow-lg",
               className,
             )}
             initial={{ opacity: 0, scale: 0.97, y: 8 }}
@@ -67,7 +67,7 @@ export function Modal({
               <X className="h-4 w-4" />
             </button>
             {(title || description) && (
-              <div className="flex flex-col gap-1 px-6 pt-6 pb-4">
+              <div className="flex shrink-0 flex-col gap-1 px-6 pb-4 pt-6">
                 {title && (
                   <h2 className="text-lg font-semibold tracking-tight text-ink">
                     {title}
@@ -78,9 +78,9 @@ export function Modal({
                 )}
               </div>
             )}
-            {children && <div className="px-6 pb-2">{children}</div>}
+            {children && <div className="flex-1 overflow-y-auto px-6 pb-2">{children}</div>}
             {footer && (
-              <div className="flex items-center justify-end gap-3 border-t border-DEFAULT px-6 py-4">
+              <div className="flex shrink-0 items-center justify-end gap-3 border-t border-DEFAULT px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 {footer}
               </div>
             )}

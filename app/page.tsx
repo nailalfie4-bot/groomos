@@ -92,31 +92,19 @@ const STEPS = [
   },
 ];
 
-const TESTIMONIALS = [
-  {
-    quote:
-      "I've got my evenings back. Clients book themselves and the reminders just go out — I'm not glued to my phone anymore.",
-    name: "Sophie M.",
-    biz: "The Mucky Pup · Leeds",
-  },
-  {
-    quote:
-      "Set up in an afternoon. My old software took weeks and cost nearly double.",
-    name: "Daniel R.",
-    biz: "Barklington Grooming · Bristol",
-  },
-  {
-    quote:
-      "The before-and-after cards get shared on Facebook constantly. Best advertising I've ever had.",
-    name: "Aisha K.",
-    biz: "Pampered Paws · Cardiff",
-  },
-  {
-    quote:
-      "No more surprise SMS bills. Everything's included — and it's actually lovely to look at.",
-    name: "Grace T.",
-    biz: "Tuck & Tidy · Glasgow",
-  },
+// Honest social proof: one real quote from the groomer who helped build
+// GroomOS, plus open invitations for our first founding groomers.
+const PHOEBE = {
+  quote:
+    "I groom dogs all day, so we built GroomOS around how the job actually feels — quick to use on your phone between dogs, and calm instead of cluttered. It's the tool I always wished I'd had.",
+  name: "Phoebe",
+  role: "Professional dog groomer · helped build GroomOS",
+};
+
+const FOUNDING_INVITES = [
+  "Be one of our first groomers — your words could go here.",
+  "Your salon's story could sit right here.",
+  "Loved using GroomOS? We'd love to feature you next.",
 ];
 
 const PLANS = [
@@ -480,37 +468,60 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Testimonials */}
+        {/* Social proof */}
         <section className="border-t border-DEFAULT bg-surface">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
             <Reveal className="mx-auto mb-12 max-w-2xl text-center sm:mb-16">
-              <Eyebrow>Loved by groomers</Eyebrow>
+              <Eyebrow>Built with a groomer</Eyebrow>
               <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
                 From people just like you
               </h2>
+              <p className="mt-4 text-base text-ink-muted">
+                We&apos;re new — built with a working groomer, looking for our first few to shape it.
+              </p>
             </Reveal>
             <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
-              {TESTIMONIALS.map((t, i) => (
+              {/* The real quote */}
+              <RevealCard className="flex h-full flex-col rounded-2xl border border-DEFAULT bg-canvas p-6 shadow-card transition-shadow duration-300 hover:shadow-md">
+                <div className="mb-4 flex gap-0.5 text-accent">
+                  {Array.from({ length: 5 }).map((_, k) => (
+                    <Star key={k} className="h-3.5 w-3.5 fill-current" />
+                  ))}
+                </div>
+                <blockquote className="flex-1 font-display text-[17px] leading-snug text-ink text-pretty">
+                  “{PHOEBE.quote}”
+                </blockquote>
+                <figcaption className="mt-5 flex items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-100 text-xs font-semibold text-accent-700">
+                    {initials(PHOEBE.name)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">{PHOEBE.name}</p>
+                    <p className="text-xs leading-snug text-ink-muted">{PHOEBE.role}</p>
+                  </div>
+                </figcaption>
+              </RevealCard>
+
+              {/* Founding-groomer invitations */}
+              {FOUNDING_INVITES.map((invite, i) => (
                 <RevealCard
-                  key={t.name}
-                  delay={(i % 4) * 0.06}
+                  key={i}
+                  delay={(i + 1) * 0.06}
                   className="flex h-full flex-col rounded-2xl border border-DEFAULT bg-canvas p-6 shadow-card transition-shadow duration-300 hover:shadow-md"
                 >
-                  <div className="mb-4 flex gap-0.5 text-accent">
-                    {Array.from({ length: 5 }).map((_, k) => (
-                      <Star key={k} className="h-3.5 w-3.5 fill-current" />
-                    ))}
-                  </div>
-                  <blockquote className="flex-1 font-display text-[17px] leading-snug text-ink text-pretty">
-                    “{t.quote}”
+                  <span className="mb-4 inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-50 px-2.5 py-1 text-[11px] font-semibold text-accent-700">
+                    <Sparkles className="h-3 w-3" /> Founding groomer
+                  </span>
+                  <blockquote className="flex-1 font-display text-[17px] leading-snug text-ink-muted text-pretty">
+                    “{invite}”
                   </blockquote>
                   <figcaption className="mt-5 flex items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-100 text-xs font-semibold text-accent-700">
-                      {initials(t.name)}
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-strong text-ink-subtle">
+                      <PawPrint className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">{t.name}</p>
-                      <p className="text-xs leading-snug text-ink-muted">{t.biz}</p>
+                      <p className="text-sm font-semibold text-ink">Your name here</p>
+                      <p className="text-xs leading-snug text-ink-muted">Your grooming business</p>
                     </div>
                   </figcaption>
                 </RevealCard>
@@ -679,7 +690,6 @@ export default function LandingPage() {
             <Logo />
             <div className="flex items-center gap-5 text-xs text-ink-muted">
               <Link href="/book" target="_blank" className="transition-colors hover:text-ink">Booking page</Link>
-              <Link href="/showcase" className="transition-colors hover:text-ink">Design system</Link>
               <button onClick={startDemo} className="inline-flex items-center gap-1 transition-colors hover:text-ink">
                 <Scissors className="h-3.5 w-3.5" /> Enter demo
               </button>
