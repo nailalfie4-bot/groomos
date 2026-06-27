@@ -137,7 +137,7 @@ export default function SettingsPage() {
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent-700" />
             <p className="text-sm text-accent-700">
               Clients pay <span className="font-semibold tabular-nums">{formatGBP(s.depositAmount)}</span> to confirm, free to cancel up to{" "}
-              <span className="font-semibold">{s.cancellationNoticeHours}h</span> before. One no-show covered pays for months of GroomOS.
+              <span className="font-semibold">{s.cancellationNoticeHours}h</span> before. No-shows add up fast — deposits help you stop quietly losing money to them.
             </p>
           </div>
         </Section>

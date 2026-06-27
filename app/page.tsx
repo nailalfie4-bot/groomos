@@ -151,7 +151,7 @@ const PLANS: Plan[] = [
       "Rebooking & retention engine",
       "Before & after grooming reports",
     ],
-    note: "Pays for itself — one no-show costs more than a month.",
+    note: "A couple of saved no-shows a month more than covers it.",
     highlighted: true,
   },
   {
@@ -318,7 +318,7 @@ function DepositVisual() {
         <div className="min-w-0">
           <p className="text-sm font-medium text-ink">No-show</p>
           <p className="text-xs text-accent-700">
-            You keep the £10. The empty slot is covered, not lost.
+            You keep the £10 — so the no-show stings far less.
           </p>
         </div>
       </div>
@@ -571,15 +571,16 @@ export default function LandingPage() {
                     The feature that pays for itself
                   </h2>
                   <p className="mt-4 text-base leading-relaxed text-ink-muted sm:text-lg">
-                    One no-show costs more than a month of GroomOS. Take a small
-                    deposit to confirm every booking and never eat the cost of an
-                    empty chair again.
+                    No-shows add up fast — a wasted slot here, an empty afternoon
+                    there. A small deposit on every booking keeps clients
+                    committed, and means the ones who slip through leave something
+                    behind instead of nothing.
                   </p>
                   <ul className="mt-6 flex flex-col gap-3">
                     {[
                       "Set your own deposit — clients pay it to lock in the slot.",
                       "They show up? It comes straight off the price of the groom.",
-                      "They don't? You keep it — the wasted slot is covered, not lost.",
+                      "They don't? You keep the deposit, so a no-show stings far less.",
                       "Set a fair cancellation window so everyone knows the rules.",
                     ].map((line) => (
                       <li
