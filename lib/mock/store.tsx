@@ -46,8 +46,8 @@ import type {
 import { createSeed } from "@/lib/mock/seed";
 import { computeQuote } from "@/lib/pricing";
 
-// Bumped when seed/shape changes (v6: booking deposits / no-show protection).
-const STORAGE_KEY = "groomos.demo.v6";
+// Bumped when seed/shape changes (v7: auth/session moved to real Supabase).
+const STORAGE_KEY = "groomos.demo.v7";
 
 /** Input shapes for create operations (server-assigned fields omitted). */
 export interface NewClientInput {
@@ -97,13 +97,10 @@ interface StoreState {
 }
 
 interface StoreContextValue extends StoreState {
-  /** Demo session — null until the user clicks "continue as demo". */
-  session: { businessId: string } | null;
-  /** False until we've checked localStorage, to avoid auth-redirect flashes. */
+  /** False until we've checked localStorage, to avoid first-paint flashes. */
   hydrated: boolean;
 
-  loginAsDemo: () => void;
-  logout: () => void;
+  /** Reset the mock data back to a fresh seed (Reset demo data). */
   resetDemo: () => void;
 
   // Reads (joins kept here so screens stay thin)
@@ -166,7 +163,6 @@ function makeId(prefix: string): string {
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Deterministic initial state (same on server + first client render).
   const [state, setState] = useState<StoreState>(() => createSeed());
-  const [session, setSession] = useState<{ businessId: string } | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const didLoad = useRef(false);
 
@@ -177,12 +173,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as {
-          state: StoreState;
-          session: { businessId: string } | null;
-        };
+        const parsed = JSON.parse(raw) as { state: StoreState };
         if (parsed.state) setState(parsed.state);
-        if (parsed.session) setSession(parsed.session);
       }
     } catch {
       // Corrupt/unavailable storage → fall back to the seed already in state.
@@ -194,21 +186,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, session }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ state }));
     } catch {
       // Ignore quota/availability errors — demo still works in memory.
     }
-  }, [state, session, hydrated]);
+  }, [state, hydrated]);
 
-  const loginAsDemo = useCallback(
-    () => setSession({ businessId: state.business.id }),
-    [state.business.id],
-  );
-  const logout = useCallback(() => setSession(null), []);
   const resetDemo = useCallback(() => {
-    const fresh = createSeed();
-    setState(fresh);
-    setSession({ businessId: fresh.business.id });
+    setState(createSeed());
   }, []);
 
   // ── Reads ────────────────────────────────────────────────────────────────
@@ -455,10 +440,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<StoreContextValue>(
     () => ({
       ...state,
-      session,
       hydrated,
-      loginAsDemo,
-      logout,
       resetDemo,
       getClient,
       getPet,
@@ -485,10 +467,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       state,
-      session,
       hydrated,
-      loginAsDemo,
-      logout,
       resetDemo,
       getClient,
       getPet,

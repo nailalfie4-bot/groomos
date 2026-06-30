@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Fraunces, Caveat } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import { StoreProvider } from "@/lib/mock/store";
+import { AuthProvider } from "@/components/auth-provider";
 import { SWRegister } from "@/components/sw-register";
 import "./globals.css";
 
@@ -55,7 +56,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${fraunces.variable} ${caveat.variable}`}>
       <body>
-        <StoreProvider>{children}</StoreProvider>
+        <AuthProvider>
+          <StoreProvider>{children}</StoreProvider>
+        </AuthProvider>
         <Toaster />
         <SWRegister />
       </body>

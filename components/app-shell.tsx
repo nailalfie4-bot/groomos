@@ -22,6 +22,8 @@ import {
 import { Logo } from "@/components/logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStore } from "@/lib/mock/store";
+import { useAuth } from "@/components/auth-provider";
+import { signOutAction } from "@/lib/auth/actions";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -51,15 +53,17 @@ function isActive(pathname: string, href: string): boolean {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { session, hydrated, business, logout, resetDemo } = useStore();
+  const { business, resetDemo } = useStore();
+  const { user, loading, configured } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Demo auth guard — bounce to onboarding if there's no session.
+  // Real auth guard — active only when Supabase is configured. In demo mode
+  // (no real keys) this is a no-op and the app stays open, as before.
   useEffect(() => {
-    if (hydrated && !session) router.replace("/");
-  }, [hydrated, session, router]);
+    if (configured && !loading && !user) router.replace("/login");
+  }, [configured, loading, user, router]);
 
-  if (!hydrated || !session) {
+  if (configured && (loading || !user)) {
     return (
       <div className="min-h-screen bg-canvas p-6">
         <Skeleton className="h-8 w-40" />
@@ -114,14 +118,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Reset demo data
           </button>
           <button
-            onClick={() => {
-              logout();
-              router.replace("/");
-            }}
+            onClick={() => signOutAction()}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors duration-fast hover:bg-surface-sunken hover:text-ink"
           >
             <LogOut className="h-4 w-4" />
-            Exit demo
+            {configured ? "Log out" : "Exit demo"}
           </button>
         </div>
       </aside>
@@ -141,9 +142,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile overflow menu */}
       {menuOpen && (
         <div className="fixed inset-0 top-14 z-20 bg-canvas px-4 py-4 md:hidden">
-          <p className="px-1 pb-2 text-xs font-medium uppercase tracking-wider text-ink-subtle">
-            {business.name}
-          </p>
+          <div className="px-1 pb-2">
+            <p className="text-xs font-medium uppercase tracking-wider text-ink-subtle">
+              {business.name}
+            </p>
+            {configured && user?.email && (
+              <p className="pt-0.5 text-xs normal-case tracking-normal text-ink-subtle">
+                {user.email}
+              </p>
+            )}
+          </div>
           <nav className="space-y-1">
             {NAV.map(({ href, label, icon: Icon }) => (
               <Link
@@ -181,14 +189,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Reset demo data
             </button>
             <button
-              onClick={() => {
-                logout();
-                router.replace("/");
-              }}
+              onClick={() => signOutAction()}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-muted"
             >
               <LogOut className="h-4 w-4" />
-              Exit demo
+              {configured ? "Log out" : "Exit demo"}
             </button>
           </nav>
         </div>

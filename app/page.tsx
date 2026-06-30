@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { DogSitting, DogLine, PawTrail } from "@/components/illustrations";
-import { useStore } from "@/lib/mock/store";
+import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 
 type Feature = {
@@ -336,16 +336,17 @@ function initials(name: string) {
 
 export default function LandingPage() {
   const router = useRouter();
-  const { session, hydrated, loginAsDemo } = useStore();
+  const { user, loading, configured } = useAuth();
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
 
+  // When real auth is on, send a logged-in visitor straight to their app.
   useEffect(() => {
-    if (hydrated && session) router.replace("/dashboard");
-  }, [hydrated, session, router]);
+    if (configured && !loading && user) router.replace("/dashboard");
+  }, [configured, loading, user, router]);
 
+  // Demo mode: jump straight into the mock app. Configured: real onboarding.
   function startDemo() {
-    loginAsDemo();
-    router.push("/dashboard");
+    router.push(configured ? "/signup" : "/dashboard");
   }
 
   return (
@@ -360,10 +361,20 @@ export default function LandingPage() {
               <a href="#features" className="text-sm text-ink-muted transition-colors hover:text-ink">Features</a>
               <a href="#pricing" className="text-sm text-ink-muted transition-colors hover:text-ink">Pricing</a>
             </nav>
-            <Button size="sm" onClick={startDemo}>
-              Start your free week
-              <ArrowRight className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2 sm:gap-3">
+              {configured && (
+                <Link
+                  href="/login"
+                  className="hidden px-1 text-sm text-ink-muted transition-colors hover:text-ink sm:block"
+                >
+                  Log in
+                </Link>
+              )}
+              <Button size="sm" onClick={startDemo}>
+                Start your free week
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </header>
 
