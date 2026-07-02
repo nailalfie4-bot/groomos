@@ -37,11 +37,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createSupabaseBrowserClient();
     let active = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!active) return;
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (!active) return;
+        setUser(session?.user ?? null);
+        setLoading(false);
+      })
+      .catch(() => {
+        // Never leave the app stuck on the loading skeleton.
+        if (active) setLoading(false);
+      });
 
     const {
       data: { subscription },

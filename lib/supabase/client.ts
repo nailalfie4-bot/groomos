@@ -1,17 +1,21 @@
 /**
- * Supabase browser client — Stage 1 foundation.
+ * Supabase browser client for "use client" components.
  *
- * NOTE: nothing in the app imports this yet. The working demo still runs
- * entirely on the in-memory mock store (lib/mock/store.tsx). This helper just
- * sits here ready for Stage 2, which will start reading/writing real data
- * behind a feature flag so the demo keeps working throughout the migration.
+ * Cached as a single shared instance so we don't spin up multiple GoTrue
+ * clients in one tab (which logs warnings and can desync auth state). Only ever
+ * called client-side, and only when Supabase is configured.
  */
 import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** A Supabase client for use in browser ("use client") components. */
-export function createSupabaseBrowserClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
+let browserClient: SupabaseClient | undefined;
+
+export function createSupabaseBrowserClient(): SupabaseClient {
+  if (!browserClient) {
+    browserClient = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
+  }
+  return browserClient;
 }

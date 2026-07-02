@@ -59,9 +59,15 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
 
   // IMPORTANT: getUser() validates the token with Supabase and refreshes the
   // cookie. Do not run code between createServerClient and getUser.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Wrapped so a misconfig/outage can't 500 every request — on error we treat
+  // the visitor as logged out (fail closed) rather than crashing.
+  let user = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch {
+    user = null;
+  }
 
   const path = request.nextUrl.pathname;
 

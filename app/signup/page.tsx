@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { AuthCard } from "@/components/auth-card";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { friendlyAuthError } from "@/lib/auth/errors";
 
 export default function SignupPage() {
   const configured = isSupabaseConfigured();
@@ -32,24 +33,56 @@ export default function SignupPage() {
     const supabase = createSupabaseBrowserClient();
     // The business name rides along as user metadata; a DB trigger turns it
     // into a businesses row + a linked users row (see migration 0002).
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: { data: { business_name: businessName.trim() } },
-    });
-    if (signUpError) {
-      setError(signUpError.message);
-      setLoading(false);
-      return;
-    }
-    if (data.session) {
-      // Email confirmation is OFF -> signed in immediately.
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { business_name: businessName.trim() } },
+      });
+      if (signUpError) {
+        setError(friendlyAuthError(signUpError, "signup"));
+        setLoading(false);
+        return;
+      }
+
+      if (!data.session) {
+        // No session means email confirmation is ON.
+        setLoading(false);
+        setInfo(
+          "Account created — but email confirmation is ON in Supabase, so you must confirm via the emailed link before you can log in. For instant testing, turn it OFF (Authentication → Providers → Email → Confirm email) and sign up again.",
+        );
+        return;
+      }
+
+      // Signed in. Verify the signup trigger actually created the tenant, so a
+      // missing migration 0002 tells you clearly instead of failing silently.
+      const { data: profile, error: profileError } = await supabase
+        .from("users")
+        .select("id, business_id")
+        .eq("id", data.user?.id ?? "")
+        .maybeSingle();
+
+      if (profileError) {
+        setLoading(false);
+        setError(
+          "Your account was created, but its business profile couldn't be read — the database may not be fully set up. Open /debug to check.",
+        );
+        return;
+      }
+      const businessId = (profile as { business_id?: string } | null)?.business_id;
+      if (!businessId) {
+        setLoading(false);
+        setError(
+          "Your account was created, but its business wasn't set up — the signup trigger (migration 0002) hasn't run. Open /debug to confirm, then delete this user in Supabase (Authentication → Users), run 0002, and sign up again.",
+        );
+        return;
+      }
+
       window.location.assign("/dashboard");
-      return;
+    } catch (err) {
+      setError(friendlyAuthError(err as { message?: string }, "signup"));
+      setLoading(false);
     }
-    // Email confirmation is ON -> no session yet.
-    setLoading(false);
-    setInfo("Account created. Check your email to confirm, then log in.");
   }
 
   return (

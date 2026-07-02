@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { AuthCard } from "@/components/auth-card";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { friendlyAuthError } from "@/lib/auth/errors";
 
 export default function LoginPage() {
   const configured = isSupabaseConfigured();
@@ -23,20 +24,26 @@ export default function LoginPage() {
     }
     setLoading(true);
     const supabase = createSupabaseBrowserClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (signInError) {
-      setError(signInError.message);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (signInError) {
+        setError(friendlyAuthError(signInError, "login"));
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      setError(friendlyAuthError(err as { message?: string }, "login"));
       setLoading(false);
       return;
     }
     // Full navigation so the server (middleware + layouts) picks up the session.
-    const redirectedFrom = new URLSearchParams(window.location.search).get(
-      "redirectedFrom",
-    );
-    window.location.assign(redirectedFrom || "/dashboard");
+    // Only honour same-origin paths (no open redirects).
+    const raw = new URLSearchParams(window.location.search).get("redirectedFrom");
+    const dest = raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard";
+    window.location.assign(dest);
   }
 
   return (
