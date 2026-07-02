@@ -11,7 +11,6 @@ import {
   Camera,
   Check,
   Heart,
-  Minus,
   Moon,
   PawPrint,
   Scissors,
@@ -23,7 +22,7 @@ import {
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/status-badge";
+import { BookingWalkthrough } from "@/components/booking-walkthrough";
 import { DogSitting, DogLine, PawTrail } from "@/components/illustrations";
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
@@ -93,20 +92,21 @@ const STEPS = [
   },
 ];
 
-// Honest social proof: one real quote from the groomer who helped build
-// GroomOS, plus open invitations for our first founding groomers.
+// The founder story — one real quote from the working groomer who built
+// GroomOS. No placeholder testimonials.
 const PHOEBE = {
   quote:
     "I groom dogs all day, so we built GroomOS around how the job actually feels — quick to use on your phone between dogs, and calm instead of cluttered. It's the tool I always wished I'd had.",
   name: "Phoebe",
-  role: "Professional dog groomer · helped build GroomOS",
+  role: "Professional dog groomer · built GroomOS",
 };
 
-const FOUNDING_INVITES = [
-  "Be one of our first groomers — your words could go here.",
-  "Your salon's story could sit right here.",
-  "Loved using GroomOS? We'd love to feature you next.",
-];
+// The offer — used for every primary call-to-action across the page.
+const CTA_LABEL = "Get set up free";
+const CTA_SUBLINE =
+  "25 spots this month · we build every account personally · no card needed.";
+const OFFER =
+  "We set up your whole booking system for you in a 20-minute call, then you use it free for 30 days. If it doesn't save you a single no-show in 60 days, your next 2 months are free.";
 
 type Plan = {
   name: string;
@@ -118,8 +118,6 @@ type Plan = {
   /** Tier this one builds on — rendered as an "Everything in X, plus" lead-in. */
   inherits?: string;
   features: string[];
-  /** Notable things this tier deliberately leaves out (shown muted). */
-  excluded?: string[];
   /** Short reassurance line under the price (e.g. Pro's "pays for itself"). */
   note?: string;
   highlighted?: boolean;
@@ -135,8 +133,8 @@ const PLANS: Plan[] = [
       "Smart colour-coded calendar",
       "24/7 online booking page",
       "Unlimited client & pet records",
+      "Email reminders",
     ],
-    excluded: ["Automated reminders", "Deposits & no-show protection"],
   },
   {
     name: "Pro",
@@ -145,11 +143,11 @@ const PLANS: Plan[] = [
     tagline: "Everything that saves time and makes money.",
     inherits: "Starter",
     features: [
-      "Automated text & email reminders",
+      "SMS reminders",
       "Deposits & no-show protection",
       "Matting meter & smart pricing",
-      "Rebooking & retention engine",
-      "Before & after grooming reports",
+      "Rebooking engine",
+      "Before & after reports",
     ],
     note: "A couple of saved no-shows a month more than covers it.",
     highlighted: true,
@@ -326,12 +324,26 @@ function DepositVisual() {
   );
 }
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2);
+/** Founder headshot with a graceful monogram fallback. Drop a real photo at
+ *  /public/founder/phoebe.jpg and it takes over automatically. */
+function FounderPortrait() {
+  const [showPhoto, setShowPhoto] = useState(true);
+  return (
+    <div className="relative mx-auto h-40 w-40 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-accent-100 to-accent-200 ring-1 ring-border/60 sm:h-48 sm:w-48">
+      <span className="absolute inset-0 flex items-center justify-center font-display text-6xl font-semibold text-accent-700">
+        P
+      </span>
+      {showPhoto && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="/founder/phoebe.jpg"
+          alt="Phoebe, the dog groomer who built GroomOS"
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setShowPhoto(false)}
+        />
+      )}
+    </div>
+  );
 }
 
 export default function LandingPage() {
@@ -371,7 +383,7 @@ export default function LandingPage() {
                 </Link>
               )}
               <Button size="sm" onClick={startDemo}>
-                Start your free week
+                {CTA_LABEL}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -401,13 +413,11 @@ export default function LandingPage() {
                   <span className="italic text-accent">evenings</span> back.
                 </h1>
                 <p className="mt-6 max-w-md text-base leading-relaxed text-ink-muted sm:text-lg">
-                  GroomOS is the calm, beautiful little app for self-employed groomers.
-                  Bookings, reminders and happy clients — without the dense dashboards
-                  or the £80 SMS bills.
+                  {OFFER}
                 </p>
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Button size="lg" onClick={startDemo} className="w-full sm:w-auto">
-                    Start your free week
+                    {CTA_LABEL}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                   <Link href="/book" target="_blank" className="w-full sm:w-auto">
@@ -416,14 +426,10 @@ export default function LandingPage() {
                     </Button>
                   </Link>
                 </div>
-                <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-muted">
-                  <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success" /> No card required</span>
-                  <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success" /> Set up in 10 minutes</span>
-                  <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-success" /> Reminders included</span>
-                </div>
+                <p className="mt-5 max-w-md text-xs text-ink-muted">{CTA_SUBLINE}</p>
               </motion.div>
 
-              {/* Mock app preview */}
+              {/* Animated client-booking walkthrough */}
               <motion.div
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -431,55 +437,10 @@ export default function LandingPage() {
                 className="relative"
               >
                 <div className="absolute -inset-5 -z-10 rounded-[28px] bg-accent-100/50 blur-2xl" />
-                <div className="rounded-2xl border border-DEFAULT bg-surface p-5 shadow-xl ring-1 ring-border/60">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-ink">Today</p>
-                      <p className="text-xs text-ink-subtle">Tuesday · 5 dogs in</p>
-                    </div>
-                    <Badge tone="accent">£215 booked</Badge>
-                  </div>
-                  <div className="mt-4 space-y-2.5">
-                    {[
-                      { t: "09:00", pet: "Biscuit", svc: "Full Groom", s: "confirmed" as const },
-                      { t: "10:30", pet: "Maple", svc: "Bath & Tidy", s: "confirmed" as const },
-                      { t: "13:00", pet: "Bear", svc: "Full Groom · matted", s: "confirmed" as const },
-                      { t: "15:30", pet: "Bramble", svc: "Full Groom", s: "pending" as const },
-                    ].map((r) => (
-                      <div key={r.t} className="flex items-center gap-3 rounded-xl border border-DEFAULT bg-canvas px-3 py-2.5">
-                        <span className="tabular-nums w-11 text-xs font-medium text-ink-muted">{r.t}</span>
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-100 text-[11px] font-semibold text-accent-700">
-                          {r.pet.charAt(0)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-ink">{r.pet}</p>
-                          <p className="truncate text-xs text-ink-subtle">{r.svc}</p>
-                        </div>
-                        <StatusBadge status={r.s} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Floating reminder toast */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.5, ease: EASE }}
-                  className="absolute -right-3 -top-5 hidden items-center gap-2.5 rounded-xl border border-DEFAULT bg-surface px-3 py-2 shadow-md sm:flex"
-                >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-success-soft text-success-deep">
-                    <Bell className="h-3.5 w-3.5" />
-                  </span>
-                  <div className="text-[11px] leading-tight">
-                    <p className="font-semibold text-ink">Reminder sent</p>
-                    <p className="text-ink-subtle">Maple · tomorrow 10:30</p>
-                  </div>
-                </motion.div>
-
-                {/* Friendly flat-dog accent peeking from the booking card */}
+                <BookingWalkthrough />
+                {/* Friendly flat-dog accent peeking from the phone */}
                 <DogSitting
-                  className="absolute -bottom-7 -left-7 hidden w-24 drop-shadow-sm lg:block"
+                  className="absolute -bottom-8 -left-4 hidden w-24 drop-shadow-sm lg:block"
                   bow
                 />
               </motion.div>
@@ -622,117 +583,35 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Social proof */}
+        {/* Founder story */}
         <section className="border-t border-DEFAULT bg-surface">
-          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
-            <Reveal className="mx-auto mb-12 max-w-2xl text-center sm:mb-16">
-              <Eyebrow>Built with a groomer</Eyebrow>
-              <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
-                From people just like you
-              </h2>
-              <p className="mt-4 text-base text-ink-muted">
-                We&apos;re new — built with a working groomer, looking for our first few to shape it.
-              </p>
+          <div className="mx-auto max-w-4xl px-5 py-20 sm:px-8 sm:py-28">
+            <Reveal className="mb-10 text-center">
+              <Eyebrow>Built by a groomer</Eyebrow>
             </Reveal>
-            <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
-              {/* The real quote */}
-              <RevealCard className="flex h-full flex-col rounded-2xl border border-DEFAULT bg-canvas p-6 shadow-card transition-shadow duration-300 hover:shadow-md">
-                <div className="mb-4 flex gap-0.5 text-accent">
-                  {Array.from({ length: 5 }).map((_, k) => (
-                    <Star key={k} className="h-3.5 w-3.5 fill-current" />
-                  ))}
-                </div>
-                <blockquote className="flex-1 font-display text-[17px] leading-snug text-ink text-pretty">
-                  “{PHOEBE.quote}”
-                </blockquote>
-                <figcaption className="mt-5 flex items-center gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-100 text-xs font-semibold text-accent-700">
-                    {initials(PHOEBE.name)}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">{PHOEBE.name}</p>
-                    <p className="text-xs leading-snug text-ink-muted">{PHOEBE.role}</p>
+            <Reveal className="overflow-hidden rounded-3xl border border-DEFAULT bg-canvas p-7 shadow-card sm:p-10">
+              <div className="grid gap-8 md:grid-cols-[auto,1fr] md:items-center md:gap-10">
+                <FounderPortrait />
+                <div>
+                  <div className="mb-4 flex gap-0.5 text-accent">
+                    {Array.from({ length: 5 }).map((_, k) => (
+                      <Star key={k} className="h-4 w-4 fill-current" />
+                    ))}
                   </div>
-                </figcaption>
-              </RevealCard>
-
-              {/* Founding-groomer invitations */}
-              {FOUNDING_INVITES.map((invite, i) => (
-                <RevealCard
-                  key={i}
-                  delay={(i + 1) * 0.06}
-                  className="flex h-full flex-col rounded-2xl border border-DEFAULT bg-canvas p-6 shadow-card transition-shadow duration-300 hover:shadow-md"
-                >
-                  <span className="mb-4 inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-50 px-2.5 py-1 text-[11px] font-semibold text-accent-700">
-                    <Sparkles className="h-3 w-3" /> Founding groomer
-                  </span>
-                  <blockquote className="flex-1 font-display text-[17px] leading-snug text-ink-muted text-pretty">
-                    “{invite}”
+                  <blockquote className="font-display text-[20px] leading-snug text-ink text-pretty sm:text-[24px]">
+                    “{PHOEBE.quote}”
                   </blockquote>
-                  <figcaption className="mt-5 flex items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-strong text-ink-subtle">
-                      <PawPrint className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">Your name here</p>
-                      <p className="text-xs leading-snug text-ink-muted">Your grooming business</p>
-                    </div>
+                  <figcaption className="mt-5">
+                    <p className="text-base font-semibold text-ink">{PHOEBE.name}</p>
+                    <p className="text-sm text-ink-muted">{PHOEBE.role}</p>
                   </figcaption>
-                </RevealCard>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Before & After */}
-        <section className="border-t border-DEFAULT bg-canvas">
-          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
-            <Reveal className="mx-auto mb-12 flex max-w-2xl flex-col items-center text-center sm:mb-16">
-              <Eyebrow>Before &amp; after</Eyebrow>
-              <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
-                Every groom, worth showing off
-              </h2>
-              <p className="mt-4 max-w-md text-base leading-relaxed text-ink-muted sm:text-lg">
-                A lovely little card after each visit — the kind clients share on
-                Facebook. Add your own photos and these fill with real
-                before-and-afters.
-              </p>
+                  <p className="mt-6 border-t border-DEFAULT pt-5 text-sm font-medium text-accent-700">
+                    Built by a working groomer, now onboarding our first 25 UK
+                    groomers personally.
+                  </p>
+                </div>
+              </div>
             </Reveal>
-            <div className="grid gap-5 sm:grid-cols-3">
-              {[
-                { name: "Biscuit", breed: "Cockapoo" },
-                { name: "Bear", breed: "Bernese Mountain Dog" },
-                { name: "Maple", breed: "Cavalier" },
-              ].map((d, i) => (
-                <RevealCard
-                  key={d.name}
-                  delay={i * 0.08}
-                  className="overflow-hidden rounded-2xl border border-DEFAULT bg-surface shadow-card transition-shadow duration-300 hover:shadow-md"
-                >
-                  <div className="grid grid-cols-2 gap-px bg-DEFAULT">
-                    <div className="relative flex items-end justify-center bg-surface-sunken px-4 pt-6">
-                      <span className="absolute left-2 top-2 rounded-full bg-ink/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-inverse">
-                        Before
-                      </span>
-                      <DogSitting className="w-20" scruff />
-                    </div>
-                    <div className="relative flex items-end justify-center bg-accent-50 px-4 pt-6">
-                      <span className="absolute right-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-inverse">
-                        After
-                      </span>
-                      <DogSitting className="w-20" bow />
-                    </div>
-                  </div>
-                  <figcaption className="flex items-center justify-between px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-ink">{d.name}</p>
-                      <p className="text-xs text-ink-subtle">{d.breed}</p>
-                    </div>
-                    <p className="text-xs font-medium text-accent">Your real grooms go here</p>
-                  </figcaption>
-                </RevealCard>
-              ))}
-            </div>
           </div>
         </section>
 
@@ -745,7 +624,7 @@ export default function LandingPage() {
                 Simple plans that grow with you
               </h2>
               <p className="mt-4 text-base leading-relaxed text-ink-muted">
-                Start free for a week. No setup fees, no metered SMS, cancel any time.
+                Start with a free 30-day trial. No setup fees, no metered SMS, cancel any time.
               </p>
 
               {/* Monthly / annual billing toggle */}
@@ -779,6 +658,14 @@ export default function LandingPage() {
                     2 months free
                   </span>
                 </button>
+              </div>
+            </Reveal>
+
+            {/* Founding pricing */}
+            <Reveal className="mb-8 flex justify-center">
+              <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent-50 px-4 py-2 text-center text-sm font-medium text-accent-700">
+                <Sparkles className="h-4 w-4 shrink-0" />
+                Founding offer — first 25 groomers: £19/mo for your first 12 months.
               </div>
             </Reveal>
 
@@ -843,14 +730,6 @@ export default function LandingPage() {
                             {f}
                           </li>
                         ))}
-                        {p.excluded?.map((f) => (
-                          <li key={f} className="flex items-start gap-2.5 text-sm text-ink-subtle">
-                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-surface-sunken text-ink-subtle">
-                              <Minus className="h-3 w-3" />
-                            </span>
-                            {f}
-                          </li>
-                        ))}
                       </ul>
                     </div>
 
@@ -861,7 +740,7 @@ export default function LandingPage() {
                         variant={p.highlighted ? "primary" : "secondary"}
                         onClick={startDemo}
                       >
-                        Start your free week
+                        {CTA_LABEL}
                       </Button>
                       <p className="mt-2 text-center text-xs text-ink-subtle">No card needed</p>
                     </div>
@@ -870,7 +749,7 @@ export default function LandingPage() {
               })}
             </div>
             <p className="mt-8 text-center text-xs text-ink-subtle">
-              7-day free trial on every plan · cancel any time.
+              30-day free trial on every plan · cancel any time.
             </p>
           </div>
         </section>
@@ -891,9 +770,8 @@ export default function LandingPage() {
                   <h2 className="mx-auto max-w-lg font-display text-[28px] font-semibold leading-tight tracking-tight text-ink-inverse text-balance sm:text-[40px]">
                     Your evenings are waiting.
                   </h2>
-                  <p className="mx-auto mt-4 max-w-md text-sm text-ink-inverse/85 sm:text-base">
-                    Try the whole thing free for a week. It only takes ten minutes to set up,
-                    and you can be taking bookings tonight.
+                  <p className="mx-auto mt-4 max-w-xl text-sm text-ink-inverse/85 sm:text-base">
+                    {OFFER}
                   </p>
                   <div className="mt-8 flex justify-center">
                     <Button
@@ -901,10 +779,13 @@ export default function LandingPage() {
                       onClick={startDemo}
                       className="bg-surface text-ink shadow-md hover:bg-canvas"
                     >
-                      Start your free week
+                      {CTA_LABEL}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   </div>
+                  <p className="mx-auto mt-5 max-w-md text-xs text-ink-inverse/70">
+                    {CTA_SUBLINE}
+                  </p>
                 </div>
               </div>
             </Reveal>
