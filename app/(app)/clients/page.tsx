@@ -14,16 +14,15 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { DogEmpty } from "@/components/illustrations";
 import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
-import { useStore } from "@/lib/mock/store";
-import { useDemoLoad } from "@/lib/use-demo-load";
+import { useClientsData } from "@/lib/data/use-clients-data";
 import type { DogSize } from "@/lib/types";
 import { initials } from "@/lib/format";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ClientsPage() {
-  const loading = useDemoLoad();
-  const { clients, pets, getPetsForClient, addClient, addPet } = useStore();
+  const { clients, pets, loading, getPetsForClient, addClient, addPet } =
+    useClientsData();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -136,10 +135,16 @@ export default function ClientsPage() {
       <AddClientModal
         open={open}
         onClose={() => setOpen(false)}
-        onCreate={(client, pet) => {
-          const c = addClient(client);
-          if (pet) addPet({ ...pet, clientId: c.id });
-          toast.success(`${c.firstName} ${c.lastName} added`);
+        onCreate={async (client, pet) => {
+          try {
+            const c = await addClient(client);
+            if (pet) await addPet({ ...pet, clientId: c.id });
+            toast.success(`${c.firstName} ${c.lastName} added`);
+          } catch (err) {
+            toast.error(
+              err instanceof Error ? err.message : "Couldn't add client",
+            );
+          }
         }}
       />
     </>

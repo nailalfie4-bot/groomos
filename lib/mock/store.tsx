@@ -43,8 +43,9 @@ import type {
   Service,
   Settings,
 } from "@/lib/types";
-import { createSeed } from "@/lib/mock/seed";
+import { createSeed, createEmptySeed } from "@/lib/mock/seed";
 import { computeQuote } from "@/lib/pricing";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 // Bumped when seed/shape changes (v7: auth/session moved to real Supabase).
 const STORAGE_KEY = "groomos.demo.v7";
@@ -161,40 +162,52 @@ function makeId(prefix: string): string {
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  // Deterministic initial state (same on server + first client render).
+  // Real (Supabase) accounts start from a clean, empty book; the public demo
+  // uses the rich seed. Screens read real data from Supabase via their own
+  // hooks — this mock store is the demo source and the not-yet-migrated
+  // screens' fallback.
+  const configured = useMemo(() => isSupabaseConfigured(), []);
+  // Deterministic initial state (same on server + first client render). We seed
+  // on both and, in configured mode, swap to empty once mounted (avoids a
+  // hydration mismatch while keeping real accounts empty).
   const [state, setState] = useState<StoreState>(() => createSeed());
   const [hydrated, setHydrated] = useState(false);
   const didLoad = useRef(false);
 
-  // Hydrate from localStorage once on mount.
+  // On mount: demo mode restores from localStorage; configured mode starts empty
+  // (real data lives in Supabase) and never touches localStorage.
   useEffect(() => {
     if (didLoad.current) return;
     didLoad.current = true;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { state: StoreState };
-        if (parsed.state) setState(parsed.state);
+    if (configured) {
+      setState(createEmptySeed());
+    } else {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { state: StoreState };
+          if (parsed.state) setState(parsed.state);
+        }
+      } catch {
+        // Corrupt/unavailable storage → fall back to the seed already in state.
       }
-    } catch {
-      // Corrupt/unavailable storage → fall back to the seed already in state.
     }
     setHydrated(true);
-  }, []);
+  }, [configured]);
 
-  // Persist on change (after initial hydration).
+  // Persist on change (demo mode only — never cache a real account's mock state).
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || configured) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ state }));
     } catch {
       // Ignore quota/availability errors — demo still works in memory.
     }
-  }, [state, hydrated]);
+  }, [state, hydrated, configured]);
 
   const resetDemo = useCallback(() => {
-    setState(createSeed());
-  }, []);
+    setState(configured ? createEmptySeed() : createSeed());
+  }, [configured]);
 
   // ── Reads ────────────────────────────────────────────────────────────────
   const getClient = useCallback(

@@ -218,3 +218,30 @@ export function createSeed(): SeedData {
     settings: { ...DEFAULT_SETTINGS },
   };
 }
+
+/**
+ * A valid but empty starting state for real (Supabase-configured) accounts, so
+ * they begin with a clean book — no demo clients, pets, services or bookings.
+ * Real data is loaded per-screen from Supabase; the business name and settings
+ * are filled in as those screens migrate. Demo mode uses `createSeed()` instead.
+ */
+export function createEmptySeed(): SeedData {
+  return {
+    business: {
+      id: "",
+      name: "Your business",
+      openHour: 9,
+      closeHour: 17,
+      stations: 1,
+      addressLine: "",
+      city: "",
+      postcode: "",
+      phone: "",
+    },
+    clients: [],
+    pets: [],
+    services: [],
+    appointments: [],
+    settings: { ...DEFAULT_SETTINGS },
+  };
+}
