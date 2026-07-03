@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Toggle } from "@/components/ui/toggle";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useStore } from "@/lib/mock/store";
 import { computeQuote } from "@/lib/pricing";
 import { formatGBP } from "@/lib/format";
@@ -29,7 +30,31 @@ const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00–21:00
 const hhmm = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 export default function SettingsPage() {
-  const { settings, business, updateSettings, updateBusiness } = useStore();
+  const { settings, business, updateSettings, updateBusiness, hydrated } = useStore();
+  // Mount the form only once the tenant's real settings/business have loaded, so
+  // its fields initialise from actual values rather than the pre-load defaults.
+  if (!hydrated) return <SettingsSkeleton />;
+  return (
+    <SettingsForm
+      settings={settings}
+      business={business}
+      updateSettings={updateSettings}
+      updateBusiness={updateBusiness}
+    />
+  );
+}
+
+function SettingsForm({
+  settings,
+  business,
+  updateSettings,
+  updateBusiness,
+}: {
+  settings: Settings;
+  business: Business;
+  updateSettings: (patch: Partial<Settings>) => void;
+  updateBusiness: (patch: Partial<Business>) => void;
+}) {
   const [s, setS] = useState<Settings>(settings);
   const [b, setB] = useState<Business>(business);
 
@@ -289,5 +314,21 @@ function FeeRow({
         <Input label="Extra time (min)" type="number" min={0} step={5} value={String(mins)} onChange={(e) => onMins(num(e.target.value))} />
       </div>
     </div>
+  );
+}
+
+function SettingsSkeleton() {
+  return (
+    <>
+      <PageHeader
+        title="Settings"
+        subtitle="The few choices that make GroomOS smart — change them any time."
+      />
+      <div className="flex flex-col gap-5">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-40 w-full rounded-2xl" />
+        ))}
+      </div>
+    </>
   );
 }
