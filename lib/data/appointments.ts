@@ -58,3 +58,91 @@ export async function fetchAppointments(businessId: string): Promise<Appointment
   if (error) throw error;
   return (data as AppointmentRow[]).map(rowToAppointment);
 }
+
+/** Postgres exclusion_violation — an overlapping (clashing) booking. */
+export function isClashError(e: unknown): boolean {
+  return !!e && typeof e === "object" && (e as { code?: string }).code === "23P01";
+}
+
+/**
+ * Insert an appointment with an explicit id (so the optimistic UI entity and the
+ * stored row share an id). The DB's clash/buffer exclusion constraint may reject
+ * it with 23P01 — surfaced via isClashError.
+ */
+export async function insertAppointment(a: Appointment): Promise<Appointment> {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("appointments")
+    .insert({
+      id: a.id,
+      business_id: a.businessId,
+      client_id: a.clientId,
+      pet_id: a.petId,
+      service_id: a.serviceId || null,
+      start_at: a.start,
+      status: a.status,
+      source: a.source,
+      notes: a.notes,
+      price_gbp: a.priceGBP,
+      coat_condition: a.coatCondition,
+      duration_min: a.durationMin,
+      deposit: a.deposit ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToAppointment(data as AppointmentRow);
+}
+
+export async function setAppointmentStatusRow(
+  id: string,
+  status: Appointment["status"],
+): Promise<void> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("appointments").update({ status }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateAppointmentNotesRow(id: string, notes: string): Promise<void> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("appointments").update({ notes }).eq("id", id);
+  if (error) throw error;
+}
+
+/** Move an appointment to a new start (calendar drag). May clash (23P01). */
+export async function rescheduleAppointmentRow(id: string, startISO: string): Promise<void> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("appointments")
+    .update({ start_at: startISO })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function attachReportRow(
+  id: string,
+  report: Appointment["report"],
+): Promise<void> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("appointments")
+    .update({ report, status: "completed" })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Mark a friendly retention reminder as sent for a pet's completed grooms. */
+export async function markReminderSentRow(
+  businessId: string,
+  petId: string,
+  whenISO: string,
+): Promise<void> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("appointments")
+    .update({ reminder_sent_at: whenISO })
+    .eq("business_id", businessId)
+    .eq("pet_id", petId)
+    .eq("status", "completed");
+  if (error) throw error;
+}

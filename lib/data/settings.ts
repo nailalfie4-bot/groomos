@@ -53,3 +53,34 @@ export async function fetchSettings(businessId: string): Promise<Settings> {
   if (error) throw error;
   return data ? rowToSettings(data as SettingsRow) : { ...DEFAULT_SETTINGS };
 }
+
+/** Patch the business's settings row (camelCase in → snake_case columns). */
+export async function updateSettingsRow(
+  businessId: string,
+  patch: Partial<Settings>,
+): Promise<void> {
+  const map: Record<keyof Settings, string> = {
+    bufferMin: "buffer_min",
+    tangledFee: "tangled_fee",
+    tangledExtraMin: "tangled_extra_min",
+    mattedFee: "matted_fee",
+    mattedExtraMin: "matted_extra_min",
+    giantFee: "giant_fee",
+    giantExtraMin: "giant_extra_min",
+    remindersEnabled: "reminders_enabled",
+    defaultRebookWeeks: "default_rebook_weeks",
+    depositEnabled: "deposit_enabled",
+    depositAmount: "deposit_amount",
+    cancellationNoticeHours: "cancellation_notice_hours",
+  };
+  const dbPatch: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    const col = map[k as keyof Settings];
+    if (col && v !== undefined) dbPatch[col] = v;
+  }
+  if (Object.keys(dbPatch).length === 0) return;
+
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("settings").update(dbPatch).eq("business_id", businessId);
+  if (error) throw error;
+}

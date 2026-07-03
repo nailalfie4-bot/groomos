@@ -50,11 +50,13 @@ export async function fetchPets(businessId: string): Promise<Pet[]> {
 export async function insertPet(
   businessId: string,
   input: NewPetInput,
+  id?: string,
 ): Promise<Pet> {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("pets")
     .insert({
+      ...(id ? { id } : {}),
       business_id: businessId,
       client_id: input.clientId,
       name: input.name,

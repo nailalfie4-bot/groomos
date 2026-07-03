@@ -77,15 +77,17 @@ export async function fetchBookedCounts(
   return counts;
 }
 
-/** Create a service in the caller's business. */
+/** Create a service in the caller's business. Pass `id` to match an optimistic row. */
 export async function insertService(
   businessId: string,
   input: NewServiceInput,
+  id?: string,
 ): Promise<Service> {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("services")
     .insert({
+      ...(id ? { id } : {}),
       business_id: businessId,
       name: input.name,
       description: input.description,

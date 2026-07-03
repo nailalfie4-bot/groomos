@@ -45,11 +45,13 @@ export async function fetchClients(businessId: string): Promise<Client[]> {
 export async function insertClient(
   businessId: string,
   input: NewClientInput,
+  id?: string,
 ): Promise<Client> {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("clients")
     .insert({
+      ...(id ? { id } : {}),
       business_id: businessId,
       first_name: input.firstName,
       last_name: input.lastName,
