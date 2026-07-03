@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
 
 /**
- * A warm little dog-face avatar — friendlier than initials. Each dog gets a
- * stable colour from the warm blush family (no green), derived from its id so
- * the same dog always looks the same.
+ * A clean monogram avatar — the pet's initial in a soft blush circle. A calm,
+ * neutral placeholder until real pet photos are added. Each pet keeps a stable
+ * colour from the warm blush family, derived from its id.
  */
 const COLORS = ["#C9756B", "#B25F56", "#CC8A6F", "#A87E74", "#BE8A5E", "#D28076"];
 
@@ -23,6 +23,7 @@ export function PetAvatar({
   className?: string;
 }) {
   const c = colorFor(petId || name);
+  const initial = (name.trim()[0] ?? "").toUpperCase();
   return (
     <span
       className={cn(
@@ -31,27 +32,20 @@ export function PetAvatar({
       )}
       aria-hidden="true"
     >
-      <svg viewBox="0 0 40 40" className="h-[82%] w-[82%]" fill="none">
-        <g fill={c}>
-          {/* floppy ears */}
-          <ellipse cx="10.5" cy="16" rx="4.6" ry="7.6" transform="rotate(-14 10.5 16)" />
-          <ellipse cx="29.5" cy="16" rx="4.6" ry="7.6" transform="rotate(14 29.5 16)" />
-          {/* head */}
-          <ellipse cx="20" cy="20.5" rx="11" ry="10.2" />
-        </g>
-        {/* muzzle */}
-        <ellipse cx="20" cy="24.4" rx="5.7" ry="4.5" fill="#FCF6F4" />
-        {/* eyes */}
-        <circle cx="15.6" cy="18.6" r="1.5" fill="#2A2422" />
-        <circle cx="24.4" cy="18.6" r="1.5" fill="#2A2422" />
-        {/* nose + smile */}
-        <ellipse cx="20" cy="22.6" rx="1.7" ry="1.3" fill="#2A2422" />
-        <path
-          d="M20 24v1.5M20 25.5q-1.8 0-2.7-1.3M20 25.5q1.8 0 2.7-1.3"
-          stroke="#2A2422"
-          strokeWidth="0.7"
-          strokeLinecap="round"
-        />
+      {/* SVG text so the initial scales with the circle size. */}
+      <svg viewBox="0 0 40 40" className="h-full w-full">
+        <text
+          x="20"
+          y="20"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize="20"
+          fontWeight="600"
+          fontFamily="inherit"
+          fill={c}
+        >
+          {initial}
+        </text>
       </svg>
     </span>
   );

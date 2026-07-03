@@ -23,7 +23,7 @@ import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookingWalkthrough } from "@/components/booking-walkthrough";
-import { DogSitting, DogLine, PawTrail } from "@/components/illustrations";
+import { PawTrail } from "@/components/illustrations";
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -438,11 +438,6 @@ export default function LandingPage() {
               >
                 <div className="absolute -inset-5 -z-10 rounded-[28px] bg-accent-100/50 blur-2xl" />
                 <BookingWalkthrough />
-                {/* Friendly flat-dog accent peeking from the phone */}
-                <DogSitting
-                  className="absolute -bottom-8 -left-4 hidden w-24 drop-shadow-sm lg:block"
-                  bow
-                />
               </motion.div>
             </div>
           </div>
@@ -516,13 +511,13 @@ export default function LandingPage() {
                   )}
                 </RevealCard>
               ))}
-              {/* Decorative fine-line dog tile completes the 3×3 bento */}
+              {/* Simple paw motif completes the 3×3 bento */}
               <RevealCard
                 delay={0.12}
                 hover={false}
-                className="hidden flex-col items-center justify-center gap-3 rounded-2xl border border-DEFAULT bg-accent-50 p-6 text-accent-600 lg:flex"
+                className="hidden flex-col items-center justify-center gap-4 rounded-2xl border border-DEFAULT bg-accent-50 p-6 text-accent-600 lg:flex"
               >
-                <DogLine className="w-24" />
+                <PawPrint className="h-10 w-10" />
                 <PawTrail />
               </RevealCard>
             </div>
@@ -763,9 +758,6 @@ export default function LandingPage() {
                   aria-hidden
                   className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent-400/40 via-transparent to-accent-700/30"
                 />
-                {/* Fine-line dogs, well-placed */}
-                <DogLine className="pointer-events-none absolute -bottom-6 -left-5 w-32 text-ink-inverse/15 sm:w-40" />
-                <DogLine className="pointer-events-none absolute -right-5 -top-8 hidden w-28 rotate-6 text-ink-inverse/10 sm:block" />
                 <div className="relative">
                   <h2 className="mx-auto max-w-lg font-display text-[28px] font-semibold leading-tight tracking-tight text-ink-inverse text-balance sm:text-[40px]">
                     Your evenings are waiting.
