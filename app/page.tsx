@@ -7,16 +7,12 @@ import { motion, MotionConfig } from "framer-motion";
 import {
   ArrowRight,
   Bell,
-  CalendarDays,
   Camera,
   Check,
-  Heart,
   Moon,
   PawPrint,
-  Scissors,
   ShieldCheck,
   Sparkles,
-  Star,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
@@ -31,82 +27,74 @@ type Feature = {
   icon: LucideIcon;
   title: string;
   body: string;
-  /** Grid span on the large (lg) bento layout. */
-  span?: string;
-  /** Optional in-tile illustration for the wide bento tiles. */
-  visual?: "timeline" | "meter";
 };
 
+// Built for solo groomers, not salons — five things that actually earn their keep.
 const FEATURES: Feature[] = [
   {
-    icon: CalendarDays,
-    title: "Smart calendar",
-    body: "Colour-coded and calm, with cleanup time added automatically so you can never double-book.",
-    span: "lg:col-span-2",
-    visual: "timeline",
+    icon: ShieldCheck,
+    title: "Deposits that stop no-shows",
+    body: "Clients with skin in the game turn up.",
   },
   {
     icon: Moon,
-    title: "24/7 online booking",
-    body: "Clients book themselves day or night — so you're not replying to texts at 9pm.",
+    title: "A booking page that works while you groom",
+    body: "No more replying to DMs at 9pm.",
   },
   {
     icon: Bell,
-    title: "Reminders included",
-    body: "Friendly automatic reminders go out on their own. Always included, never metered.",
+    title: "Automatic SMS & email reminders",
+    body: "Without the per-message bill.",
   },
   {
-    icon: Heart,
-    title: "Matting meter",
-    body: "Fair pricing for tricky coats, explained kindly to owners as care for their dog.",
-    span: "lg:col-span-2",
-    visual: "meter",
+    icon: PawPrint,
+    title: "Client & pet records that remember everything",
+    body: "Coat notes, temperament, “sensitive paws,” last groom.",
   },
   {
     icon: Camera,
-    title: "Before & after cards",
-    body: "Send a lovely report after every groom. Owners share them — your best advertising.",
-  },
-  {
-    icon: Sparkles,
-    title: "Gentle rebooking",
-    body: "One tap to get the next groom in the diary, and a nudge for anyone overdue.",
+    title: "Before & after report cards",
+    body: "The little touch that gets you referred.",
   },
 ];
 
 const STEPS = [
   {
     n: "1",
-    title: "Add your services & hours",
-    body: "Tell us what you offer and when you work. That's the whole setup — about ten minutes.",
+    title: "We build it with you",
+    body: "One call. We add your services, prices and hours, and import your client list. You do nothing but talk.",
   },
   {
     n: "2",
-    title: "Share your booking link",
-    body: "Pop it on Facebook or your website. Clients book themselves, day or night.",
+    title: "Share one link",
+    body: "Put it in your Instagram bio. Clients pick a slot, pay their deposit, done — no more booking DMs.",
   },
   {
     n: "3",
-    title: "Turn up and groom",
-    body: "Reminders, rebooking and tidy receipts all happen on their own in the background.",
+    title: "Get on with grooming",
+    body: "Reminders go out automatically. Your calendar fills itself. No-shows pay for themselves.",
   },
 ];
 
-// The founder story — one real quote from the working groomer who built
-// GroomOS. No placeholder testimonials.
-const PHOEBE = {
-  quote:
-    "I groom dogs all day, so we built GroomOS around how the job actually feels — quick to use on your phone between dogs, and calm instead of cluttered. It's the tool I always wished I'd had.",
-  name: "Phoebe",
-  role: "Professional dog groomer · built GroomOS",
-};
+// The maths that makes the price a non-decision — every figure is from the pitch,
+// nothing invented.
+const COST_ROWS = [
+  { label: "Two no-shows (£45 each)", value: "£90" },
+  { label: "Booking DMs (~1 hr a week)", value: "4+ hrs" },
+  { label: "SMS bills & double-book slips", value: "£5+" },
+];
 
-// The offer — used for every primary call-to-action across the page.
+// Every primary CTA points here. Set this to the real 20-minute setup-call
+// booking link (e.g. your Calendly/Cal.com URL) and every CTA on the site
+// switches at once. Until it's set, the CTA falls back to entering the product.
+const SETUP_CALL_URL = "";
+
 const CTA_LABEL = "Get set up free";
-const CTA_SUBLINE =
-  "25 spots this month · we build every account personally · no card needed.";
-const OFFER =
-  "We set up your whole booking system for you in a 20-minute call, then you use it free for 30 days. If it doesn't save you a single no-show in 60 days, your next 2 months are free.";
+const HERO_SUB =
+  "Clients book online, pay a deposit upfront, and get reminders automatically — so no-shows either don't happen, or don't cost you.";
+const HERO_UNDER_CTA =
+  "We build your whole booking system for you on a 20-minute call. Free for 30 days, no card needed. 25 founding spots this month.";
+const FINAL_CTA_SUBLINE = "20-minute setup call · 30 days free · 25 founding spots";
 
 type Plan = {
   name: string;
@@ -224,51 +212,6 @@ function RevealCard({
   );
 }
 
-/** Mini schedule used in the "Smart calendar" bento tile. */
-function TimelineVisual() {
-  const rows = [
-    { t: "09:00", name: "Biscuit", dot: "bg-accent" },
-    { t: "10:30", name: "Maple", dot: "bg-accent-300" },
-    { t: "13:00", name: "Bear", dot: "bg-accent-200" },
-  ];
-  return (
-    <div className="grid gap-1.5 sm:max-w-sm">
-      {rows.map((r) => (
-        <div
-          key={r.t}
-          className="flex items-center gap-2.5 rounded-lg border border-DEFAULT bg-canvas px-3 py-2"
-        >
-          <span className="tabular-nums text-[11px] font-medium text-ink-muted">{r.t}</span>
-          <span className={cn("h-2 w-2 rounded-full", r.dot)} />
-          <span className="text-xs text-ink">{r.name}</span>
-          <span className="ml-auto text-[10px] font-medium text-ink-subtle">+ cleanup</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Matting gauge used in the "Matting meter" bento tile. */
-function MeterVisual() {
-  return (
-    <div className="sm:max-w-sm">
-      <div className="flex items-center justify-between text-[11px] font-medium text-ink-muted">
-        <span>Light coat</span>
-        <span>Heavily matted</span>
-      </div>
-      <div className="relative mt-2 h-2.5 rounded-full bg-gradient-to-r from-accent-100 via-accent-200 to-accent-600">
-        <span
-          className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-accent shadow-sm"
-          style={{ left: "62%" }}
-        />
-      </div>
-      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-accent-50 px-2.5 py-1 text-[11px] font-medium text-accent-700">
-        <Sparkles className="h-3 w-3" /> Fair +£8 added, explained kindly
-      </div>
-    </div>
-  );
-}
-
 /** Deposit outcome mock used in the no-show protection spotlight. */
 function DepositVisual() {
   return (
@@ -324,24 +267,40 @@ function DepositVisual() {
   );
 }
 
-/** Founder headshot with a graceful monogram fallback. Drop a real photo at
- *  /public/founder/phoebe.jpg and it takes over automatically. */
-function FounderPortrait() {
-  const [showPhoto, setShowPhoto] = useState(true);
+/** The "your current setup" receipt used in the maths section. Figures come
+ *  straight from the pitch — no invented totals. */
+function CostReceipt() {
   return (
-    <div className="relative mx-auto h-40 w-40 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-accent-100 to-accent-200 ring-1 ring-border/60 sm:h-48 sm:w-48">
-      <span className="absolute inset-0 flex items-center justify-center font-display text-6xl font-semibold text-accent-700">
-        P
-      </span>
-      {showPhoto && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src="/founder/phoebe.jpg"
-          alt="Phoebe, the dog groomer who built GroomOS"
-          className="absolute inset-0 h-full w-full object-cover"
-          onError={() => setShowPhoto(false)}
-        />
-      )}
+    <div className="mx-auto w-full max-w-sm rounded-2xl border border-DEFAULT bg-surface p-6 shadow-lg ring-1 ring-border/60">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-subtle">
+        Your current setup · per month
+      </p>
+      <div className="mt-4 flex flex-col gap-3">
+        {COST_ROWS.map((r) => (
+          <div key={r.label} className="flex items-baseline gap-3">
+            <span className="text-sm text-ink-muted">{r.label}</span>
+            <span className="h-px flex-1 translate-y-[-2px] border-b border-dashed border-DEFAULT" />
+            <span className="tabular-nums text-sm font-semibold text-ink">{r.value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 flex items-center justify-between rounded-xl bg-accent-50 px-4 py-3">
+        <span className="text-sm font-semibold text-ink">GroomOS</span>
+        <span className="tabular-nums text-lg font-semibold text-accent-700">£29 / mo</span>
+      </div>
+    </div>
+  );
+}
+
+/** Decorative founder mark — a warm brand emblem beside the founder note. We use
+ *  a paw rather than a placeholder headshot; a real photo can replace this later. */
+function FounderMark() {
+  return (
+    <div
+      aria-hidden
+      className="mx-auto flex h-40 w-40 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-100 to-accent-200 text-accent-600 ring-1 ring-border/60 sm:h-48 sm:w-48"
+    >
+      <PawPrint className="h-16 w-16" />
     </div>
   );
 }
@@ -356,8 +315,13 @@ export default function LandingPage() {
     if (configured && !loading && user) router.replace("/dashboard");
   }, [configured, loading, user, router]);
 
-  // Demo mode: jump straight into the mock app. Configured: real onboarding.
-  function startDemo() {
+  // Every "Get set up free" button lands here: the real setup-call booking link
+  // once it's set, otherwise straight into the product (signup / demo).
+  function handleCta() {
+    if (SETUP_CALL_URL) {
+      window.location.assign(SETUP_CALL_URL);
+      return;
+    }
     router.push(configured ? "/signup" : "/dashboard");
   }
 
@@ -382,7 +346,7 @@ export default function LandingPage() {
                   Log in
                 </Link>
               )}
-              <Button size="sm" onClick={startDemo}>
+              <Button size="sm" onClick={handleCta}>
                 {CTA_LABEL}
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -408,25 +372,20 @@ export default function LandingPage() {
                   <PawPrint className="h-3.5 w-3.5" />
                   Built for home dog groomers
                 </Badge>
-                <h1 className="font-display text-[34px] font-semibold leading-[1.04] tracking-[-0.015em] text-ink text-balance sm:text-[48px] lg:text-[56px]">
-                  Run your whole grooming day from your phone — and get your{" "}
-                  <span className="italic text-accent">evenings</span> back.
+                <h1 className="font-display text-[34px] font-semibold leading-[1.06] tracking-[-0.015em] text-ink text-balance sm:text-[46px] lg:text-[54px]">
+                  One no-show costs you £45.{" "}
+                  <span className="text-accent">GroomOS costs £29.</span>
                 </h1>
                 <p className="mt-6 max-w-md text-base leading-relaxed text-ink-muted sm:text-lg">
-                  {OFFER}
+                  {HERO_SUB}
                 </p>
-                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <Button size="lg" onClick={startDemo} className="w-full sm:w-auto">
+                <div className="mt-8">
+                  <Button size="lg" onClick={handleCta} className="w-full sm:w-auto">
                     {CTA_LABEL}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
-                  <Link href="/book" target="_blank" className="w-full sm:w-auto">
-                    <Button variant="secondary" size="lg" className="w-full sm:w-auto">
-                      See the booking page
-                    </Button>
-                  </Link>
                 </div>
-                <p className="mt-5 max-w-md text-xs text-ink-muted">{CTA_SUBLINE}</p>
+                <p className="mt-5 max-w-md text-xs text-ink-muted">{HERO_UNDER_CTA}</p>
               </motion.div>
 
               {/* Animated client-booking walkthrough */}
@@ -443,13 +402,41 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* The maths — what the status quo actually costs */}
+        <section className="border-t border-DEFAULT bg-surface">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+            <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+              <Reveal>
+                <Eyebrow>The maths</Eyebrow>
+                <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
+                  What your current setup actually costs
+                </h2>
+                <p className="mt-5 text-base leading-relaxed text-ink-muted sm:text-lg">
+                  Two no-shows a month × £45 a groom = £90 gone. An hour a week of
+                  “hiya, are you free Tuesday?” DMs = 4+ hours a month you're not
+                  grooming. A £5 SMS reminder bill here, a double-booking headache
+                  there.
+                </p>
+                <p className="mt-4 text-base font-medium leading-relaxed text-ink sm:text-lg">
+                  GroomOS is £29 a month. It pays for itself the first time a
+                  no-show doesn't cost you —{" "}
+                  <span className="text-accent">because you kept the deposit.</span>
+                </p>
+              </Reveal>
+              <Reveal delay={0.1}>
+                <CostReceipt />
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
         {/* How it works */}
-        <section id="how" className="border-t border-DEFAULT bg-surface">
+        <section id="how" className="border-t border-DEFAULT bg-canvas">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
             <Reveal className="mx-auto mb-12 flex max-w-2xl flex-col items-center text-center sm:mb-16">
               <Eyebrow>How it works</Eyebrow>
               <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
-                Up and running before your next dog
+                Set up in 20 minutes. By us, not you.
               </h2>
               <PawTrail className="mt-5" />
             </Reveal>
@@ -472,46 +459,29 @@ export default function LandingPage() {
         </section>
 
         {/* Features — bento grid */}
-        <section id="features" className="border-t border-DEFAULT bg-canvas">
+        <section id="features" className="border-t border-DEFAULT bg-surface">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
             <Reveal className="mb-12 max-w-2xl sm:mb-16">
               <Eyebrow>Everything, nothing more</Eyebrow>
               <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
-                The bits you need, none of the clutter
+                Built for one-person grooming businesses. Not salons with a front desk.
               </h2>
-              <p className="mt-4 text-base leading-relaxed text-ink-muted sm:text-lg">
-                The big platforms are built for busy salons with reception desks. This
-                is built for you and your grooming room next to the kitchen.
-              </p>
             </Reveal>
             <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-              {FEATURES.map(({ icon: Icon, title, body, span, visual }, i) => (
+              {FEATURES.map(({ icon: Icon, title, body }, i) => (
                 <RevealCard
                   key={title}
                   delay={(i % 3) * 0.06}
-                  className={cn(
-                    "group flex h-full flex-col rounded-2xl border border-DEFAULT bg-surface p-6 shadow-card transition-shadow duration-300 hover:shadow-md sm:p-7",
-                    span,
-                  )}
+                  className="group flex h-full flex-col rounded-2xl border border-DEFAULT bg-canvas p-6 shadow-card transition-shadow duration-300 hover:shadow-md sm:p-7"
                 >
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-100 text-accent-700 transition-colors duration-300 group-hover:bg-accent group-hover:text-ink-inverse">
                     <Icon className="h-5 w-5" />
                   </span>
                   <h3 className="mt-5 text-base font-semibold text-ink">{title}</h3>
                   <p className="mt-2 max-w-md text-sm leading-relaxed text-ink-muted">{body}</p>
-                  {visual === "timeline" && (
-                    <div className="mt-6 sm:mt-auto sm:pt-6">
-                      <TimelineVisual />
-                    </div>
-                  )}
-                  {visual === "meter" && (
-                    <div className="mt-6 sm:mt-auto sm:pt-6">
-                      <MeterVisual />
-                    </div>
-                  )}
                 </RevealCard>
               ))}
-              {/* Simple paw motif completes the 3×3 bento */}
+              {/* Simple paw motif completes the bento on wide screens */}
               <RevealCard
                 delay={0.12}
                 hover={false}
@@ -538,10 +508,9 @@ export default function LandingPage() {
                     The feature that pays for itself
                   </h2>
                   <p className="mt-4 text-base leading-relaxed text-ink-muted sm:text-lg">
-                    No-shows add up fast — a wasted slot here, an empty afternoon
-                    there. A small deposit on every booking keeps clients
-                    committed, and means the ones who slip through leave something
-                    behind instead of nothing.
+                    A small deposit on every booking keeps clients committed — and
+                    means the ones who slip through leave something behind instead
+                    of nothing.
                   </p>
                   <ul className="mt-6 flex flex-col gap-3">
                     {[
@@ -562,8 +531,8 @@ export default function LandingPage() {
                     ))}
                   </ul>
                   <div className="mt-7">
-                    <Button size="lg" onClick={startDemo} className="w-full sm:w-auto">
-                      Protect your book
+                    <Button size="lg" onClick={handleCta} className="w-full sm:w-auto">
+                      {CTA_LABEL}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   </div>
@@ -578,31 +547,30 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Founder story */}
+        {/* Origin / trust — built with a groomer */}
         <section className="border-t border-DEFAULT bg-surface">
           <div className="mx-auto max-w-4xl px-5 py-20 sm:px-8 sm:py-28">
             <Reveal className="mb-10 text-center">
-              <Eyebrow>Built by a groomer</Eyebrow>
+              <Eyebrow>Why we built it</Eyebrow>
             </Reveal>
             <Reveal className="overflow-hidden rounded-3xl border border-DEFAULT bg-canvas p-7 shadow-card sm:p-10">
               <div className="grid gap-8 md:grid-cols-[auto,1fr] md:items-center md:gap-10">
-                <FounderPortrait />
+                <FounderMark />
                 <div>
-                  <div className="mb-4 flex gap-0.5 text-accent">
-                    {Array.from({ length: 5 }).map((_, k) => (
-                      <Star key={k} className="h-4 w-4 fill-current" />
-                    ))}
-                  </div>
-                  <blockquote className="font-display text-[20px] leading-snug text-ink text-pretty sm:text-[24px]">
-                    “{PHOEBE.quote}”
-                  </blockquote>
-                  <figcaption className="mt-5">
-                    <p className="text-base font-semibold text-ink">{PHOEBE.name}</p>
-                    <p className="text-sm text-ink-muted">{PHOEBE.role}</p>
-                  </figcaption>
-                  <p className="mt-6 border-t border-DEFAULT pt-5 text-sm font-medium text-accent-700">
-                    Built by a working groomer, now onboarding our first 25 UK
-                    groomers personally.
+                  <h2 className="font-display text-[24px] font-semibold leading-tight tracking-[-0.01em] text-ink text-balance sm:text-[30px]">
+                    Built with a groomer, not a tech company.
+                  </h2>
+                  <p className="mt-5 text-base leading-relaxed text-ink-muted sm:text-lg">
+                    GroomOS exists because our co-founder — a working groomer — was
+                    losing three or four slots a month to no-shows and spending her
+                    evenings buried in booking DMs. We built the tool she actually
+                    wanted: simple, calm, and paid for by the first no-show it
+                    prevents.
+                  </p>
+                  <p className="mt-4 border-t border-DEFAULT pt-5 text-sm font-medium text-accent-700">
+                    We're now setting up our first 25 UK groomers personally,
+                    starting in Greater Manchester. Every account is built for you,
+                    by us, on a call.
                   </p>
                 </div>
               </div>
@@ -611,7 +579,7 @@ export default function LandingPage() {
         </section>
 
         {/* Pricing */}
-        <section id="pricing" className="border-t border-DEFAULT bg-surface">
+        <section id="pricing" className="border-t border-DEFAULT bg-canvas">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
             <Reveal className="mx-auto mb-10 max-w-2xl text-center sm:mb-14">
               <Eyebrow>Honest pricing</Eyebrow>
@@ -656,11 +624,11 @@ export default function LandingPage() {
               </div>
             </Reveal>
 
-            {/* Founding pricing */}
+            {/* Founding offer */}
             <Reveal className="mb-8 flex justify-center">
               <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent-50 px-4 py-2 text-center text-sm font-medium text-accent-700">
                 <Sparkles className="h-4 w-4 shrink-0" />
-                Founding offer — first 25 groomers: £19/mo for your first 12 months.
+                Founding groomer offer: your rate locked for your first 12 months.
               </div>
             </Reveal>
 
@@ -733,7 +701,7 @@ export default function LandingPage() {
                         className="w-full"
                         size="lg"
                         variant={p.highlighted ? "primary" : "secondary"}
-                        onClick={startDemo}
+                        onClick={handleCta}
                       >
                         {CTA_LABEL}
                       </Button>
@@ -749,6 +717,25 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Guarantee — risk reversal */}
+        <section className="border-t border-DEFAULT bg-surface">
+          <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-24">
+            <Reveal className="overflow-hidden rounded-3xl border border-accent/20 bg-accent-50 p-8 text-center shadow-card sm:p-12">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent text-ink-inverse shadow-sm">
+                <ShieldCheck className="h-7 w-7" />
+              </span>
+              <h2 className="mt-6 font-display text-[26px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[36px]">
+                If it doesn't save you a no-show, it's free.
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg">
+                Try GroomOS free for 30 days — no card, nothing to cancel. If it
+                hasn't saved you at least one no-show within 60 days, your next two
+                months are on us. The worst case is you get organised for free.
+              </p>
+            </Reveal>
+          </div>
+        </section>
+
         {/* Closing CTA */}
         <section className="border-t border-DEFAULT bg-canvas">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
@@ -760,23 +747,20 @@ export default function LandingPage() {
                 />
                 <div className="relative">
                   <h2 className="mx-auto max-w-lg font-display text-[28px] font-semibold leading-tight tracking-tight text-ink-inverse text-balance sm:text-[40px]">
-                    Your evenings are waiting.
+                    You'll wonder why you put up with the DMs.
                   </h2>
-                  <p className="mx-auto mt-4 max-w-xl text-sm text-ink-inverse/85 sm:text-base">
-                    {OFFER}
-                  </p>
                   <div className="mt-8 flex justify-center">
                     <Button
                       size="lg"
-                      onClick={startDemo}
+                      onClick={handleCta}
                       className="bg-surface text-ink shadow-md hover:bg-canvas"
                     >
                       {CTA_LABEL}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   </div>
-                  <p className="mx-auto mt-5 max-w-md text-xs text-ink-inverse/70">
-                    {CTA_SUBLINE}
+                  <p className="mx-auto mt-5 max-w-md text-xs text-ink-inverse/75">
+                    {FINAL_CTA_SUBLINE}
                   </p>
                 </div>
               </div>
@@ -789,10 +773,9 @@ export default function LandingPage() {
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-10 sm:flex-row sm:px-8">
             <Logo />
             <div className="flex items-center gap-5 text-xs text-ink-muted">
-              <Link href="/book" target="_blank" className="transition-colors hover:text-ink">Booking page</Link>
-              <button onClick={startDemo} className="inline-flex items-center gap-1 transition-colors hover:text-ink">
-                <Scissors className="h-3.5 w-3.5" /> Enter demo
-              </button>
+              <Link href="/book" target="_blank" className="transition-colors hover:text-ink">
+                See the booking page
+              </Link>
             </div>
             <p className="text-xs text-ink-subtle">© {new Date().getFullYear()} GroomOS</p>
           </div>
