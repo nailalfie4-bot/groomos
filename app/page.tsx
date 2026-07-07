@@ -84,10 +84,9 @@ const COST_ROWS = [
   { label: "SMS bills & double-book slips", value: "£5+" },
 ];
 
-// Every primary CTA points here. Set this to the real 20-minute setup-call
-// booking link (e.g. your Calendly/Cal.com URL) and every CTA on the site
-// switches at once. Until it's set, the CTA falls back to entering the product.
-const SETUP_CALL_URL = "";
+// Every primary CTA points here — the 20-minute setup-call booking link. The
+// handler falls back to entering the product if this is ever blanked out.
+const SETUP_CALL_URL = "https://calendly.com/d/ds6m-46h-49s/meeting";
 
 const CTA_LABEL = "Get set up free";
 const HERO_SUB =
