@@ -8,6 +8,7 @@ import type { Business } from "@/lib/types";
 interface BusinessRow {
   id: string;
   name: string;
+  slug: string | null;
   open_hour: number;
   close_hour: number;
   stations: number;
@@ -21,6 +22,7 @@ export function rowToBusiness(r: BusinessRow): Business {
   return {
     id: r.id,
     name: r.name,
+    slug: r.slug ?? undefined,
     openHour: r.open_hour,
     closeHour: r.close_hour,
     stations: r.stations,
@@ -48,6 +50,7 @@ export async function updateBusinessRow(
 ): Promise<void> {
   const dbPatch: Record<string, unknown> = {};
   if (patch.name !== undefined) dbPatch.name = patch.name;
+  if (patch.slug !== undefined) dbPatch.slug = patch.slug;
   if (patch.openHour !== undefined) dbPatch.open_hour = patch.openHour;
   if (patch.closeHour !== undefined) dbPatch.close_hour = patch.closeHour;
   if (patch.stations !== undefined) dbPatch.stations = patch.stations;
