@@ -56,6 +56,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { business, resetDemo } = useStore();
   const { user, loading, configured } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Real per-business booking page when we have a slug; the demo page otherwise.
+  const bookingHref = business.slug ? `/book/${business.slug}` : "/book";
 
   // Real auth guard — active only when Supabase is configured. In demo mode
   // (no real keys) this is a no-op and the app stays open, as before.
@@ -103,7 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="border-t border-DEFAULT p-3">
           <Link
-            href="/book"
+            href={bookingHref}
             target="_blank"
             className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors duration-fast hover:bg-surface-sunken hover:text-ink"
           >
@@ -170,7 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
             <Link
-              href="/book"
+              href={bookingHref}
               target="_blank"
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-muted"

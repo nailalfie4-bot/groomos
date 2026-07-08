@@ -30,9 +30,13 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Modal } from "@/components/ui/modal";
 import { StatusBadge } from "@/components/status-badge";
 import { BookingForm } from "@/components/booking-form";
-import { useStore } from "@/lib/mock/store";
-import { useDemoLoad } from "@/lib/use-demo-load";
-import type { CoatCondition, DogSize, Pet } from "@/lib/types";
+import { useClientsData } from "@/lib/data/use-clients-data";
+import type {
+  CoatCondition,
+  DogSize,
+  GroomingHistoryEntry,
+  Pet,
+} from "@/lib/types";
 import { formatDate, formatGBP, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -52,8 +56,16 @@ function ageLabel(dob?: string): string | null {
 
 export default function ClientDetailPage() {
   const params = useParams<{ id: string }>();
-  const loading = useDemoLoad();
-  const { getClient, getPetsForClient, addPet } = useStore();
+  const {
+    getClient,
+    getPetsForClient,
+    addPet,
+    getHistoryForPet,
+    getLastGroomedAt,
+    updatePetNotes,
+    settings,
+    loading,
+  } = useClientsData();
   const [addingPet, setAddingPet] = useState(false);
   const [bookPetId, setBookPetId] = useState<string | null>(null);
 
@@ -145,7 +157,15 @@ export default function ClientDetailPage() {
       ) : (
         <div className="flex flex-col gap-5">
           {pets.map((pet) => (
-            <PetProfile key={pet.id} pet={pet} onBook={() => setBookPetId(pet.id)} />
+            <PetProfile
+              key={pet.id}
+              pet={pet}
+              onBook={() => setBookPetId(pet.id)}
+              history={getHistoryForPet(pet.id)}
+              lastGroomed={getLastGroomedAt(pet.id)}
+              updatePetNotes={updatePetNotes}
+              defaultRebookWeeks={settings.defaultRebookWeeks}
+            />
           ))}
         </div>
       )}
@@ -153,9 +173,13 @@ export default function ClientDetailPage() {
       <AddPetModal
         open={addingPet}
         onClose={() => setAddingPet(false)}
-        onAdd={(draft) => {
-          addPet({ ...draft, clientId: client.id });
-          toast.success(`${draft.name} added`);
+        onAdd={async (draft) => {
+          try {
+            await addPet({ ...draft, clientId: client.id });
+            toast.success(`${draft.name} added`);
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Couldn't add pet");
+          }
         }}
       />
       <BookingForm
@@ -181,18 +205,29 @@ function Chip({ children, className }: { children: React.ReactNode; className?: 
   );
 }
 
-function PetProfile({ pet, onBook }: { pet: Pet; onBook: () => void }) {
-  const { getHistoryForPet, getLastGroomedAt, updatePetNotes, settings } = useStore();
+function PetProfile({
+  pet,
+  onBook,
+  history,
+  lastGroomed,
+  updatePetNotes,
+  defaultRebookWeeks,
+}: {
+  pet: Pet;
+  onBook: () => void;
+  history: GroomingHistoryEntry[];
+  lastGroomed: string | undefined;
+  updatePetNotes: (petId: string, notes: string) => Promise<void>;
+  defaultRebookWeeks: number;
+}) {
   const [notes, setNotes] = useState(pet.notes);
-  const history = getHistoryForPet(pet.id);
   const dirty = notes !== pet.notes;
 
   const latestCoat = history[0]?.appointment.coatCondition ?? "smooth";
-  const lastGroomed = getLastGroomedAt(pet.id);
   const weeksSince = lastGroomed
     ? Math.floor((Date.now() - new Date(lastGroomed).getTime()) / (7 * 24 * 3600 * 1000))
     : null;
-  const overdue = weeksSince !== null && weeksSince >= settings.defaultRebookWeeks;
+  const overdue = weeksSince !== null && weeksSince >= defaultRebookWeeks;
   const age = ageLabel(pet.dateOfBirth);
   const completedCount = history.filter((h) => h.appointment.status === "completed").length;
 
@@ -245,7 +280,7 @@ function PetProfile({ pet, onBook }: { pet: Pet; onBook: () => void }) {
                 ? "—"
                 : overdue
                   ? "Due now"
-                  : `${settings.defaultRebookWeeks - weeksSince}w`
+                  : `${defaultRebookWeeks - weeksSince}w`
             }
             accent={overdue}
           />
@@ -264,9 +299,15 @@ function PetProfile({ pet, onBook }: { pet: Pet; onBook: () => void }) {
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => {
-                  updatePetNotes(pet.id, notes);
-                  toast.success("Notes saved");
+                onClick={async () => {
+                  try {
+                    await updatePetNotes(pet.id, notes);
+                    toast.success("Notes saved");
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error ? err.message : "Couldn't save notes",
+                    );
+                  }
                 }}
               >
                 <Save className="h-4 w-4" />

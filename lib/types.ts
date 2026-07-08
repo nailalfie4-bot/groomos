@@ -13,6 +13,8 @@ export type ID = string;
 export interface Business {
   id: ID;
   name: string;
+  /** URL-safe handle for the public booking page at /book/<slug>. */
+  slug?: string;
   /** Working day start/end in 24h decimal hours, e.g. 9 and 17. */
   openHour: number;
   closeHour: number;

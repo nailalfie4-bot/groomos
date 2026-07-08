@@ -28,9 +28,18 @@ function untilLabel(startIso: string, now: Date): string {
 }
 
 export default function DashboardPage() {
-  const loading = useDemoLoad();
-  const { appointments, services, business, settings, getPet, getClient, getDueForGroom } =
-    useStore();
+  const {
+    appointments,
+    services,
+    business,
+    settings,
+    getPet,
+    getClient,
+    getDueForGroom,
+    hydrated,
+  } = useStore();
+  // Show skeletons through the brief demo delay and until real data has loaded.
+  const loading = useDemoLoad() || !hydrated;
   const [booking, setBooking] = useState(false);
   const [openAppt, setOpenAppt] = useState<string | null>(null);
 

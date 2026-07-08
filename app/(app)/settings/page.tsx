@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Bell,
@@ -8,7 +8,9 @@ import {
   CalendarClock,
   Check,
   Clock,
+  Copy,
   Heart,
+  Link2,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -19,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Toggle } from "@/components/ui/toggle";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useStore } from "@/lib/mock/store";
 import { computeQuote } from "@/lib/pricing";
 import { formatGBP } from "@/lib/format";
@@ -29,7 +32,31 @@ const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00–21:00
 const hhmm = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 export default function SettingsPage() {
-  const { settings, business, updateSettings, updateBusiness } = useStore();
+  const { settings, business, updateSettings, updateBusiness, hydrated } = useStore();
+  // Mount the form only once the tenant's real settings/business have loaded, so
+  // its fields initialise from actual values rather than the pre-load defaults.
+  if (!hydrated) return <SettingsSkeleton />;
+  return (
+    <SettingsForm
+      settings={settings}
+      business={business}
+      updateSettings={updateSettings}
+      updateBusiness={updateBusiness}
+    />
+  );
+}
+
+function SettingsForm({
+  settings,
+  business,
+  updateSettings,
+  updateBusiness,
+}: {
+  settings: Settings;
+  business: Business;
+  updateSettings: (patch: Partial<Settings>) => void;
+  updateBusiness: (patch: Partial<Business>) => void;
+}) {
   const [s, setS] = useState<Settings>(settings);
   const [b, setB] = useState<Business>(business);
 
@@ -78,6 +105,7 @@ export default function SettingsPage() {
         <Section icon={<Building2 className="h-[18px] w-[18px]" />} title="Your business" description="Shown to clients on your booking page and receipts.">
           <div className="flex flex-col gap-3">
             <Input label="Business name" value={b.name} onChange={(e) => setBiz("name", e.target.value)} />
+            <BookingLinkField slug={b.slug ?? ""} onChange={(v) => setBiz("slug", v)} />
             <Input label="Phone" value={b.phone} onChange={(e) => setBiz("phone", e.target.value)} />
             <Input label="Address" value={b.addressLine} onChange={(e) => setBiz("addressLine", e.target.value)} />
             <div className="grid grid-cols-2 gap-3">
@@ -289,5 +317,82 @@ function FeeRow({
         <Input label="Extra time (min)" type="number" min={0} step={5} value={String(mins)} onChange={(e) => onMins(num(e.target.value))} />
       </div>
     </div>
+  );
+}
+
+/** Mirrors the DB slugify(): lowercase, non-alphanumerics → hyphen, trimmed. */
+function slugify(v: string): string {
+  return v
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Slug input + a copyable public booking link (/book/<slug>). */
+function BookingLinkField({
+  slug,
+  onChange,
+}: {
+  slug: string;
+  onChange: (v: string) => void;
+}) {
+  const [origin, setOrigin] = useState("");
+  const [copied, setCopied] = useState(false);
+  useEffect(() => setOrigin(window.location.origin), []);
+
+  async function copy() {
+    if (!slug) return;
+    try {
+      await navigator.clipboard.writeText(`${origin}/book/${slug}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — no-op */
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Input
+        label="Booking link"
+        value={slug}
+        onChange={(e) => onChange(slugify(e.target.value))}
+        placeholder="your-salon"
+        hint="Your public booking page. Letters, numbers and hyphens; must be unique."
+        leadingIcon={<Link2 />}
+      />
+      {slug && (
+        <div className="flex items-center justify-between gap-2 rounded-lg bg-surface-sunken px-3 py-2">
+          <span className="truncate text-xs text-ink-muted">
+            {origin ? `${origin}/book/${slug}` : `/book/${slug}`}
+          </span>
+          <button
+            type="button"
+            onClick={copy}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-accent-700 transition-colors hover:bg-accent-50"
+          >
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingsSkeleton() {
+  return (
+    <>
+      <PageHeader
+        title="Settings"
+        subtitle="The few choices that make GroomOS smart — change them any time."
+      />
+      <div className="flex flex-col gap-5">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-40 w-full rounded-2xl" />
+        ))}
+      </div>
+    </>
   );
 }

@@ -12,15 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DogEmpty } from "@/components/illustrations";
 import { Modal } from "@/components/ui/modal";
-import { useStore } from "@/lib/mock/store";
-import { useDemoLoad } from "@/lib/use-demo-load";
+import { useServices } from "@/lib/data/use-services";
 import type { NewServiceInput } from "@/lib/mock/store";
 import type { Service } from "@/lib/types";
 import { formatGBP } from "@/lib/format";
 
 export default function ServicesPage() {
-  const loading = useDemoLoad();
-  const { services, appointments, addService, updateService, deleteService } = useStore();
+  const { services, loading, bookedCountFor, addService, updateService, deleteService } =
+    useServices();
   const [editing, setEditing] = useState<Service | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Service | null>(null);
@@ -95,7 +94,7 @@ export default function ServicesPage() {
                   {formatGBP(s.priceGBP)}
                 </span>
                 <span className="ml-auto text-xs text-ink-subtle">
-                  {appointments.filter((a) => a.serviceId === s.id && a.status !== "cancelled").length} booked
+                  {bookedCountFor(s.id)} booked
                 </span>
               </div>
             </div>
@@ -111,16 +110,22 @@ export default function ServicesPage() {
           setCreating(false);
           setEditing(null);
         }}
-        onSave={(input) => {
-          if (editing) {
-            updateService(editing.id, input);
-            toast.success("Service updated");
-          } else {
-            addService(input);
-            toast.success("Service added");
+        onSave={async (input) => {
+          try {
+            if (editing) {
+              await updateService(editing.id, input);
+              toast.success("Service updated");
+            } else {
+              await addService(input);
+              toast.success("Service added");
+            }
+            setCreating(false);
+            setEditing(null);
+          } catch (err) {
+            toast.error(
+              err instanceof Error ? err.message : "Couldn't save service",
+            );
           }
-          setCreating(false);
-          setEditing(null);
         }}
       />
 
@@ -142,10 +147,16 @@ export default function ServicesPage() {
             <Button
               variant="danger"
               size="sm"
-              onClick={() => {
-                if (confirmDelete) {
-                  deleteService(confirmDelete.id);
-                  toast.success(`"${confirmDelete.name}" deleted`);
+              onClick={async () => {
+                if (!confirmDelete) return;
+                const name = confirmDelete.name;
+                try {
+                  await deleteService(confirmDelete.id);
+                  toast.success(`"${name}" deleted`);
+                } catch (err) {
+                  toast.error(
+                    err instanceof Error ? err.message : "Couldn't delete service",
+                  );
                 }
                 setConfirmDelete(null);
               }}
