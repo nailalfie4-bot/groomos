@@ -28,6 +28,13 @@ export function createSupabaseAdminClient(): SupabaseClient {
 
   adminClient = createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    // Next.js patches global fetch and caches it by default. These queries must
+    // always hit the database (fresh availability, live clash checks), so every
+    // request from this client opts out of the cache.
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, cache: "no-store" }),
+    },
   });
   return adminClient;
 }
