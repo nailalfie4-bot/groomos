@@ -15,6 +15,12 @@ export interface Business {
   name: string;
   /** URL-safe handle for the public booking page at /book/<slug>. */
   slug?: string;
+  /** Current Stripe subscription plan id, if subscribed. */
+  plan?: string;
+  /** Stripe subscription status: 'active' | 'past_due' | 'canceled' | …. */
+  subscriptionStatus?: string;
+  /** ISO datetime the current period ends / renews. */
+  currentPeriodEnd?: string;
   /** Working day start/end in 24h decimal hours, e.g. 9 and 17. */
   openHour: number;
   closeHour: number;

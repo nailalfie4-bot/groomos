@@ -1,80 +1,115 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, Sparkles } from "lucide-react";
+import { Check, CreditCard, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/components/auth-provider";
+import { useStore } from "@/lib/mock/store";
+import { PLANS, PLAN_ORDER, isStripeConfigured, type PlanId } from "@/lib/stripe/config";
 import { cn } from "@/lib/utils";
 
-interface Plan {
-  id: string;
-  name: string;
-  priceGBP: number;
-  tagline: string;
-  features: string[];
-  highlighted?: boolean;
-}
-
-const PLANS: Plan[] = [
-  {
-    id: "solo",
-    name: "Solo",
-    priceGBP: 19,
-    tagline: "For a single groomer finding their feet.",
-    features: [
-      "1 staff member",
-      "Unlimited clients & pets",
-      "Calendar & bookings",
-      "Public booking page",
-      "Email reminders",
-    ],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    priceGBP: 29,
-    tagline: "For a growing salon that needs to stay organised.",
-    features: [
-      "Up to 5 staff",
-      "Everything in Solo",
-      "SMS reminders",
-      "No-show tracking & reports",
-      "Service & pricing manager",
-    ],
-    highlighted: true,
-  },
-  {
-    id: "salon",
-    name: "Salon",
-    priceGBP: 49,
-    tagline: "For multi-chair salons running at full capacity.",
-    features: [
-      "Unlimited staff",
-      "Everything in Pro",
-      "Multiple locations",
-      "Advanced analytics",
-      "Priority support",
-    ],
-  },
-];
-
-const CURRENT_PLAN = "pro";
+const ACTIVE_STATUSES = ["active", "trialing", "past_due"];
 
 export default function BillingPage() {
+  const { configured } = useAuth();
+  const { business } = useStore();
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const realBilling = configured && isStripeConfigured();
+  const currentPlan = business.plan as PlanId | undefined;
+  const status = business.subscriptionStatus;
+  const subscribed =
+    realBilling && !!currentPlan && !!status && ACTIVE_STATUSES.includes(status);
+
+  // Surface the result of a Checkout redirect (?checkout=success|cancelled).
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get("checkout");
+    if (c === "success") toast.success("Subscription active — thank you!");
+    else if (c === "cancelled") toast("Checkout cancelled", { description: "No charge was made." });
+    if (c) window.history.replaceState(null, "", "/billing");
+  }, []);
+
+  async function choose(plan: PlanId) {
+    if (!realBilling) {
+      toast("Demo only", { description: "Payments aren't wired up in this demo." });
+      return;
+    }
+    setBusy(plan);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.location.assign(data.url);
+        return;
+      }
+      toast.error(
+        data.error === "price_not_configured"
+          ? "This plan isn't set up in Stripe yet."
+          : "Couldn't start checkout — please try again.",
+      );
+    } catch {
+      toast.error("Couldn't reach billing — please try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function openPortal() {
+    setBusy("portal");
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.location.assign(data.url);
+        return;
+      }
+      toast.error("Couldn't open billing management — please try again.");
+    } catch {
+      toast.error("Couldn't reach billing — please try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <>
       <PageHeader
         title="Plans & billing"
         subtitle="Simple monthly pricing. Cancel anytime."
+        actions={
+          subscribed ? (
+            <Button size="sm" variant="secondary" loading={busy === "portal"} onClick={openPortal}>
+              <CreditCard className="h-4 w-4" />
+              Manage billing
+            </Button>
+          ) : undefined
+        }
       />
 
+      {subscribed && status === "past_due" && (
+        <div className="mb-5 rounded-2xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+          Your last payment didn&apos;t go through. Update your card via{" "}
+          <button onClick={openPortal} className="font-semibold underline">
+            Manage billing
+          </button>{" "}
+          to keep your account active.
+        </div>
+      )}
+
       <div className="grid gap-5 lg:grid-cols-3">
-        {PLANS.map((plan) => {
-          const current = plan.id === CURRENT_PLAN;
+        {PLAN_ORDER.map((id) => {
+          const plan = PLANS[id];
+          const current = subscribed && currentPlan === id;
           return (
             <div
-              key={plan.id}
+              key={id}
               className={cn(
                 "relative flex flex-col rounded-2xl border bg-surface p-6 shadow-card",
                 plan.highlighted ? "border-accent shadow-md ring-1 ring-accent/20" : "border-DEFAULT",
@@ -90,9 +125,7 @@ export default function BillingPage() {
               )}
 
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold tracking-tight text-ink">
-                  {plan.name}
-                </h3>
+                <h3 className="text-base font-semibold tracking-tight text-ink">{plan.name}</h3>
                 {current && <Badge tone="success">Current</Badge>}
               </div>
               <p className="mt-1 text-sm text-ink-muted">{plan.tagline}</p>
@@ -118,13 +151,10 @@ export default function BillingPage() {
                   className="w-full"
                   variant={plan.highlighted ? "primary" : "secondary"}
                   disabled={current}
-                  onClick={() =>
-                    toast("Demo only", {
-                      description: "Payments aren't wired up in this demo.",
-                    })
-                  }
+                  loading={busy === id}
+                  onClick={() => (subscribed ? openPortal() : choose(id))}
                 >
-                  {current ? "Current plan" : `Choose ${plan.name}`}
+                  {current ? "Current plan" : subscribed ? `Switch to ${plan.name}` : `Choose ${plan.name}`}
                 </Button>
               </div>
             </div>
@@ -132,10 +162,11 @@ export default function BillingPage() {
         })}
       </div>
 
-      <p className="mt-6 text-center text-xs text-ink-subtle">
-        This is a visual demo — no real payment is taken and no card details are
-        collected.
-      </p>
+      {!realBilling && (
+        <p className="mt-6 text-center text-xs text-ink-subtle">
+          This is a visual demo — no real payment is taken and no card details are collected.
+        </p>
+      )}
     </>
   );
 }

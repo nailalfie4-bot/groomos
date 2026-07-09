@@ -16,6 +16,9 @@ interface BusinessRow {
   city: string | null;
   postcode: string | null;
   phone: string | null;
+  plan?: string | null;
+  subscription_status?: string | null;
+  current_period_end?: string | null;
 }
 
 export function rowToBusiness(r: BusinessRow): Business {
@@ -30,6 +33,9 @@ export function rowToBusiness(r: BusinessRow): Business {
     city: r.city ?? "",
     postcode: r.postcode ?? "",
     phone: r.phone ?? "",
+    plan: r.plan ?? undefined,
+    subscriptionStatus: r.subscription_status ?? undefined,
+    currentPeriodEnd: r.current_period_end ?? undefined,
   };
 }
 
