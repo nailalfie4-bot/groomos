@@ -306,23 +306,35 @@ export default function CalendarPage() {
                     {/* magnet edge */}
                     <span className={cn("absolute inset-y-1.5 left-1 w-1 rounded-full", m.edge)} />
                     <div className="flex h-full flex-col justify-center">
-                      <p className="flex items-center gap-1.5 truncate text-sm font-semibold leading-tight text-ink">
-                        {done ? (
-                          <Check className="h-3 w-3 shrink-0 text-ink-subtle" />
-                        ) : (
-                          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", m.edge)} />
-                        )}
-                        {pet?.name}
-                        {special && <Heart className="h-3 w-3 shrink-0 text-accent" />}
-                      </p>
                       {compact ? (
-                        <span className="tabular-nums mt-0.5 truncate text-[10px] text-ink-muted">
-                          {formatTime(a.start)}
-                        </span>
+                        // Short groom (≤45 min): one tidy line so nothing clips.
+                        <p className="flex items-center gap-1.5 truncate text-xs font-semibold leading-tight text-ink">
+                          {done ? (
+                            <Check className="h-3 w-3 shrink-0 text-ink-subtle" />
+                          ) : (
+                            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", m.edge)} />
+                          )}
+                          <span className="truncate">{pet?.name}</span>
+                          <span className="tabular-nums shrink-0 font-normal text-ink-muted">
+                            {formatTime(a.start)}
+                          </span>
+                          {special && <Heart className="h-3 w-3 shrink-0 text-accent" />}
+                        </p>
                       ) : (
-                        <span className="tabular-nums mt-1 truncate text-[11px] text-ink-muted">
-                          {formatTime(a.start)} · {svc?.name}
-                        </span>
+                        <>
+                          <p className="flex items-center gap-1.5 truncate text-sm font-semibold leading-tight text-ink">
+                            {done ? (
+                              <Check className="h-3 w-3 shrink-0 text-ink-subtle" />
+                            ) : (
+                              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", m.edge)} />
+                            )}
+                            {pet?.name}
+                            {special && <Heart className="h-3 w-3 shrink-0 text-accent" />}
+                          </p>
+                          <span className="tabular-nums mt-1 truncate text-[11px] text-ink-muted">
+                            {formatTime(a.start)} · {svc?.name}
+                          </span>
+                        </>
                       )}
                     </div>
                   </div>
