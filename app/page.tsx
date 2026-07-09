@@ -1,18 +1,23 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion, MotionConfig } from "framer-motion";
+import { AnimatePresence, motion, MotionConfig, useInView } from "framer-motion";
 import {
   ArrowRight,
+  ArrowRightLeft,
   Bell,
   Camera,
   Check,
+  ChevronDown,
+  Lock,
+  MapPin,
   Moon,
   PawPrint,
   ShieldCheck,
   Sparkles,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
@@ -119,9 +124,11 @@ const PLANS: Plan[] = [
     features: [
       "Smart colour-coded calendar",
       "24/7 online booking page",
+      "Deposits & no-show protection",
       "Unlimited client & pet records",
       "Email reminders",
     ],
+    note: "Online booking and deposit protection included from day one — not locked behind a higher tier.",
   },
   {
     name: "Pro",
@@ -131,7 +138,6 @@ const PLANS: Plan[] = [
     inherits: "Starter",
     features: [
       "SMS reminders",
-      "Deposits & no-show protection",
       "Matting meter & smart pricing",
       "Rebooking engine",
       "Before & after reports",
@@ -146,6 +152,34 @@ const PLANS: Plan[] = [
     tagline: "For when you've grown past one person.",
     inherits: "Pro",
     features: ["Unlimited groomers", "Unlimited locations", "Priority support"],
+  },
+];
+
+// Straight answers to the questions groomers actually ask before starting.
+const FAQS: { q: string; a: string }[] = [
+  {
+    q: "Do my clients need to download an app?",
+    a: "No — your booking page is just a link. It works in any browser, on any phone.",
+  },
+  {
+    q: "What if a client doesn't want to pay a deposit?",
+    a: "Deposits are your choice, per business — turn them on or off, and set the amount that feels right.",
+  },
+  {
+    q: "I'm not techy — how hard is setup?",
+    a: "You do nothing. We build it with you on a 20-minute call.",
+  },
+  {
+    q: "What happens after my 30 days free?",
+    a: "£29/mo, cancel anytime, no contract. Founding groomers keep their rate for 12 months.",
+  },
+  {
+    q: "Where does the deposit money go?",
+    a: "Straight to your own bank via Stripe — we never hold your money.",
+  },
+  {
+    q: "Can I move my existing clients over?",
+    a: "Yes — we do it for you on the setup call. Bring an export or even a paper diary.",
   },
 ];
 
@@ -304,10 +338,71 @@ function FounderMark() {
   );
 }
 
+/** A single FAQ row — an accessible accordion that animates open/closed. */
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="overflow-hidden rounded-2xl border border-DEFAULT bg-surface shadow-card">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-surface-sunken sm:px-6"
+      >
+        <span className="text-sm font-semibold text-ink sm:text-base">{q}</span>
+        <ChevronDown
+          className={cn(
+            "h-5 w-5 shrink-0 text-ink-subtle transition-transform duration-300",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: EASE }}
+            className="overflow-hidden"
+          >
+            <p className="px-5 pb-4 text-sm leading-relaxed text-ink-muted sm:px-6">{a}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const router = useRouter();
   const { user, loading, configured } = useAuth();
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+
+  // Sticky mobile CTA: appears once the hero is scrolled past, and hides again
+  // around the closing CTA so it never covers the final call-to-action.
+  const heroRef = useRef<HTMLElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const heroInView = useInView(heroRef);
+  const endInView = useInView(endRef);
+  const [stickyDismissed, setStickyDismissed] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("groomos.stickyCta") === "off") setStickyDismissed(true);
+    } catch {
+      /* storage unavailable — the sticky bar simply stays available */
+    }
+  }, []);
+  function dismissSticky() {
+    setStickyDismissed(true);
+    try {
+      localStorage.setItem("groomos.stickyCta", "off");
+    } catch {
+      /* ignore */
+    }
+  }
+  const showSticky = !heroInView && !endInView && !stickyDismissed;
 
   // When real auth is on, send a logged-in visitor straight to their app.
   useEffect(() => {
@@ -354,7 +449,7 @@ export default function LandingPage() {
         </header>
 
         {/* Hero */}
-        <section className="relative overflow-hidden">
+        <section ref={heroRef} className="relative overflow-hidden">
           {/* soft blush glow */}
           <div
             aria-hidden
@@ -457,6 +552,29 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Switching — dissolve the migration / lock-in fear */}
+        <section className="border-t border-DEFAULT bg-surface">
+          <div className="mx-auto max-w-4xl px-5 py-16 sm:px-8 sm:py-20">
+            <Reveal className="overflow-hidden rounded-3xl border border-DEFAULT bg-canvas p-7 shadow-card sm:p-9">
+              <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent-100 text-accent-700">
+                  <ArrowRightLeft className="h-7 w-7" />
+                </span>
+                <div className="flex-1">
+                  <h2 className="font-display text-[22px] font-semibold leading-tight tracking-[-0.01em] text-ink text-balance sm:text-[28px]">
+                    Already using another system? We'll move you over.
+                  </h2>
+                  <p className="mt-3 text-base leading-relaxed text-ink-muted">
+                    Bring an export or even a paper diary — we import your clients,
+                    pets and history for you on your setup call. Switching takes one
+                    call, not a weekend of typing.
+                  </p>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
         {/* Features — bento grid */}
         <section id="features" className="border-t border-DEFAULT bg-surface">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
@@ -534,6 +652,15 @@ export default function LandingPage() {
                       {CTA_LABEL}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
+                  </div>
+                  {/* Trust micro-signals — small, true */}
+                  <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-ink-subtle">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Lock className="h-3.5 w-3.5" /> Payments secured by Stripe
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5" /> Your data stays in the UK/EU
+                    </span>
                   </div>
                 </Reveal>
 
@@ -735,8 +862,27 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Closing CTA */}
+        {/* FAQ */}
         <section className="border-t border-DEFAULT bg-canvas">
+          <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-24">
+            <Reveal className="mb-10 text-center sm:mb-12">
+              <Eyebrow>Good to know</Eyebrow>
+              <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
+                Questions, answered
+              </h2>
+            </Reveal>
+            <div className="flex flex-col gap-3">
+              {FAQS.map((f) => (
+                <FaqItem key={f.q} q={f.q} a={f.a} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Closing CTA + footer — the sticky mobile bar hides across this zone */}
+        <div ref={endRef}>
+        {/* Closing CTA */}
+        <section className="border-t border-DEFAULT bg-surface">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
             <Reveal>
               <div className="relative overflow-hidden rounded-3xl bg-accent px-6 py-14 text-center shadow-xl sm:px-12 sm:py-20">
@@ -779,6 +925,35 @@ export default function LandingPage() {
             <p className="text-xs text-ink-subtle">© {new Date().getFullYear()} GroomOS</p>
           </div>
         </footer>
+        </div>
+
+        {/* Sticky mobile CTA — appears after the hero, hides near the closing CTA */}
+        <AnimatePresence>
+          {showSticky && (
+            <motion.div
+              initial={{ y: 88, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 88, opacity: 0 }}
+              transition={{ duration: 0.25, ease: EASE }}
+              className="fixed inset-x-0 bottom-0 z-40 border-t border-DEFAULT bg-surface/95 px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_20px_-8px_rgba(42,36,34,0.25)] backdrop-blur-md md:hidden"
+            >
+              <div className="mx-auto flex max-w-md items-center gap-2">
+                <button
+                  type="button"
+                  onClick={dismissSticky}
+                  aria-label="Dismiss"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-surface-sunken hover:text-ink"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <Button size="sm" onClick={handleCta} className="flex-1">
+                  {CTA_LABEL}
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </MotionConfig>
   );
