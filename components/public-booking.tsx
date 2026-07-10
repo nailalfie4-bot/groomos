@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatGBP } from "@/lib/format";
 import { computeQuote, SIZE_LABEL } from "@/lib/pricing";
-import type { Business, DogSize, Service, Settings } from "@/lib/types";
+import type { Business, CoatCondition, DogSize, Service, Settings } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -141,14 +141,41 @@ type Done = {
   customerName: string;
 };
 
+/** Normalised booking payload the flow hands to whichever backend is wired in. */
+export type PublicBookingSubmit = {
+  serviceId: string;
+  startISO: string;
+  size: DogSize;
+  coat: CoatCondition;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  petName: string;
+  breed: string;
+};
+export type PublicBookingResult =
+  | { ok: true; depositDue: number }
+  | { ok: false; error?: string; message?: string };
+
+/**
+ * The whole booking flow. Its two side-effects — loading free slots and
+ * submitting the booking — are injectable so the identical UI powers both the
+ * real page (/book/[slug], the public API routes) and the mock demo (/book,
+ * the in-memory store). Omit the callbacks to get the real-API defaults.
+ */
 export function PublicBooking({
   business,
   services,
   settings,
+  fetchSlots,
+  submitBooking,
 }: {
   business: Business;
   services: Service[];
   settings: Settings;
+  fetchSlots?: (date: string, minutes: number) => Promise<string[]>;
+  submitBooking?: (input: PublicBookingSubmit) => Promise<PublicBookingResult>;
 }) {
   const activeServices = useMemo(() => services.filter((s) => s.active), [services]);
   const slug = business.slug ?? "";
@@ -181,19 +208,47 @@ export function PublicBooking({
   const estTotal = quote?.totalPriceGBP ?? service?.priceGBP ?? 0;
   const depositDue = settings.depositEnabled ? settings.depositAmount : 0;
 
+  // Resolve the two side-effects: injected callbacks (demo) or the real public
+  // API routes (default). Memoised so the availability effect stays stable.
+  const loadSlots = useMemo<(date: string, minutes: number) => Promise<string[]>>(
+    () =>
+      fetchSlots ??
+      (async (d, minutes) => {
+        if (!slug) return [];
+        const r = await fetch(
+          `/api/public/availability?slug=${encodeURIComponent(slug)}&date=${encodeURIComponent(
+            d,
+          )}&minutes=${minutes}`,
+        );
+        const j = await r.json().catch(() => null);
+        return Array.isArray(j?.slots) ? j.slots : [];
+      }),
+    [fetchSlots, slug],
+  );
+  const sendBooking = useMemo<(input: PublicBookingSubmit) => Promise<PublicBookingResult>>(
+    () =>
+      submitBooking ??
+      (async (input) => {
+        const res = await fetch("/api/public/booking", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ slug, ...input }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.ok) return { ok: false, error: data?.error, message: data?.message };
+        return { ok: true, depositDue: Number(data.depositDue) || 0 };
+      }),
+    [submitBooking, slug],
+  );
+
   // Fetch free slots whenever the day or groom length changes.
   useEffect(() => {
-    if (!slug || !serviceId) return;
     let active = true;
     setSlotsLoading(true);
-    const url = `/api/public/availability?slug=${encodeURIComponent(slug)}&date=${encodeURIComponent(
-      date,
-    )}&minutes=${groomMinutes}`;
-    fetch(url)
-      .then((r) => r.json())
-      .then((d) => {
+    loadSlots(date, groomMinutes)
+      .then((s) => {
         if (!active) return;
-        setSlots(Array.isArray(d?.slots) ? d.slots : []);
+        setSlots(s);
         setSlotsLoading(false);
       })
       .catch(() => {
@@ -204,7 +259,7 @@ export function PublicBooking({
     return () => {
       active = false;
     };
-  }, [slug, date, groomMinutes, serviceId, refresh]);
+  }, [loadSlots, date, groomMinutes, refresh]);
 
   // While browsing the day/time step, drop a chosen time that's no longer
   // offered (new day, longer groom, just taken). Once the visitor has moved on
@@ -253,39 +308,33 @@ export function PublicBooking({
       // create a PaymentIntent on the groomer's connected account and confirm
       // the card — and only create the booking once payment succeeds. Today the
       // booking is created and the deposit recorded for the groomer.
-      const res = await fetch("/api/public/booking", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          slug,
-          serviceId,
-          startISO: `${date}T${time}:00.000Z`,
-          size,
-          coat: "smooth",
-          firstName,
-          lastName,
-          email: email.trim(),
-          phone: phone.trim(),
-          petName: petName.trim(),
-          breed: "",
-        }),
+      const result = await sendBooking({
+        serviceId,
+        startISO: `${date}T${time}:00.000Z`,
+        size,
+        coat: "smooth",
+        firstName,
+        lastName,
+        email: email.trim(),
+        phone: phone.trim(),
+        petName: petName.trim(),
+        breed: "",
       });
-      const data = await res.json();
-      if (!res.ok || !data?.ok) {
-        if (data?.error === "slot_taken") {
+      if (!result.ok) {
+        if (result.error === "slot_taken") {
           setTime("");
           setRefresh((n) => n + 1);
-          setErrors({ time: data.message ?? "That time was just taken — please pick another." });
+          setErrors({ time: result.message ?? "That time was just taken — please pick another." });
           setStep("when");
         } else {
-          setErrors({ form: data?.message ?? "Something went wrong — please try again." });
+          setErrors({ form: result.message ?? "Something went wrong — please try again." });
         }
         return;
       }
       setDone({
         date,
         time,
-        depositDue: Number(data.depositDue) || 0,
+        depositDue: result.depositDue,
         serviceName: service.name,
         durationMin: groomMinutes,
         petName: petName.trim(),
