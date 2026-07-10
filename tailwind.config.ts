@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 /**
  * GroomOS design tokens.
@@ -159,7 +160,19 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Hover styles must NEVER fire on touch devices. iOS Safari applies :hover
+    // on tap and makes it stick ("sticky hover"), which reads as a flash or a
+    // style that won't let go. Re-defining the hover family so every `hover:`,
+    // `group-hover:` and `peer-hover:` utility is wrapped in a real-pointer
+    // media query fixes this site-wide, in one place — no per-element audit.
+    plugin(({ addVariant }) => {
+      const guard = "@media (hover: hover) and (pointer: fine)";
+      addVariant("hover", `${guard} { &:hover }`);
+      addVariant("group-hover", `${guard} { &:is(:where(.group):hover *) }`);
+      addVariant("peer-hover", `${guard} { &:is(:where(.peer):hover ~ *) }`);
+    }),
+  ],
 };
 
 export default config;

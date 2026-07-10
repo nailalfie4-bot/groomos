@@ -141,8 +141,10 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   const petName = input.petName?.trim() ?? "";
   const breed = input.breed?.trim() || "Unknown";
   const start = new Date(input.startISO);
+  // The public form collects a single "name" field, so only a first name is
+  // guaranteed; last name may be blank. Everything else stays required.
   if (
-    !firstName || !lastName || !petName || !phone ||
+    !firstName || !petName || !phone ||
     !EMAIL_RE.test(email) ||
     Number.isNaN(start.getTime())
   ) {

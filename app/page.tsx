@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion, MotionConfig, useInView } from "framer-motion";
@@ -185,6 +192,14 @@ const FAQS: { q: string; a: string }[] = [
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
+/**
+ * When true, the page renders in "static" mode: every scroll reveal, mount
+ * animation and decorative effect on the hero + feature cards is switched off.
+ * Toggled by `?static=1` so a static build can be A/B'd against the animated one
+ * on a real device without a second deployment.
+ */
+const StaticModeContext = createContext(false);
+
 /** Section eyebrow label. */
 function Eyebrow({ children }: { children: ReactNode }) {
   return (
@@ -206,6 +221,8 @@ function Reveal({
   delay?: number;
   y?: number;
 }) {
+  const isStatic = useContext(StaticModeContext);
+  if (isStatic) return <div className={className}>{children}</div>;
   return (
     <motion.div
       className={className}
@@ -219,24 +236,28 @@ function Reveal({
   );
 }
 
-/** A reveal wrapper that doubles as a card surface with a subtle hover lift. */
+/**
+ * A reveal wrapper that doubles as a card surface. There is deliberately NO
+ * JS hover handler here: framer-motion's `whileHover` fires on iOS taps and
+ * sticks. Any desktop hover lift is done in CSS (gated behind (hover: hover)),
+ * so it can never trigger on touch.
+ */
 function RevealCard({
   children,
   className,
   delay = 0,
-  hover = true,
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
-  hover?: boolean;
 }) {
+  const isStatic = useContext(StaticModeContext);
+  if (isStatic) return <div className={className}>{children}</div>;
   return (
     <motion.div
       className={className}
       initial={{ opacity: 0, y: 18 }}
       whileInView={{ opacity: 1, y: 0 }}
-      whileHover={hover ? { y: -4 } : undefined}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.45, delay, ease: EASE }}
     >
@@ -380,6 +401,19 @@ export default function LandingPage() {
   const { user, loading, configured } = useAuth();
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
 
+  // `?static=1` strips every animation/effect off the hero + feature cards so a
+  // static build can be A/B'd against the animated one on a real phone. Read
+  // after mount to keep server and first client paint identical (no hydration
+  // mismatch); it flips on immediately on the client.
+  const [staticMode, setStaticMode] = useState(false);
+  useEffect(() => {
+    try {
+      setStaticMode(new URLSearchParams(window.location.search).get("static") === "1");
+    } catch {
+      /* no search params available — stay animated */
+    }
+  }, []);
+
   // Sticky mobile CTA: appears once the hero is scrolled past, and hides again
   // around the closing CTA so it never covers the final call-to-action.
   const heroRef = useRef<HTMLElement>(null);
@@ -420,6 +454,7 @@ export default function LandingPage() {
   }
 
   return (
+    <StaticModeContext.Provider value={staticMode}>
     <MotionConfig reducedMotion="user">
       <div className="min-h-screen bg-canvas">
         {/* Nav */}
@@ -450,15 +485,18 @@ export default function LandingPage() {
 
         {/* Hero */}
         <section ref={heroRef} className="relative overflow-hidden">
-          {/* soft blush glow */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 -top-32 z-0 mx-auto h-[26rem] max-w-3xl rounded-full bg-accent-100/45 blur-3xl"
-          />
+          {/* soft blush glow — a big blurred layer is expensive to repaint on
+              scroll (iOS stutter), so it's dropped entirely in static mode */}
+          {!staticMode && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 -top-32 z-0 mx-auto h-[26rem] max-w-3xl rounded-full bg-accent-100/45 blur-3xl"
+            />
+          )}
           <div className="relative mx-auto max-w-6xl px-5 pb-20 pt-14 sm:px-8 sm:pb-28 sm:pt-20">
             <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-12">
               <motion.div
-                initial={{ opacity: 0, y: 14 }}
+                initial={staticMode ? false : { opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: EASE }}
               >
@@ -482,15 +520,18 @@ export default function LandingPage() {
                 <p className="mt-5 max-w-md text-xs text-ink-muted">{HERO_UNDER_CTA}</p>
               </motion.div>
 
-              {/* Animated client-booking walkthrough */}
+              {/* Client-booking walkthrough — looping when animated, frozen on
+                  the confirmation screen (no timer, no blur) in static mode */}
               <motion.div
-                initial={{ opacity: 0, y: 18 }}
+                initial={staticMode ? false : { opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.55, delay: 0.12, ease: EASE }}
                 className="relative"
               >
-                <div className="absolute -inset-5 -z-10 rounded-[28px] bg-accent-100/50 blur-2xl" />
-                <BookingWalkthrough />
+                {!staticMode && (
+                  <div className="absolute -inset-5 -z-10 rounded-[28px] bg-accent-100/50 blur-2xl" />
+                )}
+                <BookingWalkthrough paused={staticMode} />
               </motion.div>
             </div>
           </div>
@@ -601,7 +642,6 @@ export default function LandingPage() {
               {/* Simple paw motif completes the bento on wide screens */}
               <RevealCard
                 delay={0.12}
-                hover={false}
                 className="hidden flex-col items-center justify-center gap-4 rounded-2xl border border-DEFAULT bg-accent-50 p-6 text-accent-600 lg:flex"
               >
                 <PawPrint className="h-10 w-10" />
@@ -956,5 +996,6 @@ export default function LandingPage() {
         </AnimatePresence>
       </div>
     </MotionConfig>
+    </StaticModeContext.Provider>
   );
 }
