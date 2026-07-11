@@ -501,15 +501,16 @@ export default function LandingPage() {
               <a href="#features" className="text-sm text-ink-muted transition-colors hover:text-ink">Features</a>
               <a href="#pricing" className="text-sm text-ink-muted transition-colors hover:text-ink">Pricing</a>
             </nav>
-            <div className="flex items-center gap-2 sm:gap-3">
-              {configured && (
-                <Link
-                  href="/login"
-                  className="hidden px-1 text-sm text-ink-muted transition-colors hover:text-ink sm:block"
-                >
-                  Log in
-                </Link>
-              )}
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              {/* Quiet door into the app for existing users — visible on every
+                  screen size, deliberately understated so it never competes
+                  with the primary "Get set up free" CTA. */}
+              <Link
+                href="/login"
+                className="rounded-lg px-2 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+              >
+                Log in
+              </Link>
               <Button size="sm" onClick={handleCta}>
                 {CTA_LABEL}
                 <ArrowRight className="h-4 w-4" />
@@ -989,6 +990,9 @@ export default function LandingPage() {
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-10 sm:flex-row sm:px-8">
             <Logo />
             <div className="flex items-center gap-5 text-xs text-ink-muted">
+              <Link href="/login" className="transition-colors hover:text-ink">
+                Log in
+              </Link>
               <Link href="/book" target="_blank" className="transition-colors hover:text-ink">
                 See the booking page
               </Link>
