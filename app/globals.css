@@ -13,6 +13,19 @@
     scroll-behavior: smooth;
     /* Keep anchored sections clear of the sticky header. */
     scroll-padding-top: 5rem;
+    /* Kill the grey/blue tap flash on iOS/Android — we provide our own quiet
+     * :active feedback on buttons instead. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Belt-and-braces: interactive elements never show the native tap highlight. */
+  a,
+  button,
+  label,
+  summary,
+  [role="button"],
+  [tabindex] {
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {

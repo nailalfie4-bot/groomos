@@ -1,28 +1,64 @@
 "use client";
 
 /**
- * Public booking form for one business (real Supabase data, injected by the
- * /book/<slug> server component). Availability comes from the server route
- * (/api/public/availability) so private appointments never reach the browser;
- * submitting posts to /api/public/booking. Slot times are UTC wall-clock to
- * stay perfectly in step with the server.
+ * Public booking flow for one business (real Supabase data, injected by the
+ * /book/<slug> server component). Rebuilt for dog owners on a phone: one step
+ * at a time, big tap targets, autofill-friendly, no jargon, no account.
+ *
+ *   Service → Day & time → Your details → Deposit → Confirmed
+ *
+ * Availability comes from /api/public/availability (private appointments never
+ * reach the browser); submitting posts to /api/public/booking. Slot times are
+ * UTC wall-clock to stay perfectly in step with the server.
  */
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarCheck, CalendarX2, Check, Clock, PawPrint, ShieldCheck } from "lucide-react";
+import {
+  CalendarCheck,
+  CalendarPlus,
+  CalendarX2,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  MapPin,
+  PawPrint,
+  ShieldCheck,
+} from "lucide-react";
 import { Logo } from "@/components/logo";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { QuoteBreakdown } from "@/components/booking-form";
 import { formatGBP } from "@/lib/format";
-import { computeQuote, COAT_HELP, COAT_LABEL, SIZE_LABEL } from "@/lib/pricing";
+import { computeQuote, SIZE_LABEL } from "@/lib/pricing";
 import type { Business, CoatCondition, DogSize, Service, Settings } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/**
+ * Feature flag for live deposit charging. Today the deposit is recorded on the
+ * appointment for the groomer; when Stripe Connect Express ships, flip this to
+ * true and mount the payment element in the marked seam in the deposit step —
+ * the whole flow, copy and summary are already built around a real charge.
+ */
+const DEPOSIT_PAYMENTS_LIVE = false;
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SIZES: DogSize[] = ["small", "medium", "large", "giant"];
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+type Step = "service" | "when" | "details" | "deposit" | "done";
+const STEP_INDEX: Record<Exclude<Step, "done">, number> = {
+  service: 1,
+  when: 2,
+  details: 3,
+  deposit: 4,
+};
+const STEP_TITLE: Record<Exclude<Step, "done">, string> = {
+  service: "Choose your groom",
+  when: "Pick a day & time",
+  details: "Your details",
+  deposit: "Secure your slot",
+};
 
 function toDateValue(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
@@ -30,7 +66,18 @@ function toDateValue(d: Date): string {
   ).padStart(2, "0")}`;
 }
 
-/** "13:00" → "1:00 pm" style friendly label. */
+/** The next `n` days as YYYY-MM-DD, starting today. */
+function nextDays(n: number): string[] {
+  const base = new Date();
+  base.setHours(12, 0, 0, 0);
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    return toDateValue(d);
+  });
+}
+
+/** "13:00" → "1:00 pm". */
 function slotLabel(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number);
   const hour12 = ((h + 11) % 12) + 1;
@@ -43,55 +90,165 @@ function dayLabel(dateStr: string): string {
   return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 }
 
+/** Split a single "name" field into first + rest (rest may be empty). */
+function splitName(full: string): { firstName: string; lastName: string } {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { firstName: parts[0] ?? "", lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
+/** Build a downloadable .ics calendar event as a data: URI (no dependencies). */
+function icsHref(opts: {
+  title: string;
+  description: string;
+  location: string;
+  start: Date;
+  durationMin: number;
+}): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fmt = (d: Date) =>
+    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(
+      d.getUTCHours(),
+    )}${pad(d.getUTCMinutes())}00Z`;
+  const esc = (s: string) => s.replace(/([\\;,])/g, "\\$1").replace(/\n/g, "\\n");
+  const end = new Date(opts.start.getTime() + opts.durationMin * 60000);
+  const body = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//GroomOS//Booking//EN",
+    "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT",
+    `UID:${opts.start.getTime()}@groomos`,
+    `DTSTAMP:${fmt(new Date())}`,
+    `DTSTART:${fmt(opts.start)}`,
+    `DTEND:${fmt(end)}`,
+    `SUMMARY:${esc(opts.title)}`,
+    `DESCRIPTION:${esc(opts.description)}`,
+    `LOCATION:${esc(opts.location)}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  return `data:text/calendar;charset=utf-8,${encodeURIComponent(body)}`;
+}
+
+type Done = {
+  date: string;
+  time: string;
+  depositDue: number;
+  serviceName: string;
+  durationMin: number;
+  petName: string;
+  customerName: string;
+};
+
+/** Normalised booking payload the flow hands to whichever backend is wired in. */
+export type PublicBookingSubmit = {
+  serviceId: string;
+  startISO: string;
+  size: DogSize;
+  coat: CoatCondition;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  petName: string;
+  breed: string;
+};
+export type PublicBookingResult =
+  | { ok: true; depositDue: number }
+  | { ok: false; error?: string; message?: string };
+
+/**
+ * The whole booking flow. Its two side-effects — loading free slots and
+ * submitting the booking — are injectable so the identical UI powers both the
+ * real page (/book/[slug], the public API routes) and the mock demo (/book,
+ * the in-memory store). Omit the callbacks to get the real-API defaults.
+ */
 export function PublicBooking({
   business,
   services,
   settings,
+  fetchSlots,
+  submitBooking,
 }: {
   business: Business;
   services: Service[];
   settings: Settings;
+  fetchSlots?: (date: string, minutes: number) => Promise<string[]>;
+  submitBooking?: (input: PublicBookingSubmit) => Promise<PublicBookingResult>;
 }) {
   const activeServices = useMemo(() => services.filter((s) => s.active), [services]);
   const slug = business.slug ?? "";
+  const days = useMemo(() => nextDays(14), []);
+  const address = [business.addressLine, business.city, business.postcode]
+    .filter(Boolean)
+    .join(", ");
 
+  const [step, setStep] = useState<Step>("service");
   const [serviceId, setServiceId] = useState(activeServices[0]?.id ?? "");
-  const [date, setDate] = useState(toDateValue(new Date()));
-  const [time, setTime] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [petName, setPetName] = useState("");
-  const [breed, setBreed] = useState("");
   const [size, setSize] = useState<DogSize>("medium");
-  const [coat, setCoat] = useState<CoatCondition>("smooth");
+  const [date, setDate] = useState(days[0]);
+  const [time, setTime] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [petName, setPetName] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [slots, setSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState<null | { time: string; date: string; depositDue: number }>(null);
+  const [done, setDone] = useState<Done | null>(null);
 
   const service = activeServices.find((s) => s.id === serviceId);
-  const quote = service
-    ? computeQuote(service, size, coat, settings, petName.trim() || "your dog")
-    : null;
+  // Coat is assessed by the groomer in person; the customer estimate assumes a
+  // brushed coat. Size only changes the quote for giant breeds.
+  const quote = service ? computeQuote(service, size, "smooth", settings, petName.trim() || "your dog") : null;
   const groomMinutes = quote?.totalDurationMin ?? service?.durationMin ?? 60;
+  const estTotal = quote?.totalPriceGBP ?? service?.priceGBP ?? 0;
   const depositDue = settings.depositEnabled ? settings.depositAmount : 0;
 
-  // Fetch free slots from the server whenever the day or groom length changes.
+  // Resolve the two side-effects: injected callbacks (demo) or the real public
+  // API routes (default). Memoised so the availability effect stays stable.
+  const loadSlots = useMemo<(date: string, minutes: number) => Promise<string[]>>(
+    () =>
+      fetchSlots ??
+      (async (d, minutes) => {
+        if (!slug) return [];
+        const r = await fetch(
+          `/api/public/availability?slug=${encodeURIComponent(slug)}&date=${encodeURIComponent(
+            d,
+          )}&minutes=${minutes}`,
+        );
+        const j = await r.json().catch(() => null);
+        return Array.isArray(j?.slots) ? j.slots : [];
+      }),
+    [fetchSlots, slug],
+  );
+  const sendBooking = useMemo<(input: PublicBookingSubmit) => Promise<PublicBookingResult>>(
+    () =>
+      submitBooking ??
+      (async (input) => {
+        const res = await fetch("/api/public/booking", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ slug, ...input }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.ok) return { ok: false, error: data?.error, message: data?.message };
+        return { ok: true, depositDue: Number(data.depositDue) || 0 };
+      }),
+    [submitBooking, slug],
+  );
+
+  // Fetch free slots whenever the day or groom length changes.
   useEffect(() => {
     let active = true;
     setSlotsLoading(true);
-    const url = `/api/public/availability?slug=${encodeURIComponent(slug)}&date=${encodeURIComponent(
-      date,
-    )}&minutes=${groomMinutes}`;
-    fetch(url)
-      .then((r) => r.json())
-      .then((d) => {
+    loadSlots(date, groomMinutes)
+      .then((s) => {
         if (!active) return;
-        setSlots(Array.isArray(d?.slots) ? d.slots : []);
+        setSlots(s);
         setSlotsLoading(false);
       })
       .catch(() => {
@@ -102,56 +259,88 @@ export function PublicBooking({
     return () => {
       active = false;
     };
-  }, [slug, date, groomMinutes, refresh]);
+  }, [loadSlots, date, groomMinutes, refresh]);
 
-  // Drop a chosen time if it's no longer offered (longer groom, new day, taken).
+  // While browsing the day/time step, drop a chosen time that's no longer
+  // offered (new day, longer groom, just taken). Once the visitor has moved on
+  // we keep their choice — the server re-validates it at confirm time.
   useEffect(() => {
-    if (time && !slots.includes(time)) setTime("");
-  }, [slots, time]);
+    if (step === "when" && time && !slots.includes(time)) setTime("");
+  }, [slots, time, step]);
 
-  async function submit() {
+  function goBack() {
+    setErrors({});
+    if (step === "when") setStep("service");
+    else if (step === "details") setStep("when");
+    else if (step === "deposit") setStep("details");
+  }
+
+  function chooseService(id: string) {
+    setServiceId(id);
+    setTime("");
+    setStep("when");
+  }
+
+  function chooseTime(s: string) {
+    setTime(s);
+    setErrors((x) => ({ ...x, time: "" }));
+    setStep("details");
+  }
+
+  function submitDetails() {
     const next: Record<string, string> = {};
-    if (!serviceId) next.service = "Pick a service";
-    if (!time) next.time = "Pick a time";
-    if (!firstName.trim()) next.firstName = "Required";
-    if (!lastName.trim()) next.lastName = "Required";
+    if (!name.trim()) next.name = "Please tell us your name";
+    if (!phone.trim()) next.phone = "We need a number to confirm";
     if (!EMAIL_RE.test(email)) next.email = "Enter a valid email";
-    if (!phone.trim()) next.phone = "Required";
-    if (!petName.trim()) next.petName = "Required";
+    if (!petName.trim()) next.petName = "Your dog's name, please";
     setErrors(next);
-    if (Object.keys(next).length > 0) return;
+    if (Object.keys(next).length === 0) setStep("deposit");
+  }
 
+  async function confirmBooking() {
+    if (!service || !time) return;
+    const { firstName, lastName } = splitName(name);
     setSubmitting(true);
+    setErrors({});
     try {
-      const res = await fetch("/api/public/booking", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          slug,
-          serviceId,
-          startISO: `${date}T${time}:00.000Z`,
-          size,
-          coat,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          petName: petName.trim(),
-          breed: breed.trim(),
-        }),
+      // ── Deposit charge seam ───────────────────────────────────────────────
+      // When DEPOSIT_PAYMENTS_LIVE is true: collect the deposit here first —
+      // create a PaymentIntent on the groomer's connected account and confirm
+      // the card — and only create the booking once payment succeeds. Today the
+      // booking is created and the deposit recorded for the groomer.
+      const result = await sendBooking({
+        serviceId,
+        startISO: `${date}T${time}:00.000Z`,
+        size,
+        coat: "smooth",
+        firstName,
+        lastName,
+        email: email.trim(),
+        phone: phone.trim(),
+        petName: petName.trim(),
+        breed: "",
       });
-      const data = await res.json();
-      if (!res.ok || !data?.ok) {
-        if (data?.error === "slot_taken") {
-          setErrors({ time: data.message ?? "That time was just taken — please pick another." });
+      if (!result.ok) {
+        if (result.error === "slot_taken") {
           setTime("");
-          setRefresh((n) => n + 1); // pull fresh availability
+          setRefresh((n) => n + 1);
+          setErrors({ time: result.message ?? "That time was just taken — please pick another." });
+          setStep("when");
         } else {
-          setErrors({ form: data?.message ?? "Something went wrong — please try again." });
+          setErrors({ form: result.message ?? "Something went wrong — please try again." });
         }
         return;
       }
-      setDone({ time, date, depositDue: Number(data.depositDue) || 0 });
+      setDone({
+        date,
+        time,
+        depositDue: result.depositDue,
+        serviceName: service.name,
+        durationMin: groomMinutes,
+        petName: petName.trim(),
+        customerName: name.trim(),
+      });
+      setStep("done");
     } catch {
       setErrors({ form: "Couldn't reach the server — please try again." });
     } finally {
@@ -159,160 +348,129 @@ export function PublicBooking({
     }
   }
 
+  function bookAnother() {
+    setDone(null);
+    setTime("");
+    setPetName("");
+    setErrors({});
+    setRefresh((n) => n + 1);
+    setStep("service");
+  }
+
   return (
     <div className="min-h-screen bg-canvas">
       <header className="border-b border-DEFAULT bg-surface">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-xl items-center justify-between px-5 py-4">
           <Logo />
           <Badge tone="neutral">Online booking</Badge>
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-6 py-10">
-        {done ? (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <Card>
-              <CardContent className="flex flex-col items-center px-6 py-12 text-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-50 text-accent-700">
-                  <CalendarCheck className="h-6 w-6" />
-                </span>
-                <h1 className="mt-4 text-xl font-semibold tracking-tight text-ink">
-                  Booking request sent
-                </h1>
-                <p className="mt-2 max-w-sm text-sm text-ink-muted">
-                  Thanks {firstName}! We&apos;ve asked {business.name} to groom {petName} on{" "}
-                  {dayLabel(done.date)} at {slotLabel(done.time)}. You&apos;ll get a confirmation
-                  once they accept.
-                </p>
-                {done.depositDue > 0 && (
-                  <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-accent-50 px-3 py-1 text-xs font-medium text-accent-700">
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    A {formatGBP(done.depositDue)} deposit secures your slot.
-                  </p>
-                )}
-                <Button
-                  className="mt-6"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setDone(null);
-                    setTime("");
-                    setPetName("");
-                    setBreed("");
-                    setRefresh((n) => n + 1);
-                  }}
-                >
-                  Book another
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
+      <main className="mx-auto max-w-xl px-5 py-7">
+        {/* Who they're booking with — always visible for trust. */}
+        <div className="mb-5 flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-100 text-accent-700">
+            <PawPrint className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-base font-semibold leading-tight text-ink">{business.name}</p>
+            {address && <p className="mt-0.5 text-sm text-ink-muted">{address}</p>}
+          </div>
+        </div>
+
+        {activeServices.length === 0 ? (
+          <div className="rounded-2xl border border-DEFAULT bg-surface px-6 py-12 text-center text-sm text-ink-muted shadow-card">
+            {business.name} hasn&apos;t published any services yet. Please check back soon.
+          </div>
+        ) : step === "done" && done ? (
+          <Confirmation
+            done={done}
+            business={business}
+            address={address}
+            onBookAnother={bookAnother}
+          />
         ) : (
           <>
-            <div className="mb-6">
-              <Badge tone="accent" className="mb-3">
-                <PawPrint className="h-3.5 w-3.5" />
-                {business.name}
-              </Badge>
-              <h1 className="text-2xl font-semibold tracking-tight text-ink">
-                Book your dog&apos;s groom
-              </h1>
-              {(business.addressLine || business.city || business.postcode) && (
-                <p className="mt-2 text-sm text-ink-muted">
-                  {[business.addressLine, business.city, business.postcode].filter(Boolean).join(", ")}
-                </p>
+            {step !== "done" && (
+              <StepHeader
+                index={STEP_INDEX[step]}
+                title={STEP_TITLE[step]}
+                onBack={step === "service" ? undefined : goBack}
+              />
+            )}
+
+            <motion.div key={step} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: EASE }}>
+              {step === "service" && (
+                <div className="flex flex-col gap-3">
+                  {activeServices.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => chooseService(s.id)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-colors",
+                        serviceId === s.id
+                          ? "border-accent bg-accent-50"
+                          : "border-strong bg-surface hover:border-accent",
+                      )}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-base font-semibold text-ink">{s.name}</span>
+                        <span className="mt-0.5 block text-sm text-ink-muted">{s.durationMin} min</span>
+                        {s.description && (
+                          <span className="mt-1 block line-clamp-1 text-xs text-ink-subtle">{s.description}</span>
+                        )}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <span className="text-base font-semibold text-ink">{formatGBP(s.priceGBP)}</span>
+                        <ChevronRight className="h-5 w-5 text-ink-subtle" />
+                      </span>
+                    </button>
+                  ))}
+                </div>
               )}
-            </div>
 
-            {activeServices.length === 0 ? (
-              <Card>
-                <CardContent className="px-6 py-12 text-center text-sm text-ink-muted">
-                  {business.name} hasn&apos;t published any services yet. Please check back soon.
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="flex flex-col gap-5 pt-6">
-                  <Select
-                    label="Service"
-                    value={serviceId}
-                    onChange={(e) => setServiceId(e.target.value)}
-                    error={errors.service}
-                  >
-                    {activeServices.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} · {s.durationMin}m · {formatGBP(s.priceGBP)}
-                      </option>
-                    ))}
-                  </Select>
-                  {service?.description && (
-                    <p className="-mt-2 text-xs text-ink-muted">{service.description}</p>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <Select
-                      label="Your dog's size"
-                      value={size}
-                      onChange={(e) => setSize(e.target.value as DogSize)}
-                    >
-                      {(["small", "medium", "large", "giant"] as const).map((s) => (
-                        <option key={s} value={s}>
-                          {SIZE_LABEL[s]}
-                        </option>
-                      ))}
-                    </Select>
-                    <Select
-                      label="Coat condition"
-                      value={coat}
-                      onChange={(e) => setCoat(e.target.value as CoatCondition)}
-                    >
-                      {(["smooth", "tangled", "matted"] as const).map((c) => (
-                        <option key={c} value={c}>
-                          {COAT_LABEL[c]}
-                        </option>
-                      ))}
-                    </Select>
+              {step === "when" && (
+                <div className="flex flex-col gap-5">
+                  {/* Day picker — a scrollable row of big chips, no fiddly native picker. */}
+                  <div>
+                    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                      {days.map((d, i) => {
+                        const sel = d === date;
+                        const dt = new Date(`${d}T12:00:00`);
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => {
+                              setDate(d);
+                              setTime("");
+                            }}
+                            aria-pressed={sel}
+                            className={cn(
+                              "flex min-w-[64px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 transition-colors",
+                              sel
+                                ? "border-accent bg-accent text-ink-inverse"
+                                : "border-strong bg-surface text-ink hover:border-accent",
+                            )}
+                          >
+                            <span className="text-[11px] font-medium opacity-80">
+                              {i === 0 ? "Today" : dt.toLocaleDateString("en-GB", { weekday: "short" })}
+                            </span>
+                            <span className="text-lg font-semibold tabular-nums leading-tight">{dt.getDate()}</span>
+                            <span className="text-[10px] opacity-80">
+                              {dt.toLocaleDateString("en-GB", { month: "short" })}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <p className="-mt-2 text-xs text-ink-subtle">{COAT_HELP[coat]}</p>
 
-                  {quote && (
-                    <QuoteBreakdown
-                      base={quote.basePriceGBP}
-                      baseMin={quote.baseDurationMin}
-                      mattingFee={quote.mattingFee}
-                      sizeFee={quote.sizeFee}
-                      total={quote.totalPriceGBP}
-                      totalMin={quote.totalDurationMin}
-                      reason={quote.reason}
-                    />
-                  )}
-
-                  {depositDue > 0 && (
-                    <p className="inline-flex items-center gap-1.5 rounded-lg bg-accent-50 px-3 py-2 text-xs font-medium text-accent-700">
-                      <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-                      A {formatGBP(depositDue)} deposit secures your slot and comes off the total.
-                    </p>
-                  )}
-
-                  <Input
-                    label="Date"
-                    type="date"
-                    value={date}
-                    min={toDateValue(new Date())}
-                    onChange={(e) => {
-                      setDate(e.target.value);
-                      setTime("");
-                      setErrors((x) => ({ ...x, time: "" }));
-                    }}
-                  />
-
+                  {/* Times */}
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-ink">Pick a time</span>
+                      <span className="text-sm font-medium text-ink">{dayLabel(date)}</span>
                       {!slotsLoading && slots.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-xs text-ink-subtle">
                           <Clock className="h-3 w-3" />
@@ -323,116 +481,296 @@ export function PublicBooking({
 
                     {slotsLoading ? (
                       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                        {Array.from({ length: 6 }).map((_, i) => (
-                          <div key={i} className="h-11 animate-pulse rounded-xl bg-surface-sunken" />
+                        {Array.from({ length: 8 }).map((_, i) => (
+                          <div key={i} className="h-12 animate-pulse rounded-xl bg-surface-sunken" />
                         ))}
                       </div>
                     ) : slots.length > 0 ? (
-                      <>
-                        <p className="text-xs text-ink-muted">
-                          Free slots for {dayLabel(date)} — tap one to book it.
-                        </p>
-                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                          {slots.map((s) => {
-                            const selected = time === s;
-                            return (
-                              <button
-                                key={s}
-                                type="button"
-                                aria-pressed={selected}
-                                onClick={() => {
-                                  setTime(s);
-                                  setErrors((x) => ({ ...x, time: "" }));
-                                }}
-                                className={cn(
-                                  "tabular-nums rounded-xl border px-2 py-2.5 text-sm font-medium transition-colors duration-fast",
-                                  selected
-                                    ? "border-accent bg-accent text-ink-inverse shadow-sm"
-                                    : "border-strong bg-surface text-ink hover:border-accent hover:bg-accent-50 hover:text-accent-700",
-                                )}
-                              >
-                                {slotLabel(s)}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </>
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                        {slots.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => chooseTime(s)}
+                            className={cn(
+                              "tabular-nums h-12 rounded-xl border text-sm font-semibold transition-colors",
+                              "border-strong bg-surface text-ink hover:border-accent hover:bg-accent-50 hover:text-accent-700",
+                            )}
+                          >
+                            {slotLabel(s)}
+                          </button>
+                        ))}
+                      </div>
                     ) : (
-                      <div className="flex flex-col items-center rounded-xl border border-dashed border-strong bg-surface-sunken px-4 py-6 text-center">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-50 text-accent-700">
+                      <div className="flex flex-col items-center rounded-2xl border border-dashed border-strong bg-surface-sunken px-4 py-8 text-center">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-50 text-accent-700">
                           <CalendarX2 className="h-5 w-5" />
                         </span>
-                        <p className="mt-3 text-sm font-medium text-ink">
-                          {dayLabel(date)} is fully booked
-                        </p>
+                        <p className="mt-3 text-sm font-medium text-ink">{dayLabel(date)} is fully booked</p>
                         <p className="mt-1 max-w-xs text-xs text-ink-muted">
-                          No room for a {groomMinutes}-minute groom that day — please try another date.
+                          No room for a {groomMinutes}-minute groom that day — please try another.
                         </p>
                       </div>
                     )}
-
                     {errors.time && <p className="text-xs text-danger">{errors.time}</p>}
                   </div>
+                </div>
+              )}
 
-                  <div className="border-t border-DEFAULT pt-5">
-                    <p className="mb-3 text-sm font-medium text-ink">Your details</p>
-                    <div className="flex flex-col gap-4">
-                      <div className="grid grid-cols-2 gap-3">
-                        <Input
-                          label="First name"
-                          value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
-                          error={errors.firstName}
-                        />
-                        <Input
-                          label="Last name"
-                          value={lastName}
-                          onChange={(e) => setLastName(e.target.value)}
-                          error={errors.lastName}
-                        />
-                      </div>
-                      <Input
-                        label="Email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        error={errors.email}
-                      />
-                      <Input
-                        label="Phone"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        error={errors.phone}
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <Input
-                          label="Dog's name"
-                          value={petName}
-                          onChange={(e) => setPetName(e.target.value)}
-                          error={errors.petName}
-                        />
-                        <Input
-                          label="Breed"
-                          placeholder="e.g. Cockapoo"
-                          value={breed}
-                          onChange={(e) => setBreed(e.target.value)}
-                        />
-                      </div>
+              {step === "details" && (
+                <div className="flex flex-col gap-5">
+                  <div>
+                    <span className="text-sm font-medium text-ink">How big is your dog?</span>
+                    <div className="mt-2 grid grid-cols-4 gap-2">
+                      {SIZES.map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => setSize(sz)}
+                          aria-pressed={size === sz}
+                          className={cn(
+                            "h-12 rounded-xl border text-sm font-medium transition-colors",
+                            size === sz
+                              ? "border-accent bg-accent text-ink-inverse"
+                              : "border-strong bg-surface text-ink hover:border-accent",
+                          )}
+                        >
+                          {SIZE_LABEL[sz]}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
+                  <Input
+                    label="Your name"
+                    className="h-12 text-base"
+                    autoComplete="name"
+                    enterKeyHint="next"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    error={errors.name}
+                  />
+                  <Input
+                    label="Mobile number"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    enterKeyHint="next"
+                    className="h-12 text-base"
+                    placeholder="07…"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    error={errors.phone}
+                  />
+                  <Input
+                    label="Email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    enterKeyHint="next"
+                    className="h-12 text-base"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    error={errors.email}
+                  />
+                  <Input
+                    label="Your dog's name"
+                    className="h-12 text-base"
+                    autoComplete="off"
+                    enterKeyHint="done"
+                    value={petName}
+                    onChange={(e) => setPetName(e.target.value)}
+                    error={errors.petName}
+                  />
+
+                  <Button size="lg" className="h-12 w-full" onClick={submitDetails}>
+                    Continue
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+
+              {step === "deposit" && (
+                <div className="flex flex-col gap-5">
+                  {/* Booking summary */}
+                  <div className="rounded-2xl border border-DEFAULT bg-surface p-4 shadow-card">
+                    <SummaryRow label="Groom" value={service?.name ?? ""} />
+                    <SummaryRow label="When" value={`${dayLabel(date)} · ${slotLabel(time)}`} />
+                    <SummaryRow label="Dog" value={`${petName.trim()} · ${SIZE_LABEL[size]}`} />
+                    <div className="mt-3 flex items-center justify-between border-t border-DEFAULT pt-3">
+                      <span className="text-sm font-medium text-ink">Estimated total</span>
+                      <span className="text-base font-semibold text-ink">{formatGBP(estTotal)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-ink-subtle">
+                      Final price is confirmed by {business.name} on the day, after they&apos;ve met your dog.
+                    </p>
+                  </div>
+
+                  {depositDue > 0 && (
+                    <div className="rounded-2xl border border-accent/20 bg-accent-50 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent-700">
+                          <ShieldCheck className="h-4 w-4" /> Deposit
+                        </span>
+                        <span className="text-lg font-semibold text-accent-700">{formatGBP(depositDue)}</span>
+                      </div>
+                      <p className="mt-1.5 text-sm text-accent-700">
+                        Secures your slot and comes off your total — you&apos;ll pay{" "}
+                        {formatGBP(Math.max(estTotal - depositDue, 0))} to {business.name} on the day.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Stripe Connect payment element mounts here when deposits go live. */}
+                  {DEPOSIT_PAYMENTS_LIVE && depositDue > 0 && (
+                    <div id="deposit-payment-element" className="rounded-2xl border border-DEFAULT bg-surface p-4" />
+                  )}
+
                   {errors.form && <p className="text-sm text-danger">{errors.form}</p>}
 
-                  <Button onClick={submit} loading={submitting} disabled={submitting}>
+                  <Button
+                    size="lg"
+                    className="h-12 w-full"
+                    onClick={confirmBooking}
+                    loading={submitting}
+                    disabled={submitting}
+                  >
                     <Check className="h-4 w-4" />
-                    Request booking
+                    {DEPOSIT_PAYMENTS_LIVE && depositDue > 0
+                      ? `Pay ${formatGBP(depositDue)} & confirm`
+                      : "Confirm booking"}
                   </Button>
-                </CardContent>
-              </Card>
-            )}
+                  <p className="-mt-2 text-center text-xs text-ink-subtle">
+                    No account needed{settings.cancellationNoticeHours ? ` · free to cancel up to ${settings.cancellationNoticeHours}h before` : ""}.
+                  </p>
+                </div>
+              )}
+            </motion.div>
           </>
         )}
       </main>
     </div>
+  );
+}
+
+/** Step counter + progress bar + back button + title. */
+function StepHeader({
+  index,
+  title,
+  onBack,
+}: {
+  index: number;
+  title: string;
+  onBack?: () => void;
+}) {
+  return (
+    <div className="mb-5">
+      <div className="flex h-9 items-center justify-between">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="-ml-2 flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </button>
+        ) : (
+          <span />
+        )}
+        <span className="text-xs font-medium text-ink-subtle">Step {index} of 4</span>
+      </div>
+      <div className="mt-2 flex gap-1.5" aria-hidden>
+        {[1, 2, 3, 4].map((i) => (
+          <span
+            key={i}
+            className={cn("h-1.5 flex-1 rounded-full", i <= index ? "bg-accent" : "bg-surface-sunken")}
+          />
+        ))}
+      </div>
+      <h1 className="mt-4 text-xl font-semibold tracking-tight text-ink">{title}</h1>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-1">
+      <span className="shrink-0 text-sm text-ink-muted">{label}</span>
+      <span className="text-right text-sm font-medium text-ink">{value}</span>
+    </div>
+  );
+}
+
+/** The final confirmation: everything the owner needs + add to calendar. */
+function Confirmation({
+  done,
+  business,
+  address,
+  onBookAnother,
+}: {
+  done: Done;
+  business: Business;
+  address: string;
+  onBookAnother: () => void;
+}) {
+  const start = new Date(`${done.date}T${done.time}:00.000Z`);
+  const cal = icsHref({
+    title: `${done.serviceName} — ${done.petName} at ${business.name}`,
+    description: `Grooming appointment for ${done.petName} with ${business.name}.${
+      done.depositDue > 0 ? ` A ${formatGBP(done.depositDue)} deposit secures the slot.` : ""
+    }`,
+    location: address,
+    start,
+    durationMin: done.durationMin,
+  });
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: EASE }}>
+      <div className="rounded-2xl border border-DEFAULT bg-surface p-6 shadow-card">
+        <div className="flex flex-col items-center text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-50 text-accent-700">
+            <CalendarCheck className="h-6 w-6" />
+          </span>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight text-ink">Booking request sent</h1>
+          <p className="mt-2 max-w-sm text-sm text-ink-muted">
+            Thanks {done.customerName.split(/\s+/)[0]}! {business.name} will confirm {done.petName}&apos;s
+            groom shortly — keep an eye on your phone.
+          </p>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-1 rounded-2xl bg-surface-sunken p-4">
+          <SummaryRow label="Groom" value={done.serviceName} />
+          <SummaryRow label="When" value={`${dayLabel(done.date)} · ${slotLabel(done.time)}`} />
+          <SummaryRow label="Dog" value={done.petName} />
+          {done.depositDue > 0 && <SummaryRow label="Deposit" value={`${formatGBP(done.depositDue)} secures your slot`} />}
+          <div className="mt-2 flex items-start gap-2 border-t border-DEFAULT pt-3">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-ink-subtle" />
+            <div>
+              <p className="text-sm font-medium text-ink">{business.name}</p>
+              {address && <p className="text-sm text-ink-muted">{address}</p>}
+            </div>
+          </div>
+        </div>
+
+        <a
+          href={cal}
+          download="groom-appointment.ics"
+          className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-strong bg-surface text-sm font-medium text-ink shadow-xs transition-colors hover:bg-surface-sunken"
+        >
+          <CalendarPlus className="h-4 w-4" />
+          Add to calendar
+        </a>
+        <div className="mt-3 text-center">
+          <button
+            type="button"
+            onClick={onBookAnother}
+            className="h-9 rounded-lg px-3 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+          >
+            Book another groom
+          </button>
+        </div>
+      </div>
+    </motion.div>
   );
 }
