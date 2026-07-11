@@ -56,8 +56,8 @@ const FEATURES: Feature[] = [
   },
   {
     icon: Bell,
-    title: "Automatic SMS & email reminders",
-    body: "Without the per-message bill.",
+    title: "Automatic email reminders",
+    body: "A friendly nudge the day before, so fewer clients forget. SMS coming soon.",
   },
   {
     icon: PawPrint,
@@ -145,9 +145,9 @@ const PLANS: Plan[] = [
     tagline: "Everything that saves time and makes money.",
     inherits: "Starter",
     features: [
-      "SMS reminders",
+      "SMS reminders (coming soon)",
       "Matting meter & smart pricing",
-      "Rebooking engine",
+      "“Due for a groom” rebooking list",
       "Before & after reports",
     ],
     note: "A couple of saved no-shows a month more than covers it.",
@@ -989,13 +989,22 @@ export default function LandingPage() {
         <footer className="border-t border-DEFAULT">
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-10 sm:flex-row sm:px-8">
             <Logo />
-            <div className="flex items-center gap-5 text-xs text-ink-muted">
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-ink-muted">
               <Link href="/login" className="transition-colors hover:text-ink">
                 Log in
               </Link>
               <Link href="/book" target="_blank" className="transition-colors hover:text-ink">
                 See the booking page
               </Link>
+              <Link href="/privacy" className="transition-colors hover:text-ink">
+                Privacy
+              </Link>
+              <Link href="/terms" className="transition-colors hover:text-ink">
+                Terms
+              </Link>
+              <a href="mailto:nailalfie4@gmail.com" className="transition-colors hover:text-ink">
+                Contact
+              </a>
             </div>
             <p className="text-xs text-ink-subtle">© {new Date().getFullYear()} GroomOS</p>
           </div>

@@ -649,6 +649,15 @@ export function PublicBooking({
           </>
         )}
       </main>
+
+      <footer className="mx-auto max-w-xl px-5 pb-8 pt-2">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs text-ink-subtle">
+          <span>Powered by GroomOS</span>
+          <span aria-hidden>·</span>
+          <a href="/privacy" className="transition-colors hover:text-ink">Privacy</a>
+          <a href="/terms" className="transition-colors hover:text-ink">Terms</a>
+        </div>
+      </footer>
     </div>
   );
 }
