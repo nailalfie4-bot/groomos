@@ -14,6 +14,8 @@ import { rowToSettings } from "@/lib/data/settings";
 import { rowToAppointment, isClashError } from "@/lib/data/appointments";
 import { computeQuote, DEFAULT_SETTINGS } from "@/lib/pricing";
 import { findClash, SLOT_STEP_MIN } from "@/lib/schedule";
+import { sendEmail } from "@/lib/email/send";
+import { bookingConfirmationEmail } from "@/lib/email/templates";
 import type { Business, CoatCondition, DogSize, Service, Settings } from "@/lib/types";
 
 // The public page's slot math is anchored to UTC wall-clock: the server
@@ -159,7 +161,7 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   // ── Resolve the business ─────────────────────────────────────────────────
   const { data: biz, error: bizErr } = await admin
     .from("businesses")
-    .select("id, open_hour, close_hour")
+    .select("id, name, open_hour, close_hour, address_line, city, postcode")
     .eq("slug", input.slug.trim().toLowerCase())
     .maybeSingle();
   if (bizErr) throw bizErr;
@@ -262,6 +264,27 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       return { ok: false, error: "slot_taken", message: "Sorry, that time was just taken — please pick another." };
     }
     throw apptErr;
+  }
+
+  // Confirmation email to the client — best-effort, never blocks the booking
+  // (and a safe no-op until email is configured).
+  try {
+    const b = biz as { name?: string; address_line?: string; city?: string; postcode?: string };
+    const when = start.toLocaleString("en-GB", {
+      weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC",
+    });
+    const msg = bookingConfirmationEmail({
+      businessName: b.name ?? "Your groomer",
+      firstName,
+      petName,
+      serviceName: service.name,
+      whenLabel: when,
+      address: [b.address_line, b.city, b.postcode].filter(Boolean).join(", ") || undefined,
+      depositLabel: depositDue > 0 ? `A £${depositDue} deposit secures your slot.` : undefined,
+    });
+    await sendEmail({ to: email, subject: msg.subject, html: msg.html });
+  } catch (err) {
+    console.error("booking confirmation email failed:", err);
   }
 
   return {
