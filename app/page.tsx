@@ -555,19 +555,15 @@ export default function LandingPage() {
                 <p className="mt-5 max-w-md text-xs text-ink-muted">{HERO_UNDER_CTA}</p>
               </motion.div>
 
-              {/* Client-booking walkthrough — looping when animated, frozen on
-                  the confirmation screen (no timer, no blur) in static mode */}
-              <motion.div
-                initial={staticMode ? false : { opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.55, delay: 0.12, ease: EASE }}
-                className="relative"
-              >
+              {/* Client-booking widget — a single static frame (a picture of
+                  the product). No entrance animation, so it paints in one go
+                  with no flash. */}
+              <div className="relative">
                 {!staticMode && (
                   <div className="absolute -inset-5 -z-10 rounded-[28px] bg-accent-100/50 blur-2xl" />
                 )}
-                <BookingWalkthrough paused={staticMode} />
-              </motion.div>
+                <BookingWalkthrough />
+              </div>
             </div>
           </div>
         </section>
