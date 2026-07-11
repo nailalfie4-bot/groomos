@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -209,7 +210,55 @@ function Eyebrow({ children }: { children: ReactNode }) {
   );
 }
 
-/** Fade-and-rise on scroll into view (once). Respects reduced motion via MotionConfig. */
+/**
+ * Reveal-on-scroll that fires EXACTLY ONCE and then permanently disconnects its
+ * observer — so a section can never re-animate or flash when it re-enters the
+ * viewport (framer's `whileInView` was re-triggering on iOS). It's a plain CSS
+ * transition (no per-frame JS), the element always occupies its own space so
+ * nothing shifts, and reduced-motion / static mode render it visible instantly.
+ */
+function useRevealOnce() {
+  const isStatic = useContext(StaticModeContext);
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (isStatic || shown) return;
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setShown(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries, obs) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShown(true);
+          obs.disconnect(); // fire once, then never observe again
+        }
+      },
+      { rootMargin: "0px 0px -10% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isStatic, shown]);
+  return { ref, shown, isStatic };
+}
+
+function revealStyle(
+  shown: boolean,
+  isStatic: boolean,
+  y: number,
+  delay: number,
+): CSSProperties | undefined {
+  if (isStatic) return undefined;
+  return {
+    opacity: shown ? 1 : 0,
+    transform: shown ? "none" : `translateY(${y}px)`,
+    transition: `opacity 520ms cubic-bezier(0.22,1,0.36,1) ${delay}s, transform 520ms cubic-bezier(0.22,1,0.36,1) ${delay}s`,
+  };
+}
+
+/** Fade-and-rise on scroll into view (exactly once). */
 function Reveal({
   children,
   className,
@@ -221,18 +270,11 @@ function Reveal({
   delay?: number;
   y?: number;
 }) {
-  const isStatic = useContext(StaticModeContext);
-  if (isStatic) return <div className={className}>{children}</div>;
+  const { ref, shown, isStatic } = useRevealOnce();
   return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.5, delay, ease: EASE }}
-    >
+    <div ref={ref} className={className} style={revealStyle(shown, isStatic, y, delay)}>
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -251,18 +293,11 @@ function RevealCard({
   className?: string;
   delay?: number;
 }) {
-  const isStatic = useContext(StaticModeContext);
-  if (isStatic) return <div className={className}>{children}</div>;
+  const { ref, shown, isStatic } = useRevealOnce();
   return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 18 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.45, delay, ease: EASE }}
-    >
+    <div ref={ref} className={className} style={revealStyle(shown, isStatic, 18, delay)}>
       {children}
-    </motion.div>
+    </div>
   );
 }
 

@@ -50,29 +50,38 @@ export function BookingWalkthrough({ paused = false }: { paused?: boolean }) {
           <span className="text-[10px] font-medium text-accent-700">{STEPS[step].caption}</span>
         </div>
 
-        {/* Screen */}
-        <div className="min-h-[192px] rounded-xl bg-canvas/70 p-3">
-          {paused ? (
-            <div>
-              {step === 0 && <ServiceScreen />}
-              {step === 1 && <TimeScreen paused />}
-              {step === 2 && <ConfirmScreen paused />}
-            </div>
-          ) : (
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={step}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.35, ease: EASE }}
-              >
+        {/* Screen — the height is reserved by the tallest step, rendered once
+            invisibly, so the widget NEVER changes size as it cycles. A hero
+            element that resizes on its own is what drags the scroll on iOS
+            (scroll anchoring); the active step is overlaid on top, absolutely
+            positioned, so its transitions can't affect layout either. */}
+        <div className="relative overflow-hidden rounded-xl bg-canvas/70 p-3">
+          <div className="invisible" aria-hidden>
+            <ServiceScreen />
+          </div>
+          <div className="absolute inset-0 p-3">
+            {paused ? (
+              <div>
                 {step === 0 && <ServiceScreen />}
-                {step === 1 && <TimeScreen />}
-                {step === 2 && <ConfirmScreen />}
-              </motion.div>
-            </AnimatePresence>
-          )}
+                {step === 1 && <TimeScreen paused />}
+                {step === 2 && <ConfirmScreen paused />}
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={step}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.35, ease: EASE }}
+                >
+                  {step === 0 && <ServiceScreen />}
+                  {step === 1 && <TimeScreen />}
+                  {step === 2 && <ConfirmScreen />}
+                </motion.div>
+              </AnimatePresence>
+            )}
+          </div>
         </div>
       </div>
 
