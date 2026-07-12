@@ -6,7 +6,7 @@ import {
   BellRing,
   CalendarPlus,
   HeartHandshake,
-  MessageCircle,
+  Mail,
   PiggyBank,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -19,27 +19,63 @@ import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { BookingForm } from "@/components/booking-form";
 import { useStore } from "@/lib/mock/store";
+import { useAuth } from "@/components/auth-provider";
 import { useDemoLoad } from "@/lib/use-demo-load";
 import type { DueForGroom } from "@/lib/mock/store";
 import { addDays, atHour, formatGBP } from "@/lib/format";
 
 export default function RetentionPage() {
   const loading = useDemoLoad();
+  const { configured } = useAuth();
   const { getDueForGroom, business, settings, markReminderSent } = useStore();
   const due = getDueForGroom();
   const [reminder, setReminder] = useState<DueForGroom | null>(null);
   const [rebook, setRebook] = useState<DueForGroom | null>(null);
   const [sent, setSent] = useState<Set<string>>(new Set());
+  const [sending, setSending] = useState(false);
 
   const atRisk = useMemo(() => due.reduce((sum, d) => sum + d.lastPriceGBP, 0), [due]);
 
-  function sendReminder(d: DueForGroom) {
-    markReminderSent(d.pet.id);
-    setSent((s) => new Set(s).add(d.pet.id));
-    setReminder(null);
-    toast.success(`Reminder sent to ${d.client.firstName}`, {
-      description: `${d.pet.name}'s owner has been nudged.`,
-    });
+  async function sendReminder(d: DueForGroom) {
+    // Demo (no Supabase) simulates; the real app actually emails the client.
+    if (!configured) {
+      markReminderSent(d.pet.id);
+      setSent((s) => new Set(s).add(d.pet.id));
+      setReminder(null);
+      toast.success(`Reminder emailed to ${d.client.firstName}`, {
+        description: `${d.pet.name}'s owner has been nudged to rebook.`,
+      });
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch("/api/reminders/send", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ petId: d.pet.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.skipped) {
+        setReminder(null);
+        toast("Email isn't switched on yet", {
+          description: "Add your Resend key in Vercel to start sending reminders.",
+        });
+        return;
+      }
+      if (!res.ok || !data?.ok) {
+        toast.error("Couldn't send the reminder — please try again.");
+        return;
+      }
+      setSent((s) => new Set(s).add(d.pet.id));
+      setReminder(null);
+      toast.success(`Reminder emailed to ${d.client.firstName}`, {
+        description: `${d.pet.name}'s owner has been nudged to rebook.`,
+      });
+    } catch {
+      toast.error("Couldn't reach the server — please try again.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -124,13 +160,13 @@ export default function RetentionPage() {
         open={reminder !== null}
         onClose={() => setReminder(null)}
         title="Send a friendly reminder"
-        description="We'll text and email this for you — included in your plan, never charged per message."
+        description="We'll email this to your client — it's included in your plan."
         footer={
           <>
             <Button variant="ghost" size="sm" onClick={() => setReminder(null)}>Cancel</Button>
-            <Button size="sm" onClick={() => reminder && sendReminder(reminder)}>
-              <MessageCircle className="h-4 w-4" />
-              Send it
+            <Button size="sm" loading={sending} disabled={sending} onClick={() => reminder && sendReminder(reminder)}>
+              <Mail className="h-4 w-4" />
+              Send email
             </Button>
           </>
         }
@@ -143,7 +179,7 @@ export default function RetentionPage() {
               the next one booked in? Tap here to pick a time that suits you.
             </div>
             <p className="mt-2 text-xs text-ink-subtle">
-              Sent to {reminder.client.phone} and {reminder.client.email}
+              We&apos;ll email this to {reminder.client.email}
             </p>
           </div>
         )}
