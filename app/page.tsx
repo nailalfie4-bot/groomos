@@ -97,16 +97,16 @@ const COST_ROWS = [
   { label: "SMS bills & double-book slips", value: "£5+" },
 ];
 
-// Every primary CTA points here — the 20-minute setup-call booking link. The
+// Every primary CTA points here — the 15-minute setup-call booking link. The
 // handler falls back to entering the product if this is ever blanked out.
-const SETUP_CALL_URL = "https://calendly.com/d/ds6m-46h-49s/meeting";
+const SETUP_CALL_URL = "https://calendly.com/nailalfie4/set-up-call";
 
 const CTA_LABEL = "Get set up free";
 const HERO_SUB =
   "Clients book online, pay a deposit upfront, and get reminders automatically — so no-shows either don't happen, or don't cost you.";
 const HERO_UNDER_CTA =
-  "We build your whole booking system for you on a 20-minute call. Free for 30 days, no card needed. 25 founding spots this month.";
-const FINAL_CTA_SUBLINE = "20-minute setup call · 30 days free · 25 founding spots";
+  "We build your whole booking system for you on a 15-minute call. Free for 30 days, no card needed. 25 founding spots this month.";
+const FINAL_CTA_SUBLINE = "15-minute setup call · 30 days free · 25 founding spots";
 
 type Plan = {
   name: string;
@@ -175,7 +175,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "I'm not techy — how hard is setup?",
-    a: "You do nothing. We build it with you on a 20-minute call.",
+    a: "You do nothing. We build it with you on a 15-minute call.",
   },
   {
     q: "What happens after my 30 days free?",
@@ -603,7 +603,7 @@ export default function LandingPage() {
             <Reveal className="mx-auto mb-12 flex max-w-2xl flex-col items-center text-center sm:mb-16">
               <Eyebrow>How it works</Eyebrow>
               <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
-                Set up in 20 minutes. By us, not you.
+                Set up in 15 minutes. By us, not you.
               </h2>
               <PawTrail className="mt-5" />
             </Reveal>

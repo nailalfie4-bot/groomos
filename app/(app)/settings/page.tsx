@@ -230,10 +230,10 @@ function SettingsForm({
         </Section>
 
         {/* Reminders — the selling point */}
-        <Section icon={<Bell className="h-[18px] w-[18px]" />} title="Reminders" description="Friendly text & email reminders before every appointment." action={<Badge tone="success" dot>On & included</Badge>}>
+        <Section icon={<Bell className="h-[18px] w-[18px]" />} title="Reminders" description="Automatic email reminders before every appointment. SMS coming soon." action={<Badge tone="success" dot>Email · included</Badge>}>
           <p className="rounded-xl bg-surface-sunken p-3 text-sm text-ink-muted">
-            Send as many as you like — no per-message fees and no surprise bills.
-            It&apos;s all part of your plan, by design.
+            Appointment reminders and booking confirmations go out by email automatically —
+            included in your plan, with no per-message fees.
           </p>
         </Section>
       </div>

@@ -78,3 +78,24 @@ export function bookingConfirmationEmail(d: GroomEmailData): { subject: string; 
     html: shell(d.businessName, "Booking request received", body),
   };
 }
+
+/** A gentle "you're due a groom" nudge sent from the retention screen. */
+export function rebookingReminderEmail(d: {
+  businessName: string;
+  firstName: string;
+  petName: string;
+  weeksSince: number;
+  bookingUrl?: string;
+}): { subject: string; html: string } {
+  const cta = d.bookingUrl
+    ? `<a href="${d.bookingUrl}" style="display:inline-block;background:#C9756B;color:#FCF6F4;text-decoration:none;font-weight:600;font-size:15px;padding:12px 20px;border-radius:12px;">Book ${esc(d.petName)}'s next groom</a>`
+    : "";
+  const body = `
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#8A7470;">Hi ${esc(d.firstName)}, it's been about ${d.weeksSince} weeks since ${esc(d.petName)}'s last groom — shall we get the next one booked in?</p>
+    ${cta}
+    <p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:#8A7470;">Or just reply to this email and we'll find a time that suits you.</p>`;
+  return {
+    subject: `Time for ${d.petName}'s next groom?`,
+    html: shell(d.businessName, `${d.petName} is due a groom`, body),
+  };
+}
