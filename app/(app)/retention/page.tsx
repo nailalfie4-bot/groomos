@@ -42,8 +42,8 @@ export default function RetentionPage() {
       markReminderSent(d.pet.id);
       setSent((s) => new Set(s).add(d.pet.id));
       setReminder(null);
-      toast.success(`Reminder emailed to ${d.client.firstName}`, {
-        description: `${d.pet.name}'s owner has been nudged to rebook.`,
+      toast.success(`Reminder emailed to ${d.client.email}`, {
+        description: `We nudged ${d.pet.name}'s owner to rebook.`,
       });
       return;
     }
@@ -68,8 +68,8 @@ export default function RetentionPage() {
       }
       setSent((s) => new Set(s).add(d.pet.id));
       setReminder(null);
-      toast.success(`Reminder emailed to ${d.client.firstName}`, {
-        description: `${d.pet.name}'s owner has been nudged to rebook.`,
+      toast.success(`Reminder emailed to ${d.client.email}`, {
+        description: `We nudged ${d.pet.name}'s owner to rebook.`,
       });
     } catch {
       toast.error("Couldn't reach the server — please try again.");
