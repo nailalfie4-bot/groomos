@@ -21,6 +21,10 @@ export interface Business {
   subscriptionStatus?: string;
   /** ISO datetime the current period ends / renews. */
   currentPeriodEnd?: string;
+  /** The groomer's connected Stripe (Express) account id, once they connect. */
+  stripeConnectAccountId?: string;
+  /** True once the connected account can accept charges (card deposits go live). */
+  stripeConnectChargesEnabled?: boolean;
   /** Working day start/end in 24h decimal hours, e.g. 9 and 17. */
   openHour: number;
   closeHour: number;
@@ -143,6 +147,10 @@ export interface Appointment {
   reminderSentAt?: string;
   /** Deposit taken to secure the booking (GBP). Applied on completion, kept on a no-show. */
   deposit?: number;
+  /** How the deposit was handled: 'none' | 'recorded' (agreed, not charged) | 'paid' (card-charged). */
+  depositStatus?: "none" | "recorded" | "paid";
+  /** Stripe PaymentIntent id for a card-charged deposit, if any. */
+  depositPaymentIntentId?: string;
 }
 
 /** Transparent price + time breakdown produced by the matting meter. */

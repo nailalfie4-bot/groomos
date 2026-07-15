@@ -45,9 +45,9 @@ type Feature = {
 // Built for solo groomers, not salons — five things that actually earn their keep.
 const FEATURES: Feature[] = [
   {
-    icon: Bell,
-    title: "Automatic reminders that cut no-shows",
-    body: "A friendly nudge before every appointment, so far fewer clients forget. SMS coming soon.",
+    icon: ShieldCheck,
+    title: "Deposits that stop no-shows",
+    body: "Clients pay a card deposit to lock in the slot — the ones with skin in the game turn up.",
   },
   {
     icon: Moon,
@@ -55,9 +55,9 @@ const FEATURES: Feature[] = [
     body: "Clients book the slot they want in seconds — no more replying to DMs at 9pm.",
   },
   {
-    icon: ShieldCheck,
-    title: "No-show protection, built in",
-    body: "Confirmed slots and instant booking confirmations today — card deposits coming soon.",
+    icon: Bell,
+    title: "Automatic reminders that cut no-shows",
+    body: "A friendly nudge before every appointment, so far fewer forget. SMS coming soon.",
   },
   {
     icon: PawPrint,
@@ -80,12 +80,12 @@ const STEPS = [
   {
     n: "2",
     title: "Share one link",
-    body: "Put it in your Instagram bio. Clients pick a slot and book themselves in — no more booking DMs.",
+    body: "Put it in your Instagram bio. Clients pick a slot, pay their deposit, done — no more booking DMs.",
   },
   {
     n: "3",
     title: "Get on with grooming",
-    body: "Reminders go out automatically. Your calendar fills itself. Far fewer no-shows to chase.",
+    body: "Reminders go out automatically. Your calendar fills itself. No-shows pay for themselves.",
   },
 ];
 
@@ -103,7 +103,7 @@ const SETUP_CALL_URL = "https://calendly.com/nailalfie4/set-up-call";
 
 const CTA_LABEL = "Get set up free";
 const HERO_SUB =
-  "Clients book online in seconds and get an automatic reminder before every appointment — so far fewer forget, and your calendar fills without the endless DMs.";
+  "Clients book online, pay a card deposit upfront, and get reminders automatically — so no-shows either don't happen, or don't cost you.";
 const HERO_UNDER_CTA =
   "We build your whole booking system for you on a 15-minute call. Free for 30 days, no card needed. 25 founding spots this month.";
 const FINAL_CTA_SUBLINE = "15-minute setup call · 30 days free · 25 founding spots";
@@ -132,11 +132,11 @@ const PLANS: Plan[] = [
     features: [
       "Smart colour-coded calendar",
       "24/7 online booking page",
-      "Instant booking confirmations",
+      "Deposits & no-show protection",
       "Unlimited client & pet records",
       "Email reminders",
     ],
-    note: "Online booking and automatic reminders included from day one — not locked behind a higher tier.",
+    note: "Online booking and deposit protection included from day one — not locked behind a higher tier.",
   },
   {
     name: "Pro",
@@ -170,8 +170,8 @@ const FAQS: { q: string; a: string }[] = [
     a: "No — your booking page is just a link. It works in any browser, on any phone.",
   },
   {
-    q: "How does GroomOS stop no-shows?",
-    a: "Every slot is confirmed the moment it's booked, and every client gets an automatic reminder before their appointment — which already cuts no-shows sharply. Card deposits are coming soon.",
+    q: "What if a client doesn't want to pay a deposit?",
+    a: "Deposits are your choice, per business — turn them on or off, and set the amount that feels right.",
   },
   {
     q: "I'm not techy — how hard is setup?",
@@ -182,8 +182,8 @@ const FAQS: { q: string; a: string }[] = [
     a: "£29/mo, cancel anytime, no contract. Founding groomers keep their rate for 12 months.",
   },
   {
-    q: "Will I get paid straight into my own account?",
-    a: "Yes — subscription billing runs through Stripe, and when card deposits go live they'll pay straight into your own Stripe account. GroomOS never holds your money.",
+    q: "Where does the deposit money go?",
+    a: "Straight into your own Stripe account — you connect Stripe in a couple of taps, and GroomOS never holds your money.",
   },
   {
     q: "Can I move my existing clients over?",
@@ -305,11 +305,6 @@ function RevealCard({
 function DepositVisual() {
   return (
     <div className="mx-auto w-full max-w-sm rounded-2xl border border-DEFAULT bg-surface p-5 shadow-lg ring-1 ring-border/60">
-      {/* Honest preview of the upcoming card-deposit feature */}
-      <div className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-subtle">
-        <span className="rounded-full bg-accent-100 px-2 py-0.5 text-accent-700">Coming soon</span>
-        Deposit preview
-      </div>
       {/* Booking header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -590,8 +585,8 @@ export default function LandingPage() {
                 </p>
                 <p className="mt-4 text-base font-medium leading-relaxed text-ink sm:text-lg">
                   GroomOS is £29 a month. It pays for itself the first time a
-                  reminder saves a booking —{" "}
-                  <span className="text-accent">that's one no-show that never happened.</span>
+                  no-show doesn't cost you —{" "}
+                  <span className="text-accent">because you kept the deposit.</span>
                 </p>
               </Reveal>
               <Reveal delay={0.1}>
@@ -687,7 +682,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* No-show protection — confirmed slots + reminders today, card deposits coming */}
+        {/* Deposits & no-show protection — the feature that pays for itself */}
         <section className="border-t border-DEFAULT bg-canvas">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
             <div className="overflow-hidden rounded-3xl border border-accent/15 bg-gradient-to-br from-accent-50 via-surface to-surface shadow-card">
@@ -695,22 +690,22 @@ export default function LandingPage() {
                 {/* Copy */}
                 <Reveal>
                   <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-700">
-                    <ShieldCheck className="h-3.5 w-3.5" /> No-show protection
+                    <ShieldCheck className="h-3.5 w-3.5" /> Deposits & no-show protection
                   </span>
                   <h2 className="mt-4 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
-                    Fewer no-shows, without lifting a finger
+                    The feature that pays for itself
                   </h2>
                   <p className="mt-4 text-base leading-relaxed text-ink-muted sm:text-lg">
-                    Every appointment is confirmed the moment it's booked, and every
-                    client gets an automatic reminder the day before — so far fewer
-                    forget, and no one can double-book you.
+                    A small card deposit on every booking keeps clients committed — and
+                    means the ones who slip through leave something behind instead
+                    of nothing.
                   </p>
                   <ul className="mt-6 flex flex-col gap-3">
                     {[
-                      "Slots lock the instant a client books — no clashes, no ‘are you free Tuesday?’ DMs.",
-                      "An automatic reminder goes out before every appointment. SMS coming soon.",
-                      "A booking confirmation lands in their inbox straight away.",
-                      "Card deposits to keep clients committed — coming soon.",
+                      "Set your own deposit — clients pay it by card to lock in the slot.",
+                      "They show up? It comes straight off the price of the groom.",
+                      "They don't? You keep the deposit, so a no-show stings far less.",
+                      "Deposits land in your own Stripe account — connect it in a couple of taps.",
                     ].map((line) => (
                       <li
                         key={line}
@@ -732,7 +727,7 @@ export default function LandingPage() {
                   {/* Trust micro-signals — small, true */}
                   <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-ink-subtle">
                     <span className="inline-flex items-center gap-1.5">
-                      <Lock className="h-3.5 w-3.5" /> Billing secured by Stripe
+                      <Lock className="h-3.5 w-3.5" /> Payments secured by Stripe
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <MapPin className="h-3.5 w-3.5" /> Your data stays in the UK/EU

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Bell,
@@ -9,12 +9,15 @@ import {
   Check,
   Clock,
   Copy,
+  CreditCard,
   Heart,
   Link2,
+  Loader2,
   RefreshCw,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { useAuth } from "@/components/auth-provider";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,6 +171,7 @@ function SettingsForm({
               <span className="font-semibold">{s.cancellationNoticeHours}h</span> before. No-shows add up fast — deposits help you stop quietly losing money to them.
             </p>
           </div>
+          <ConnectPayouts enabled={s.depositEnabled} amount={s.depositAmount} />
         </Section>
 
         {/* Cleanup buffer */}
@@ -254,6 +258,124 @@ function SettingsForm({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Connect-your-Stripe control inside the Deposits section. Talks to the real
+ * /api/stripe/connect endpoint (server-authed), so it works even though the
+ * rest of this screen is store-driven. Until the account can take charges,
+ * deposits are "recorded only" — agreed with the client, not charged online.
+ */
+function ConnectPayouts({ enabled, amount }: { enabled: boolean; amount: number }) {
+  const { configured } = useAuth();
+  const [status, setStatus] = useState<{ connected: boolean; chargesEnabled: boolean } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/stripe/connect");
+      if (!res.ok) {
+        setStatus(null);
+        return;
+      }
+      const d = await res.json();
+      setStatus({ connected: Boolean(d.connected), chargesEnabled: Boolean(d.chargesEnabled) });
+    } catch {
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!configured) {
+      setLoading(false);
+      return;
+    }
+    // Returning from Stripe onboarding (?connect=done|refresh) — tidy the URL.
+    if (new URLSearchParams(window.location.search).get("connect")) {
+      window.history.replaceState(null, "", "/settings");
+    }
+    refresh();
+  }, [configured, refresh]);
+
+  async function connect() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/stripe/connect", { method: "POST" });
+      const d = await res.json();
+      if (res.ok && d.url) {
+        window.location.assign(d.url);
+        return;
+      }
+      toast.error(
+        d.error === "billing_not_configured"
+          ? "Payments aren't set up on this account yet."
+          : "Couldn't start Stripe setup — please try again.",
+      );
+    } catch {
+      toast.error("Couldn't reach Stripe — please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!enabled) return null;
+
+  if (!configured) {
+    return (
+      <div className="mt-3 flex items-start gap-2 rounded-xl border border-DEFAULT bg-surface-sunken p-3 text-sm text-ink-muted">
+        <CreditCard className="mt-0.5 h-4 w-4 shrink-0" />
+        On a live account you connect your Stripe here to charge deposits automatically. In this demo, deposits are shown but not charged.
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="mt-3 flex h-12 items-center gap-2 rounded-xl border border-DEFAULT bg-surface-sunken px-3 text-sm text-ink-muted">
+        <Loader2 className="h-4 w-4 animate-spin" /> Checking your Stripe connection…
+      </div>
+    );
+  }
+
+  if (status?.chargesEnabled) {
+    return (
+      <div className="mt-3 flex items-start gap-2 rounded-xl border border-success/30 bg-success-soft p-3 text-sm text-success-deep">
+        <Check className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <p className="font-medium">Stripe connected — card deposits are live.</p>
+          <p className="mt-0.5 opacity-80">
+            Clients are charged <span className="font-semibold tabular-nums">{formatGBP(amount)}</span> at booking,
+            straight into your own Stripe account.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const partial = Boolean(status?.connected); // account exists, onboarding unfinished
+  return (
+    <div className="mt-3 rounded-xl border border-accent/30 bg-accent-50 p-3">
+      <div className="flex items-start gap-2 text-sm text-accent-700">
+        <CreditCard className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <p className="font-medium">
+            {partial ? "Finish connecting Stripe to charge deposits" : "Connect Stripe to charge deposits"}
+          </p>
+          <p className="mt-0.5">
+            Until then, deposits are <span className="font-semibold">recorded only</span> — agreed with your client and collected by you, not charged online.
+          </p>
+        </div>
+      </div>
+      <Button size="sm" className="mt-3" loading={busy} disabled={busy} onClick={connect}>
+        <CreditCard className="h-4 w-4" />
+        {partial ? "Continue Stripe setup" : "Connect Stripe"}
+      </Button>
+    </div>
   );
 }
 
