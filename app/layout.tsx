@@ -31,15 +31,15 @@ const caveat = Caveat({
 });
 
 const SITE_URL = "https://groomos.vercel.app";
-const OG_TITLE = "Stop no-shows costing you — booking + deposits for UK dog groomers";
+const OG_TITLE = "Stop no-shows costing you — online booking + reminders for UK dog groomers";
 const OG_DESCRIPTION =
-  "One no-show costs you £45. GroomOS costs £29. Give clients an online booking page with upfront deposits and automatic reminders — so no-shows either don't happen, or don't cost you.";
+  "One no-show costs you £45. GroomOS costs £29. Give clients an online booking page with an automatic reminder before every appointment — so far fewer no-shows, and your calendar fills without the DMs.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "GroomOS — Stop no-shows costing you. Booking + deposits for UK dog groomers",
+  title: "GroomOS — Stop no-shows costing you. Online booking + reminders for UK dog groomers",
   description:
-    "GroomOS gives UK dog groomers an online booking page with upfront deposits and automatic reminders — so no-shows either don't happen, or don't cost you. Free 30-day trial, no card needed.",
+    "GroomOS gives UK dog groomers an online booking page with an automatic reminder before every appointment — so far fewer no-shows, and less time lost to booking DMs. Free 30-day trial, no card needed.",
   applicationName: "GroomOS",
   appleWebApp: {
     capable: true,

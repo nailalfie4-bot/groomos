@@ -40,7 +40,7 @@ export default function OpengraphImage() {
         {/* Subline */}
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ fontSize: 30, color: "#8A7470" }}>
-            Online booking · deposits · reminders — for UK dog groomers
+            Online booking · reminders · fewer no-shows — for UK dog groomers
           </div>
         </div>
       </div>
