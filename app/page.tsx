@@ -434,7 +434,6 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 export default function LandingPage() {
   const router = useRouter();
   const { user, loading, configured } = useAuth();
-  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
 
   // `?static=1` strips every animation/effect off the hero + feature cards so a
   // static build can be A/B'd against the animated one on a real phone. Read
@@ -787,39 +786,6 @@ export default function LandingPage() {
               <p className="mt-4 text-base leading-relaxed text-ink-muted">
                 Start with a free 30-day trial. No setup fees, no metered SMS, cancel any time.
               </p>
-
-              {/* Monthly / annual billing toggle */}
-              <div className="mt-7 inline-flex items-center gap-1 rounded-full border border-DEFAULT bg-surface-sunken p-1">
-                <button
-                  type="button"
-                  onClick={() => setBilling("monthly")}
-                  aria-pressed={billing === "monthly"}
-                  className={cn(
-                    "rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-fast",
-                    billing === "monthly"
-                      ? "bg-surface text-ink shadow-xs ring-1 ring-border/60"
-                      : "text-ink-muted hover:text-ink",
-                  )}
-                >
-                  Monthly
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBilling("annual")}
-                  aria-pressed={billing === "annual"}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-fast",
-                    billing === "annual"
-                      ? "bg-surface text-ink shadow-xs ring-1 ring-border/60"
-                      : "text-ink-muted hover:text-ink",
-                  )}
-                >
-                  Annual
-                  <span className="rounded-full bg-accent-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-700">
-                    2 months free
-                  </span>
-                </button>
-              </div>
             </Reveal>
 
             {/* Founding offer */}
@@ -832,9 +798,7 @@ export default function LandingPage() {
 
             <div className="grid items-stretch gap-5 lg:grid-cols-3 lg:gap-6">
               {PLANS.map((p, i) => {
-                const price = billing === "annual" ? p.annual : p.monthly;
-                const yearly = p.annual * 12;
-                const saved = (p.monthly - p.annual) * 12;
+                const price = p.monthly;
                 return (
                   <RevealCard
                     key={p.name}
@@ -864,9 +828,7 @@ export default function LandingPage() {
                       <span className="text-sm text-ink-muted">/ mo</span>
                     </div>
                     <p className="mt-1.5 h-4 text-xs text-ink-subtle">
-                      {billing === "annual"
-                        ? `£${yearly} billed yearly · save £${saved}`
-                        : "billed monthly"}
+                      billed monthly
                     </p>
 
                     {p.note && (
