@@ -164,6 +164,10 @@ export interface PublicBookingInput {
   breed: string;
   /** Stripe PaymentIntent id for a card-charged deposit (charge mode only). */
   paymentIntentId?: string;
+  /** Labels of the declarations the client ticked (re-validated server-side). */
+  declarations?: string[];
+  /** Client's typed full name as their T&Cs e-signature (when terms exist). */
+  termsSignedName?: string;
 }
 
 export type CreateBookingResult =
@@ -239,6 +243,20 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   if (startMin < openMin || startMin + quote.totalDurationMin > closeMin) {
     return { ok: false, error: "invalid_input", message: "That time is outside opening hours." };
   }
+
+  // ── Declarations + T&Cs: every enabled declaration must be agreed, and if the
+  //    groomer has terms, the client must have signed. Re-checked here so a
+  //    crafted request can't skip what the booking page enforces. ────────────
+  const enabledDeclarations = (settings.declarations ?? []).filter((d) => d.enabled && d.label.trim());
+  const agreedSet = new Set((input.declarations ?? []).map((l) => l.trim()));
+  const allDeclared = enabledDeclarations.every((d) => agreedSet.has(d.label.trim()));
+  const termsRequired = (settings.termsText ?? "").trim();
+  const signedName = input.termsSignedName?.trim() ?? "";
+  if (!allDeclared || (termsRequired && !signedName)) {
+    return { ok: false, error: "invalid_input", message: "Please complete the required checks before booking." };
+  }
+  const declarationsSnapshot = enabledDeclarations.length ? enabledDeclarations.map((d) => d.label) : null;
+  const acceptedAt = termsRequired || enabledDeclarations.length ? new Date().toISOString() : null;
 
   // ── Deposit: decide charge vs recorded, and (charge mode) verify the card
   //    was actually taken BEFORE we create any rows. Failed/absent payment in
@@ -363,6 +381,10 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       deposit: depositDue > 0 ? depositDue : null,
       deposit_status: depositMode === "charge" ? "paid" : depositMode === "recorded" ? "recorded" : "none",
       deposit_payment_intent_id: depositMode === "charge" ? paymentIntentId : null,
+      declarations: declarationsSnapshot,
+      terms_text: termsRequired || null,
+      terms_signed_name: termsRequired ? signedName : null,
+      terms_accepted_at: acceptedAt,
     })
     .select("id")
     .single();

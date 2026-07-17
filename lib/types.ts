@@ -68,6 +68,13 @@ export interface Pet {
   dateOfBirth?: string;
 }
 
+/** A yes/no client declaration the groomer can toggle on/off and reword. */
+export interface Declaration {
+  id: string;
+  label: string;
+  enabled: boolean;
+}
+
 /**
  * Groomer-configurable pricing & scheduling rules. These power the matting
  * meter and the calendar's automatic buffer time. A single solo groomer owns
@@ -92,6 +99,10 @@ export interface Settings {
   depositAmount: number;
   /** Cancellation notice required (hours), shown to clients at booking. */
   cancellationNoticeHours: number;
+  /** Client declarations shown at booking. Only `enabled` ones are required. */
+  declarations: Declaration[];
+  /** The groomer's own terms & conditions (plain text). Empty = none shown. */
+  termsText: string;
 }
 
 /** A delightful before/after report card the owner receives after a groom. */
@@ -151,6 +162,14 @@ export interface Appointment {
   depositStatus?: "none" | "recorded" | "paid";
   /** Stripe PaymentIntent id for a card-charged deposit, if any. */
   depositPaymentIntentId?: string;
+  /** Exact labels of the declarations the client agreed to at booking (frozen). */
+  declarations?: string[];
+  /** Exact T&Cs text the client was shown (snapshot, frozen at booking). */
+  termsText?: string;
+  /** The client's typed full name as their e-signature. */
+  termsSignedName?: string;
+  /** When the client accepted the T&Cs (ISO datetime). */
+  termsAcceptedAt?: string;
 }
 
 /** Transparent price + time breakdown produced by the matting meter. */

@@ -22,6 +22,10 @@ export interface AppointmentRow {
   deposit: number | string | null;
   reminder_sent_at: string | null;
   report: Appointment["report"] | null;
+  declarations: string[] | null;
+  terms_text: string | null;
+  terms_signed_name: string | null;
+  terms_accepted_at: string | null;
 }
 
 const num = (v: number | string | null | undefined): number =>
@@ -44,6 +48,10 @@ export function rowToAppointment(r: AppointmentRow): Appointment {
     deposit: r.deposit == null ? undefined : num(r.deposit),
     reminderSentAt: r.reminder_sent_at ?? undefined,
     report: r.report ?? undefined,
+    declarations: Array.isArray(r.declarations) ? r.declarations : undefined,
+    termsText: r.terms_text ?? undefined,
+    termsSignedName: r.terms_signed_name ?? undefined,
+    termsAcceptedAt: r.terms_accepted_at ?? undefined,
   };
 }
 

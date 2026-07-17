@@ -27,6 +27,16 @@ export const DEFAULT_SETTINGS: Settings = {
   depositEnabled: true,
   depositAmount: 10,
   cancellationNoticeHours: 48,
+  declarations: [
+    { id: "coat", label: "My dog's coat is not matted or pelted", enabled: true },
+    {
+      id: "aggression",
+      label: "My dog has no history of aggression towards groomers, staff, or other dogs",
+      enabled: true,
+    },
+    { id: "health", label: "My dog has no known health conditions that affect grooming", enabled: false },
+  ],
+  termsText: "",
 };
 
 export const SIZE_LABEL: Record<DogSize, string> = {

@@ -56,17 +56,14 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SIZES: DogSize[] = ["small", "medium", "large", "giant"];
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-type Step = "service" | "when" | "details" | "deposit" | "done";
-const STEP_INDEX: Record<Exclude<Step, "done">, number> = {
-  service: 1,
-  when: 2,
-  details: 3,
-  deposit: 4,
-};
+// "checks" (declarations + T&Cs) is conditional — only present when the groomer
+// has configured any. Step numbering is derived from the active steps below.
+type Step = "service" | "when" | "details" | "checks" | "deposit" | "done";
 const STEP_TITLE: Record<Exclude<Step, "done">, string> = {
   service: "Choose your groom",
   when: "Pick a day & time",
   details: "Your details",
+  checks: "A few quick checks",
   deposit: "Secure your slot",
 };
 
@@ -166,6 +163,10 @@ export type PublicBookingSubmit = {
   breed: string;
   /** Set in charge mode — the succeeded deposit PaymentIntent to confirm against. */
   paymentIntentId?: string;
+  /** Labels of the declarations the client ticked (server re-validates + snapshots). */
+  declarations?: string[];
+  /** Client's typed full name as their T&Cs e-signature (when terms exist). */
+  termsSignedName?: string;
 };
 export type PublicBookingResult =
   | { ok: true; depositDue: number; depositPaid?: boolean }
@@ -214,6 +215,11 @@ export function PublicBooking({
   const [refresh, setRefresh] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<Done | null>(null);
+  // Declarations + T&Cs ("checks" step)
+  const [agreed, setAgreed] = useState<Record<string, boolean>>({});
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [termsExpanded, setTermsExpanded] = useState(false);
+  const [signName, setSignName] = useState("");
 
   const service = activeServices.find((s) => s.id === serviceId);
   // Coat is assessed by the groomer in person; the customer estimate assumes a
@@ -228,6 +234,25 @@ export function PublicBooking({
     amount: settings.depositEnabled ? settings.depositAmount : 0,
   };
   const depositDue = depositCfg.mode === "off" ? 0 : depositCfg.amount;
+
+  // Declarations + T&Cs the groomer configured. The "checks" step only exists
+  // when there's something to agree to; step numbering is derived from this.
+  const enabledDeclarations = useMemo(
+    () => (settings.declarations ?? []).filter((d) => d.enabled && d.label.trim()),
+    [settings.declarations],
+  );
+  const termsText = (settings.termsText ?? "").trim();
+  const hasChecks = enabledDeclarations.length > 0 || termsText.length > 0;
+  const activeSteps = useMemo<Exclude<Step, "done">[]>(
+    () => ["service", "when", "details", ...(hasChecks ? (["checks"] as const) : []), "deposit"],
+    [hasChecks],
+  );
+  const totalSteps = activeSteps.length;
+  const stepNumber = (s: Exclude<Step, "done">) => activeSteps.indexOf(s) + 1;
+  const allDeclarationsChecked = enabledDeclarations.every((d) => agreed[d.id]);
+  const checksComplete =
+    allDeclarationsChecked &&
+    (termsText.length === 0 || (termsAgreed && signName.trim().length > 0));
 
   // Resolve the two side-effects: injected callbacks (demo) or the real public
   // API routes (default). Memoised so the availability effect stays stable.
@@ -293,7 +318,8 @@ export function PublicBooking({
     setErrors({});
     if (step === "when") setStep("service");
     else if (step === "details") setStep("when");
-    else if (step === "deposit") setStep("details");
+    else if (step === "checks") setStep("details");
+    else if (step === "deposit") setStep(hasChecks ? "checks" : "details");
   }
 
   function chooseService(id: string) {
@@ -314,6 +340,23 @@ export function PublicBooking({
     if (!phone.trim()) next.phone = "We need a number to confirm";
     if (!EMAIL_RE.test(email)) next.email = "Enter a valid email";
     if (!petName.trim()) next.petName = "Your dog's name, please";
+    setErrors(next);
+    if (Object.keys(next).length > 0) return;
+    if (hasChecks) {
+      setSignName((prev) => prev || name.trim()); // pre-fill the signature with their name
+      setStep("checks");
+    } else {
+      setStep("deposit");
+    }
+  }
+
+  // Gate to the deposit/confirm step: every enabled declaration must be ticked
+  // and (if the groomer has T&Cs) the terms agreed + signed.
+  function submitChecks() {
+    const next: Record<string, string> = {};
+    if (!allDeclarationsChecked) next.checks = "Please tick each confirmation to continue.";
+    else if (termsText && !termsAgreed) next.checks = "Please agree to the terms to continue.";
+    else if (termsText && !signName.trim()) next.sign = "Type your name to sign";
     setErrors(next);
     if (Object.keys(next).length === 0) setStep("deposit");
   }
@@ -338,6 +381,8 @@ export function PublicBooking({
         petName: petName.trim(),
         breed: "",
         paymentIntentId,
+        declarations: enabledDeclarations.map((d) => d.label),
+        termsSignedName: termsText ? signName.trim() : undefined,
       });
       if (!result.ok) {
         if (result.error === "slot_taken") {
@@ -373,6 +418,10 @@ export function PublicBooking({
     setTime("");
     setPetName("");
     setErrors({});
+    setAgreed({});
+    setTermsAgreed(false);
+    setTermsExpanded(false);
+    setSignName("");
     setRefresh((n) => n + 1);
     setStep("service");
   }
@@ -413,7 +462,8 @@ export function PublicBooking({
           <>
             {step !== "done" && (
               <StepHeader
-                index={STEP_INDEX[step]}
+                index={stepNumber(step as Exclude<Step, "done">)}
+                total={totalSteps}
                 title={STEP_TITLE[step]}
                 onBack={step === "service" ? undefined : goBack}
               />
@@ -610,6 +660,107 @@ export function PublicBooking({
                 </div>
               )}
 
+              {step === "checks" && (
+                <div className="flex flex-col gap-5">
+                  {enabledDeclarations.length > 0 && (
+                    <div className="flex flex-col gap-2.5">
+                      <p className="text-sm text-ink-muted">
+                        Please confirm the following about {petName.trim() || "your dog"}:
+                      </p>
+                      {enabledDeclarations.map((d) => {
+                        const on = !!agreed[d.id];
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => setAgreed((a) => ({ ...a, [d.id]: !a[d.id] }))}
+                            aria-pressed={on}
+                            className={cn(
+                              "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-colors",
+                              on ? "border-accent bg-accent-50" : "border-strong bg-surface hover:border-accent",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+                                on ? "border-accent bg-accent text-ink-inverse" : "border-strong bg-surface",
+                              )}
+                            >
+                              {on && <Check className="h-3.5 w-3.5" />}
+                            </span>
+                            <span className="text-sm leading-snug text-ink">{d.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {termsText && (
+                    <div className="flex flex-col gap-2.5">
+                      <p className="text-sm font-medium text-ink">
+                        {business.name}&apos;s terms &amp; conditions
+                      </p>
+                      <div
+                        className={cn(
+                          "relative overflow-hidden rounded-2xl border border-DEFAULT bg-surface-sunken p-4 text-sm leading-relaxed text-ink-muted",
+                          !termsExpanded && "max-h-32",
+                        )}
+                      >
+                        <p className="whitespace-pre-wrap">{termsText}</p>
+                        {!termsExpanded && (
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface-sunken to-transparent" />
+                        )}
+                      </div>
+                      {!termsExpanded && (
+                        <button
+                          type="button"
+                          onClick={() => setTermsExpanded(true)}
+                          className="self-start text-sm font-medium text-accent transition-colors hover:text-accent-600"
+                        >
+                          View full terms
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setTermsAgreed((v) => !v)}
+                        aria-pressed={termsAgreed}
+                        className={cn(
+                          "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-colors",
+                          termsAgreed ? "border-accent bg-accent-50" : "border-strong bg-surface hover:border-accent",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+                            termsAgreed ? "border-accent bg-accent text-ink-inverse" : "border-strong bg-surface",
+                          )}
+                        >
+                          {termsAgreed && <Check className="h-3.5 w-3.5" />}
+                        </span>
+                        <span className="text-sm leading-snug text-ink">
+                          I have read and agree to {business.name}&apos;s terms &amp; conditions.
+                        </span>
+                      </button>
+                      <Input
+                        label="Type your full name to sign"
+                        className="h-12 text-base"
+                        autoComplete="name"
+                        value={signName}
+                        onChange={(e) => setSignName(e.target.value)}
+                        error={errors.sign}
+                      />
+                    </div>
+                  )}
+
+                  {errors.checks && <p className="text-sm text-danger">{errors.checks}</p>}
+
+                  <Button size="lg" className="h-12 w-full" onClick={submitChecks}>
+                    Continue
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+
               {step === "deposit" && (
                 <div className="flex flex-col gap-5">
                   {/* Booking summary */}
@@ -689,10 +840,12 @@ export function PublicBooking({
 /** Step counter + progress bar + back button + title. */
 function StepHeader({
   index,
+  total,
   title,
   onBack,
 }: {
   index: number;
+  total: number;
   title: string;
   onBack?: () => void;
 }) {
@@ -711,10 +864,10 @@ function StepHeader({
         ) : (
           <span />
         )}
-        <span className="text-xs font-medium text-ink-subtle">Step {index} of 4</span>
+        <span className="text-xs font-medium text-ink-subtle">Step {index} of {total}</span>
       </div>
       <div className="mt-2 flex gap-1.5" aria-hidden>
-        {[1, 2, 3, 4].map((i) => (
+        {Array.from({ length: total }, (_, i) => i + 1).map((i) => (
           <span
             key={i}
             className={cn("h-1.5 flex-1 rounded-full", i <= index ? "bg-accent" : "bg-surface-sunken")}

@@ -15,7 +15,7 @@ import {
   type PublicBookingSubmit,
 } from "@/components/public-booking";
 import { DEFAULT_SETTINGS } from "@/lib/pricing";
-import type { Business, Service } from "@/lib/types";
+import type { Business, Service, Settings } from "@/lib/types";
 
 const business: Business = {
   id: "demo",
@@ -36,7 +36,15 @@ const services: Service[] = [
   { id: "svc-puppy", businessId: "demo", name: "Puppy's First Groom", description: "A gentle intro for pups under 6 months", durationMin: 45, priceGBP: 25, active: true },
 ];
 
-const settings = DEFAULT_SETTINGS;
+// Demo settings: the default declarations plus sample terms, so the "checks"
+// step (declarations + T&Cs + signature) is visible in the demo flow.
+const settings: Settings = {
+  ...DEFAULT_SETTINGS,
+  termsText:
+    "Deposits are non-refundable within 48 hours of your appointment.\n\n" +
+    "Please arrive on time — arrivals more than 15 minutes late may need to rebook.\n\n" +
+    "Matted coats may need to be clipped short for your dog's welfare; we'll always talk you through it first.",
+};
 
 function toDateValue(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(

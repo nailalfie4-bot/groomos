@@ -7,6 +7,7 @@ import {
   CalendarPlus,
   Camera,
   Check,
+  ClipboardCheck,
   Clock,
   Heart,
   PoundSterling,
@@ -38,6 +39,16 @@ function toDateValue(d: Date): string {
 }
 function toTimeValue(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+/** Human date+time for the declarations/terms proof record. */
+function formatProofDate(iso: string): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function AppointmentSheet({
@@ -183,6 +194,47 @@ export function AppointmentSheet({
               <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Extra time set aside for {pet?.size === "giant" ? "a giant breed" : "coat care"} — they won&apos;t be rushed.
             </p>
+          )}
+
+          {/* client declarations & terms — the proof record */}
+          {((appt.declarations && appt.declarations.length > 0) || appt.termsSignedName) && (
+            <div className="rounded-xl border border-DEFAULT bg-surface-sunken p-4">
+              <p className="mb-2.5 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-ink-subtle">
+                <ClipboardCheck className="h-3.5 w-3.5" /> Client declarations &amp; terms
+              </p>
+              {appt.declarations && appt.declarations.length > 0 && (
+                <ul className="flex flex-col gap-1.5">
+                  {appt.declarations.map((label, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-ink">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-success-deep" />
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {appt.termsSignedName ? (
+                <div className="mt-3 border-t border-DEFAULT pt-3 text-sm text-ink">
+                  Terms accepted by <span className="font-semibold">{appt.termsSignedName}</span>
+                  {appt.termsAcceptedAt ? ` on ${formatProofDate(appt.termsAcceptedAt)}` : ""}.
+                  {appt.termsText && (
+                    <details className="mt-1.5">
+                      <summary className="cursor-pointer text-xs font-medium text-accent">
+                        View the terms they agreed to
+                      </summary>
+                      <p className="mt-2 whitespace-pre-wrap rounded-lg bg-surface p-3 text-xs leading-relaxed text-ink-muted">
+                        {appt.termsText}
+                      </p>
+                    </details>
+                  )}
+                </div>
+              ) : (
+                appt.termsAcceptedAt && (
+                  <p className="mt-2.5 text-xs text-ink-subtle">
+                    Confirmed by the client on {formatProofDate(appt.termsAcceptedAt)}.
+                  </p>
+                )
+              )}
+            </div>
           )}
 
           {/* status actions */}
