@@ -75,6 +75,22 @@ export interface Declaration {
   enabled: boolean;
 }
 
+/** One tappable level on a declaration scale (matting / temperament). */
+export interface ScaleLevel {
+  id: string;
+  label: string;
+  description: string;
+  /** Whether the groomer accepts this level for online booking. */
+  accepted: boolean;
+}
+
+/** A groomer-configurable visual scale the client self-selects at booking. */
+export interface DeclarationScale {
+  enabled: boolean;
+  title: string;
+  levels: ScaleLevel[];
+}
+
 /**
  * Groomer-configurable pricing & scheduling rules. These power the matting
  * meter and the calendar's automatic buffer time. A single solo groomer owns
@@ -103,6 +119,10 @@ export interface Settings {
   declarations: Declaration[];
   /** The groomer's own terms & conditions (plain text). Empty = none shown. */
   termsText: string;
+  /** Coat-condition scale the client self-declares at booking. */
+  mattingScale: DeclarationScale;
+  /** Temperament scale the client self-declares at booking. */
+  temperamentScale: DeclarationScale;
 }
 
 /** A delightful before/after report card the owner receives after a groom. */
@@ -170,6 +190,10 @@ export interface Appointment {
   termsSignedName?: string;
   /** When the client accepted the T&Cs (ISO datetime). */
   termsAcceptedAt?: string;
+  /** Coat-condition level the client declared at booking (exact label, frozen). */
+  mattingLevel?: string;
+  /** Temperament level the client declared at booking (exact label, frozen). */
+  temperamentLevel?: string;
 }
 
 /** Transparent price + time breakdown produced by the matting meter. */

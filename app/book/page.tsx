@@ -36,14 +36,27 @@ const services: Service[] = [
   { id: "svc-puppy", businessId: "demo", name: "Puppy's First Groom", description: "A gentle intro for pups under 6 months", durationMin: 45, priceGBP: 25, active: true },
 ];
 
-// Demo settings: the default declarations plus sample terms, so the "checks"
-// step (declarations + T&Cs + signature) is visible in the demo flow.
+// Demo settings: default scales + sample terms so the "checks" step (matting +
+// temperament scales, T&Cs, signature) is visible. The riskiest levels are
+// marked "not accepted" to demo the kind contact-us gate.
 const settings: Settings = {
   ...DEFAULT_SETTINGS,
   termsText:
     "Deposits are non-refundable within 48 hours of your appointment.\n\n" +
     "Please arrive on time — arrivals more than 15 minutes late may need to rebook.\n\n" +
     "Matted coats may need to be clipped short for your dog's welfare; we'll always talk you through it first.",
+  mattingScale: {
+    ...DEFAULT_SETTINGS.mattingScale,
+    levels: DEFAULT_SETTINGS.mattingScale.levels.map((l) =>
+      l.id === "pelted" ? { ...l, accepted: false } : l,
+    ),
+  },
+  temperamentScale: {
+    ...DEFAULT_SETTINGS.temperamentScale,
+    levels: DEFAULT_SETTINGS.temperamentScale.levels.map((l) =>
+      l.id === "unsafe" ? { ...l, accepted: false } : l,
+    ),
+  },
 };
 
 function toDateValue(d: Date): string {

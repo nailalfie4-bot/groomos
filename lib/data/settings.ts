@@ -5,7 +5,7 @@
  */
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { DEFAULT_SETTINGS } from "@/lib/pricing";
-import type { Declaration, Settings } from "@/lib/types";
+import type { Declaration, DeclarationScale, Settings } from "@/lib/types";
 
 interface SettingsRow {
   business_id: string;
@@ -23,7 +23,12 @@ interface SettingsRow {
   cancellation_notice_hours: number;
   declarations: Declaration[] | null;
   terms_text: string | null;
+  matting_scale: DeclarationScale | null;
+  temperament_scale: DeclarationScale | null;
 }
+
+const validScale = (s: DeclarationScale | null | undefined): s is DeclarationScale =>
+  !!s && Array.isArray(s.levels);
 
 const num = (v: number | string): number => (typeof v === "string" ? Number(v) : v);
 
@@ -43,6 +48,8 @@ export function rowToSettings(r: SettingsRow): Settings {
     cancellationNoticeHours: r.cancellation_notice_hours,
     declarations: Array.isArray(r.declarations) ? r.declarations : DEFAULT_SETTINGS.declarations,
     termsText: r.terms_text ?? "",
+    mattingScale: validScale(r.matting_scale) ? r.matting_scale : DEFAULT_SETTINGS.mattingScale,
+    temperamentScale: validScale(r.temperament_scale) ? r.temperament_scale : DEFAULT_SETTINGS.temperamentScale,
   };
 }
 
@@ -78,6 +85,8 @@ export async function updateSettingsRow(
     cancellationNoticeHours: "cancellation_notice_hours",
     declarations: "declarations",
     termsText: "terms_text",
+    mattingScale: "matting_scale",
+    temperamentScale: "temperament_scale",
   };
   const dbPatch: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(patch)) {
