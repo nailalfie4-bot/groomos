@@ -5,7 +5,7 @@
  */
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { DEFAULT_SETTINGS } from "@/lib/pricing";
-import type { Settings } from "@/lib/types";
+import type { Declaration, Settings } from "@/lib/types";
 
 interface SettingsRow {
   business_id: string;
@@ -21,6 +21,8 @@ interface SettingsRow {
   deposit_enabled: boolean;
   deposit_amount: number | string;
   cancellation_notice_hours: number;
+  declarations: Declaration[] | null;
+  terms_text: string | null;
 }
 
 const num = (v: number | string): number => (typeof v === "string" ? Number(v) : v);
@@ -39,6 +41,8 @@ export function rowToSettings(r: SettingsRow): Settings {
     depositEnabled: r.deposit_enabled,
     depositAmount: num(r.deposit_amount),
     cancellationNoticeHours: r.cancellation_notice_hours,
+    declarations: Array.isArray(r.declarations) ? r.declarations : DEFAULT_SETTINGS.declarations,
+    termsText: r.terms_text ?? "",
   };
 }
 
@@ -72,6 +76,8 @@ export async function updateSettingsRow(
     depositEnabled: "deposit_enabled",
     depositAmount: "deposit_amount",
     cancellationNoticeHours: "cancellation_notice_hours",
+    declarations: "declarations",
+    termsText: "terms_text",
   };
   const dbPatch: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(patch)) {

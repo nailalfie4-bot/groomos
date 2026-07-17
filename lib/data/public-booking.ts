@@ -16,6 +16,8 @@ import { computeQuote, DEFAULT_SETTINGS } from "@/lib/pricing";
 import { findClash, SLOT_STEP_MIN } from "@/lib/schedule";
 import { sendEmail } from "@/lib/email/send";
 import { bookingConfirmationEmail } from "@/lib/email/templates";
+import { getStripe, isStripeServerConfigured } from "@/lib/stripe/server";
+import { depositModeFor, hasPublishableKey, type DepositMode } from "@/lib/stripe/connect";
 import type { Business, CoatCondition, DogSize, Service, Settings } from "@/lib/types";
 
 // The public page's slot math is anchored to UTC wall-clock: the server
@@ -29,11 +31,44 @@ function utcSlotInstant(dateStr: string, minutesFromMidnight: number): string {
   return `${dateStr}T${hh}:${mm}:00.000Z`;
 }
 
+/** Client-safe deposit configuration for one business's booking page. */
+export interface DepositConfig {
+  /** 'charge' → card-charge at booking · 'recorded' → agreed, pay on the day · 'off'. */
+  mode: DepositMode;
+  /** Deposit amount in GBP (0 when off). */
+  amount: number;
+  /** Connected account id — present only in 'charge' mode (client inits Stripe with it). */
+  connectedAccountId?: string;
+  /** Publishable key — present only in 'charge' mode (client mounts the card element). */
+  publishableKey?: string;
+}
+
 /** Everything the public booking page needs to render for one business. */
 export interface BookingPageData {
   business: Business;
   services: Service[];
   settings: Settings;
+  deposit: DepositConfig;
+}
+
+/** Resolve how a business handles deposits, from its settings + connected account. */
+function resolveDeposit(
+  settings: Settings,
+  biz: { stripe_connect_account_id?: string | null; stripe_connect_charges_enabled?: boolean | null },
+): DepositConfig {
+  const amount = settings.depositEnabled ? settings.depositAmount : 0;
+  const mode = depositModeFor({
+    depositEnabled: settings.depositEnabled,
+    depositAmount: settings.depositAmount,
+    chargesEnabled: Boolean(biz.stripe_connect_charges_enabled),
+    stripeConfigured: isStripeServerConfigured() && hasPublishableKey(),
+  });
+  return {
+    mode,
+    amount,
+    connectedAccountId: mode === "charge" ? biz.stripe_connect_account_id ?? undefined : undefined,
+    publishableKey: mode === "charge" ? process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY : undefined,
+  };
 }
 
 /** Resolve a business + its active services + settings from a slug. */
@@ -63,10 +98,12 @@ export async function resolveBookingPage(slug: string): Promise<BookingPageData 
     admin.from("settings").select("*").eq("business_id", business.id).maybeSingle(),
   ]);
 
+  const settings = setting ? rowToSettings(setting as never) : defaultishSettings();
   return {
     business,
     services: ((svcs as unknown[]) ?? []).map((r) => rowToService(r as never)),
-    settings: setting ? rowToSettings(setting as never) : defaultishSettings(),
+    settings,
+    deposit: resolveDeposit(settings, biz as never),
   };
 }
 
@@ -125,11 +162,17 @@ export interface PublicBookingInput {
   phone: string;
   petName: string;
   breed: string;
+  /** Stripe PaymentIntent id for a card-charged deposit (charge mode only). */
+  paymentIntentId?: string;
+  /** Labels of the declarations the client ticked (re-validated server-side). */
+  declarations?: string[];
+  /** Client's typed full name as their T&Cs e-signature (when terms exist). */
+  termsSignedName?: string;
 }
 
 export type CreateBookingResult =
-  | { ok: true; appointmentId: string; depositDue: number; when: string }
-  | { ok: false; error: "not_found" | "invalid_service" | "slot_taken" | "invalid_input"; message: string };
+  | { ok: true; appointmentId: string; depositDue: number; depositPaid: boolean; when: string }
+  | { ok: false; error: "not_found" | "invalid_service" | "slot_taken" | "invalid_input" | "payment_required"; message: string };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -161,12 +204,16 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   // ── Resolve the business ─────────────────────────────────────────────────
   const { data: biz, error: bizErr } = await admin
     .from("businesses")
-    .select("id, name, open_hour, close_hour, address_line, city, postcode")
+    .select(
+      "id, name, open_hour, close_hour, address_line, city, postcode, stripe_connect_account_id, stripe_connect_charges_enabled",
+    )
     .eq("slug", input.slug.trim().toLowerCase())
     .maybeSingle();
   if (bizErr) throw bizErr;
   if (!biz) return { ok: false, error: "not_found", message: "This booking page doesn't exist." };
   const businessId = (biz as { id: string }).id;
+  const connectedAccountId =
+    (biz as { stripe_connect_account_id?: string | null }).stripe_connect_account_id ?? undefined;
 
   // ── The service must belong to this business and be active ───────────────
   const { data: svc, error: svcErr } = await admin
@@ -197,6 +244,78 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
     return { ok: false, error: "invalid_input", message: "That time is outside opening hours." };
   }
 
+  // ── Declarations + T&Cs: every enabled declaration must be agreed, and if the
+  //    groomer has terms, the client must have signed. Re-checked here so a
+  //    crafted request can't skip what the booking page enforces. ────────────
+  const enabledDeclarations = (settings.declarations ?? []).filter((d) => d.enabled && d.label.trim());
+  const agreedSet = new Set((input.declarations ?? []).map((l) => l.trim()));
+  const allDeclared = enabledDeclarations.every((d) => agreedSet.has(d.label.trim()));
+  const termsRequired = (settings.termsText ?? "").trim();
+  const signedName = input.termsSignedName?.trim() ?? "";
+  if (!allDeclared || (termsRequired && !signedName)) {
+    return { ok: false, error: "invalid_input", message: "Please complete the required checks before booking." };
+  }
+  const declarationsSnapshot = enabledDeclarations.length ? enabledDeclarations.map((d) => d.label) : null;
+  const acceptedAt = termsRequired || enabledDeclarations.length ? new Date().toISOString() : null;
+
+  // ── Deposit: decide charge vs recorded, and (charge mode) verify the card
+  //    was actually taken BEFORE we create any rows. Failed/absent payment in
+  //    charge mode = no confirmed booking. ──────────────────────────────────
+  const depositMode = depositModeFor({
+    depositEnabled: settings.depositEnabled,
+    depositAmount: settings.depositAmount,
+    chargesEnabled: Boolean((biz as { stripe_connect_charges_enabled?: boolean | null }).stripe_connect_charges_enabled),
+    stripeConfigured: isStripeServerConfigured() && hasPublishableKey(),
+  });
+  const depositDue = depositMode === "off" ? 0 : settings.depositAmount;
+  const paymentIntentId = input.paymentIntentId?.trim();
+
+  if (depositMode === "charge") {
+    if (!paymentIntentId || !connectedAccountId) {
+      return { ok: false, error: "payment_required", message: "Please pay the deposit to confirm your booking." };
+    }
+    // One PaymentIntent confirms at most one booking (the unique index is the
+    // hard guard; this gives a friendly message in the common case).
+    const { data: dupe } = await admin
+      .from("appointments")
+      .select("id")
+      .eq("deposit_payment_intent_id", paymentIntentId)
+      .limit(1)
+      .maybeSingle();
+    if (dupe) {
+      return { ok: false, error: "invalid_input", message: "This deposit has already been used to book." };
+    }
+    let intent: { status?: string; currency?: string; amount?: number; amount_received?: number };
+    try {
+      intent = await getStripe().paymentIntents.retrieve(paymentIntentId, undefined, {
+        stripeAccount: connectedAccountId,
+      });
+    } catch {
+      return { ok: false, error: "payment_required", message: "We couldn't verify your deposit — please try again." };
+    }
+    const expected = Math.round(depositDue * 100);
+    const paidAmount = intent.amount_received || intent.amount || 0;
+    if (intent.status !== "succeeded" || intent.currency !== "gbp" || paidAmount !== expected) {
+      return { ok: false, error: "payment_required", message: "Your deposit payment wasn't completed — please try again." };
+    }
+  }
+
+  // In charge mode the card is already charged, so ANY failure while writing the
+  // booking must give the client their deposit back — never keep money without a
+  // confirmed booking.
+  const refundDepositIfCharged = async () => {
+    if (depositMode === "charge" && paymentIntentId && connectedAccountId) {
+      try {
+        await getStripe().refunds.create(
+          { payment_intent: paymentIntentId },
+          { stripeAccount: connectedAccountId },
+        );
+      } catch (e) {
+        console.error("deposit refund failed:", e);
+      }
+    }
+  };
+
   // ── Reuse-or-create the client (by email within this business) ───────────
   const { data: existingClient } = await admin
     .from("clients")
@@ -213,7 +332,10 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       .insert({ business_id: businessId, first_name: firstName, last_name: lastName, email, phone })
       .select("id")
       .single();
-    if (error) throw error;
+    if (error) {
+      await refundDepositIfCharged();
+      throw error;
+    }
     clientId = (created as { id: string }).id;
   }
 
@@ -234,12 +356,14 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       .insert({ business_id: businessId, client_id: clientId, name: petName, breed, size: input.size })
       .select("id")
       .single();
-    if (error) throw error;
+    if (error) {
+      await refundDepositIfCharged();
+      throw error;
+    }
     petId = (created as { id: string }).id;
   }
 
   // ── Create the appointment; the DB no-overlap constraint is the safety net ─
-  const depositDue = settings.depositEnabled ? settings.depositAmount : 0;
   const { data: appt, error: apptErr } = await admin
     .from("appointments")
     .insert({
@@ -255,11 +379,20 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       coat_condition: input.coat,
       duration_min: quote.totalDurationMin,
       deposit: depositDue > 0 ? depositDue : null,
+      deposit_status: depositMode === "charge" ? "paid" : depositMode === "recorded" ? "recorded" : "none",
+      deposit_payment_intent_id: depositMode === "charge" ? paymentIntentId : null,
+      declarations: declarationsSnapshot,
+      terms_text: termsRequired || null,
+      terms_signed_name: termsRequired ? signedName : null,
+      terms_accepted_at: acceptedAt,
     })
     .select("id")
     .single();
 
   if (apptErr) {
+    // Card already charged but we can't hold the slot (or the write failed) —
+    // refund before surfacing the error, either way.
+    await refundDepositIfCharged();
     if (isClashError(apptErr)) {
       return { ok: false, error: "slot_taken", message: "Sorry, that time was just taken — please pick another." };
     }
@@ -280,7 +413,12 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       serviceName: service.name,
       whenLabel: when,
       address: [b.address_line, b.city, b.postcode].filter(Boolean).join(", ") || undefined,
-      depositLabel: depositDue > 0 ? `A £${depositDue} deposit secures your slot.` : undefined,
+      depositLabel:
+        depositDue > 0
+          ? depositMode === "charge"
+            ? `Your £${depositDue} deposit has been paid — it secures your slot and comes off your total.`
+            : `A £${depositDue} deposit secures your slot.`
+          : undefined,
     });
     await sendEmail({ to: email, subject: msg.subject, html: msg.html });
   } catch (err) {
@@ -291,6 +429,7 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
     ok: true,
     appointmentId: (appt as { id: string }).id,
     depositDue,
+    depositPaid: depositMode === "charge",
     when: start.toISOString(),
   };
 }

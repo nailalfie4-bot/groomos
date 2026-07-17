@@ -47,17 +47,17 @@ const FEATURES: Feature[] = [
   {
     icon: ShieldCheck,
     title: "Deposits that stop no-shows",
-    body: "Clients with skin in the game turn up.",
+    body: "Clients pay a card deposit to lock in the slot — the ones with skin in the game turn up.",
   },
   {
     icon: Moon,
     title: "A booking page that works while you groom",
-    body: "No more replying to DMs at 9pm.",
+    body: "Clients book the slot they want in seconds — no more replying to DMs at 9pm.",
   },
   {
     icon: Bell,
-    title: "Automatic email reminders",
-    body: "A friendly nudge the day before, so fewer clients forget. SMS coming soon.",
+    title: "Automatic reminders that cut no-shows",
+    body: "A friendly nudge before every appointment, so far fewer forget. SMS coming soon.",
   },
   {
     icon: PawPrint,
@@ -103,7 +103,7 @@ const SETUP_CALL_URL = "https://calendly.com/nailalfie4/set-up-call";
 
 const CTA_LABEL = "Get set up free";
 const HERO_SUB =
-  "Clients book online, pay a deposit upfront, and get reminders automatically — so no-shows either don't happen, or don't cost you.";
+  "Clients book online, pay a card deposit upfront, and get reminders automatically — so no-shows either don't happen, or don't cost you.";
 const HERO_UNDER_CTA =
   "We build your whole booking system for you on a 15-minute call. Free for 30 days, no card needed. 25 founding spots this month.";
 const FINAL_CTA_SUBLINE = "15-minute setup call · 30 days free · 25 founding spots";
@@ -183,7 +183,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Where does the deposit money go?",
-    a: "Straight to your own bank via Stripe — we never hold your money.",
+    a: "Straight into your own Stripe account — you connect Stripe in a couple of taps, and GroomOS never holds your money.",
   },
   {
     q: "Can I move my existing clients over?",
@@ -696,16 +696,16 @@ export default function LandingPage() {
                     The feature that pays for itself
                   </h2>
                   <p className="mt-4 text-base leading-relaxed text-ink-muted sm:text-lg">
-                    A small deposit on every booking keeps clients committed — and
+                    A small card deposit on every booking keeps clients committed — and
                     means the ones who slip through leave something behind instead
                     of nothing.
                   </p>
                   <ul className="mt-6 flex flex-col gap-3">
                     {[
-                      "Set your own deposit — clients pay it to lock in the slot.",
+                      "Set your own deposit — clients pay it by card to lock in the slot.",
                       "They show up? It comes straight off the price of the groom.",
                       "They don't? You keep the deposit, so a no-show stings far less.",
-                      "Set a fair cancellation window so everyone knows the rules.",
+                      "Deposits land in your own Stripe account — connect it in a couple of taps.",
                     ].map((line) => (
                       <li
                         key={line}

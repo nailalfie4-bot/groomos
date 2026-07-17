@@ -1,32 +1,40 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Bell,
   Building2,
   CalendarClock,
   Check,
+  ClipboardList,
   Clock,
   Copy,
+  CreditCard,
+  FileText,
   Heart,
   Link2,
+  Loader2,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  Trash2,
 } from "lucide-react";
+import { useAuth } from "@/components/auth-provider";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Toggle } from "@/components/ui/toggle";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStore } from "@/lib/mock/store";
 import { computeQuote } from "@/lib/pricing";
 import { formatGBP } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Business, Settings } from "@/lib/types";
+import type { Business, Declaration, Settings } from "@/lib/types";
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00–21:00
 const hhmm = (h: number) => `${String(h).padStart(2, "0")}:00`;
@@ -168,6 +176,41 @@ function SettingsForm({
               <span className="font-semibold">{s.cancellationNoticeHours}h</span> before. No-shows add up fast — deposits help you stop quietly losing money to them.
             </p>
           </div>
+          <ConnectPayouts enabled={s.depositEnabled} amount={s.depositAmount} />
+        </Section>
+
+        {/* Client declarations */}
+        <Section
+          icon={<ClipboardList className="h-[18px] w-[18px]" />}
+          title="Client declarations"
+          description="Short yes/no confirmations clients must tick before booking. Toggle any off, or edit the wording."
+        >
+          <DeclarationsEditor value={s.declarations} onChange={(d) => setSet("declarations", d)} />
+        </Section>
+
+        {/* Terms & conditions */}
+        <Section
+          icon={<FileText className="h-[18px] w-[18px]" />}
+          title="Terms & conditions"
+          description="Paste your own terms — cancellation policy, late arrivals, anything. Leave blank to skip."
+        >
+          <Textarea
+            label="Your terms"
+            rows={6}
+            value={s.termsText}
+            onChange={(e) => setSet("termsText", e.target.value)}
+            placeholder="e.g. Deposits are non-refundable within 48 hours of the appointment. Please arrive on time — arrivals more than 15 minutes late may need to rebook…"
+          />
+          {s.termsText.trim() ? (
+            <p className="mt-3 flex items-start gap-2 rounded-xl bg-accent-50 p-3 text-sm text-accent-700">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              Clients tick “I agree” and type their name to sign. The exact text, their name and the time are stored with every booking as your proof.
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-ink-subtle">
+              No terms yet — the agreement step won&apos;t show on your booking page.
+            </p>
+          )}
         </Section>
 
         {/* Cleanup buffer */}
@@ -254,6 +297,189 @@ function SettingsForm({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Connect-your-Stripe control inside the Deposits section. Talks to the real
+ * /api/stripe/connect endpoint (server-authed), so it works even though the
+ * rest of this screen is store-driven. Until the account can take charges,
+ * deposits are "recorded only" — agreed with the client, not charged online.
+ */
+function ConnectPayouts({ enabled, amount }: { enabled: boolean; amount: number }) {
+  const { configured } = useAuth();
+  const [status, setStatus] = useState<{ connected: boolean; chargesEnabled: boolean } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/stripe/connect");
+      if (!res.ok) {
+        setStatus(null);
+        return;
+      }
+      const d = await res.json();
+      setStatus({ connected: Boolean(d.connected), chargesEnabled: Boolean(d.chargesEnabled) });
+    } catch {
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!configured) {
+      setLoading(false);
+      return;
+    }
+    // Returning from Stripe onboarding (?connect=done|refresh) — tidy the URL.
+    if (new URLSearchParams(window.location.search).get("connect")) {
+      window.history.replaceState(null, "", "/settings");
+    }
+    refresh();
+  }, [configured, refresh]);
+
+  async function connect() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/stripe/connect", { method: "POST" });
+      const d = await res.json();
+      if (res.ok && d.url) {
+        window.location.assign(d.url);
+        return;
+      }
+      toast.error(
+        d.error === "billing_not_configured"
+          ? "Payments aren't set up on this account yet."
+          : "Couldn't start Stripe setup — please try again.",
+      );
+    } catch {
+      toast.error("Couldn't reach Stripe — please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!enabled) return null;
+
+  if (!configured) {
+    return (
+      <div className="mt-3 flex items-start gap-2 rounded-xl border border-DEFAULT bg-surface-sunken p-3 text-sm text-ink-muted">
+        <CreditCard className="mt-0.5 h-4 w-4 shrink-0" />
+        On a live account you connect your Stripe here to charge deposits automatically. In this demo, deposits are shown but not charged.
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="mt-3 flex h-12 items-center gap-2 rounded-xl border border-DEFAULT bg-surface-sunken px-3 text-sm text-ink-muted">
+        <Loader2 className="h-4 w-4 animate-spin" /> Checking your Stripe connection…
+      </div>
+    );
+  }
+
+  if (status?.chargesEnabled) {
+    return (
+      <div className="mt-3 flex items-start gap-2 rounded-xl border border-success/30 bg-success-soft p-3 text-sm text-success-deep">
+        <Check className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <p className="font-medium">Stripe connected — card deposits are live.</p>
+          <p className="mt-0.5 opacity-80">
+            Clients are charged <span className="font-semibold tabular-nums">{formatGBP(amount)}</span> at booking,
+            straight into your own Stripe account.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const partial = Boolean(status?.connected); // account exists, onboarding unfinished
+  return (
+    <div className="mt-3 rounded-xl border border-accent/30 bg-accent-50 p-3">
+      <div className="flex items-start gap-2 text-sm text-accent-700">
+        <CreditCard className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <p className="font-medium">
+            {partial ? "Finish connecting Stripe to charge deposits" : "Connect Stripe to charge deposits"}
+          </p>
+          <p className="mt-0.5">
+            Until then, deposits are <span className="font-semibold">recorded only</span> — agreed with your client and collected by you, not charged online.
+          </p>
+        </div>
+      </div>
+      <Button size="sm" className="mt-3" loading={busy} disabled={busy} onClick={connect}>
+        <CreditCard className="h-4 w-4" />
+        {partial ? "Continue Stripe setup" : "Connect Stripe"}
+      </Button>
+    </div>
+  );
+}
+
+/** Inline editor for the client-declarations list: toggle + editable label + add/remove. */
+function DeclarationsEditor({
+  value,
+  onChange,
+}: {
+  value: Declaration[];
+  onChange: (d: Declaration[]) => void;
+}) {
+  const update = (id: string, patch: Partial<Declaration>) =>
+    onChange(value.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  const remove = (id: string) => onChange(value.filter((d) => d.id !== id));
+  const add = () =>
+    onChange([
+      ...value,
+      { id: `d-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, label: "", enabled: true },
+    ]);
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {value.length === 0 ? (
+        <p className="rounded-xl bg-surface-sunken p-3 text-sm text-ink-muted">
+          No declarations — clients won&apos;t be asked to confirm anything before booking.
+        </p>
+      ) : (
+        value.map((d) => (
+          <div
+            key={d.id}
+            className="flex items-center gap-2.5 rounded-xl border border-DEFAULT bg-surface-sunken p-2.5 pl-3"
+          >
+            <Toggle
+              checked={d.enabled}
+              onChange={(v) => update(d.id, { enabled: v })}
+              label="Require this declaration"
+            />
+            <input
+              value={d.label}
+              onChange={(e) => update(d.id, { label: e.target.value })}
+              placeholder="e.g. My dog is up to date on their vaccinations"
+              className={cn(
+                "min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle",
+                !d.enabled && "text-ink-muted line-through",
+              )}
+            />
+            <button
+              type="button"
+              onClick={() => remove(d.id)}
+              aria-label="Remove declaration"
+              className="shrink-0 rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-danger-soft hover:text-danger"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))
+      )}
+      <button
+        type="button"
+        onClick={add}
+        className="inline-flex items-center gap-1.5 self-start rounded-lg px-2 py-1.5 text-sm font-medium text-accent transition-colors hover:text-accent-600"
+      >
+        <Plus className="h-4 w-4" /> Add declaration
+      </button>
+    </div>
   );
 }
 

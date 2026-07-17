@@ -7,7 +7,8 @@
  * no follow-up Stripe API calls and is safe to replay (idempotent).
  *
  * Handled: checkout.session.completed, customer.subscription.updated,
- * customer.subscription.deleted, invoice.payment_failed.
+ * customer.subscription.deleted, invoice.payment_failed, account.updated
+ * (Connect onboarding → mirror charges_enabled).
  */
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
@@ -116,6 +117,19 @@ export async function POST(request: Request) {
           plan: null,
           current_period_end: periodEndISO(sub),
         });
+        break;
+      }
+
+      case "account.updated": {
+        // A connected (Express) account's onboarding progressed — mirror whether
+        // it can now accept charges so the booking path can trust our flag.
+        const acct = event.data.object as Stripe.Account;
+        await must(
+          admin
+            .from("businesses")
+            .update({ stripe_connect_charges_enabled: Boolean(acct.charges_enabled) })
+            .eq("stripe_connect_account_id", acct.id),
+        );
         break;
       }
 

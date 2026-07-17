@@ -37,6 +37,7 @@ export default async function BookBySlugPage({
       business={data.business}
       services={data.services}
       settings={data.settings}
+      deposit={data.deposit}
     />
   );
 }

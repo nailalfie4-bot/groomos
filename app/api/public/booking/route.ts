@@ -40,6 +40,9 @@ export async function POST(request: Request) {
     phone: String(body.phone ?? ""),
     petName: String(body.petName ?? ""),
     breed: String(body.breed ?? ""),
+    paymentIntentId: body.paymentIntentId ? String(body.paymentIntentId) : undefined,
+    declarations: Array.isArray(body.declarations) ? body.declarations.map(String) : undefined,
+    termsSignedName: body.termsSignedName ? String(body.termsSignedName) : undefined,
   };
 
   try {

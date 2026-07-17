@@ -21,10 +21,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Loader2,
+  Lock,
   MapPin,
   PawPrint,
   ShieldCheck,
 } from "lucide-react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,28 +39,31 @@ import type { Business, CoatCondition, DogSize, Service, Settings } from "@/lib/
 import { cn } from "@/lib/utils";
 
 /**
- * Feature flag for live deposit charging. Today the deposit is recorded on the
- * appointment for the groomer; when Stripe Connect Express ships, flip this to
- * true and mount the payment element in the marked seam in the deposit step —
- * the whole flow, copy and summary are already built around a real charge.
+ * How this business handles the deposit, resolved on the server from its
+ * settings + connected Stripe account (see lib/data/public-booking):
+ *   'charge'   — card-charged at booking, straight into the groomer's account
+ *   'recorded' — agreed but not charged (groomer hasn't connected Stripe yet)
+ *   'off'      — no deposit
  */
-const DEPOSIT_PAYMENTS_LIVE = false;
+export type PublicDepositConfig = {
+  mode: "charge" | "recorded" | "off";
+  amount: number;
+  connectedAccountId?: string;
+  publishableKey?: string;
+};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SIZES: DogSize[] = ["small", "medium", "large", "giant"];
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-type Step = "service" | "when" | "details" | "deposit" | "done";
-const STEP_INDEX: Record<Exclude<Step, "done">, number> = {
-  service: 1,
-  when: 2,
-  details: 3,
-  deposit: 4,
-};
+// "checks" (declarations + T&Cs) is conditional — only present when the groomer
+// has configured any. Step numbering is derived from the active steps below.
+type Step = "service" | "when" | "details" | "checks" | "deposit" | "done";
 const STEP_TITLE: Record<Exclude<Step, "done">, string> = {
   service: "Choose your groom",
   when: "Pick a day & time",
   details: "Your details",
+  checks: "A few quick checks",
   deposit: "Secure your slot",
 };
 
@@ -135,6 +142,7 @@ type Done = {
   date: string;
   time: string;
   depositDue: number;
+  depositPaid: boolean;
   serviceName: string;
   durationMin: number;
   petName: string;
@@ -153,9 +161,15 @@ export type PublicBookingSubmit = {
   phone: string;
   petName: string;
   breed: string;
+  /** Set in charge mode — the succeeded deposit PaymentIntent to confirm against. */
+  paymentIntentId?: string;
+  /** Labels of the declarations the client ticked (server re-validates + snapshots). */
+  declarations?: string[];
+  /** Client's typed full name as their T&Cs e-signature (when terms exist). */
+  termsSignedName?: string;
 };
 export type PublicBookingResult =
-  | { ok: true; depositDue: number }
+  | { ok: true; depositDue: number; depositPaid?: boolean }
   | { ok: false; error?: string; message?: string };
 
 /**
@@ -168,12 +182,14 @@ export function PublicBooking({
   business,
   services,
   settings,
+  deposit,
   fetchSlots,
   submitBooking,
 }: {
   business: Business;
   services: Service[];
   settings: Settings;
+  deposit?: PublicDepositConfig;
   fetchSlots?: (date: string, minutes: number) => Promise<string[]>;
   submitBooking?: (input: PublicBookingSubmit) => Promise<PublicBookingResult>;
 }) {
@@ -199,6 +215,11 @@ export function PublicBooking({
   const [refresh, setRefresh] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<Done | null>(null);
+  // Declarations + T&Cs ("checks" step)
+  const [agreed, setAgreed] = useState<Record<string, boolean>>({});
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [termsExpanded, setTermsExpanded] = useState(false);
+  const [signName, setSignName] = useState("");
 
   const service = activeServices.find((s) => s.id === serviceId);
   // Coat is assessed by the groomer in person; the customer estimate assumes a
@@ -206,7 +227,32 @@ export function PublicBooking({
   const quote = service ? computeQuote(service, size, "smooth", settings, petName.trim() || "your dog") : null;
   const groomMinutes = quote?.totalDurationMin ?? service?.durationMin ?? 60;
   const estTotal = quote?.totalPriceGBP ?? service?.priceGBP ?? 0;
-  const depositDue = settings.depositEnabled ? settings.depositAmount : 0;
+  // Deposit behaviour comes from the server (settings + connected account). When
+  // omitted (older callers), fall back to a recorded deposit from settings.
+  const depositCfg: PublicDepositConfig = deposit ?? {
+    mode: settings.depositEnabled && settings.depositAmount > 0 ? "recorded" : "off",
+    amount: settings.depositEnabled ? settings.depositAmount : 0,
+  };
+  const depositDue = depositCfg.mode === "off" ? 0 : depositCfg.amount;
+
+  // Declarations + T&Cs the groomer configured. The "checks" step only exists
+  // when there's something to agree to; step numbering is derived from this.
+  const enabledDeclarations = useMemo(
+    () => (settings.declarations ?? []).filter((d) => d.enabled && d.label.trim()),
+    [settings.declarations],
+  );
+  const termsText = (settings.termsText ?? "").trim();
+  const hasChecks = enabledDeclarations.length > 0 || termsText.length > 0;
+  const activeSteps = useMemo<Exclude<Step, "done">[]>(
+    () => ["service", "when", "details", ...(hasChecks ? (["checks"] as const) : []), "deposit"],
+    [hasChecks],
+  );
+  const totalSteps = activeSteps.length;
+  const stepNumber = (s: Exclude<Step, "done">) => activeSteps.indexOf(s) + 1;
+  const allDeclarationsChecked = enabledDeclarations.every((d) => agreed[d.id]);
+  const checksComplete =
+    allDeclarationsChecked &&
+    (termsText.length === 0 || (termsAgreed && signName.trim().length > 0));
 
   // Resolve the two side-effects: injected callbacks (demo) or the real public
   // API routes (default). Memoised so the availability effect stays stable.
@@ -236,7 +282,7 @@ export function PublicBooking({
         });
         const data = await res.json().catch(() => null);
         if (!res.ok || !data?.ok) return { ok: false, error: data?.error, message: data?.message };
-        return { ok: true, depositDue: Number(data.depositDue) || 0 };
+        return { ok: true, depositDue: Number(data.depositDue) || 0, depositPaid: Boolean(data.depositPaid) };
       }),
     [submitBooking, slug],
   );
@@ -272,7 +318,8 @@ export function PublicBooking({
     setErrors({});
     if (step === "when") setStep("service");
     else if (step === "details") setStep("when");
-    else if (step === "deposit") setStep("details");
+    else if (step === "checks") setStep("details");
+    else if (step === "deposit") setStep(hasChecks ? "checks" : "details");
   }
 
   function chooseService(id: string) {
@@ -294,20 +341,34 @@ export function PublicBooking({
     if (!EMAIL_RE.test(email)) next.email = "Enter a valid email";
     if (!petName.trim()) next.petName = "Your dog's name, please";
     setErrors(next);
+    if (Object.keys(next).length > 0) return;
+    if (hasChecks) {
+      setSignName((prev) => prev || name.trim()); // pre-fill the signature with their name
+      setStep("checks");
+    } else {
+      setStep("deposit");
+    }
+  }
+
+  // Gate to the deposit/confirm step: every enabled declaration must be ticked
+  // and (if the groomer has T&Cs) the terms agreed + signed.
+  function submitChecks() {
+    const next: Record<string, string> = {};
+    if (!allDeclarationsChecked) next.checks = "Please tick each confirmation to continue.";
+    else if (termsText && !termsAgreed) next.checks = "Please agree to the terms to continue.";
+    else if (termsText && !signName.trim()) next.sign = "Type your name to sign";
+    setErrors(next);
     if (Object.keys(next).length === 0) setStep("deposit");
   }
 
-  async function confirmBooking() {
+  // In charge mode this runs only after the deposit card has been charged, with
+  // the succeeded PaymentIntent id; the server verifies it before confirming.
+  async function confirmBooking(paymentIntentId?: string) {
     if (!service || !time) return;
     const { firstName, lastName } = splitName(name);
     setSubmitting(true);
     setErrors({});
     try {
-      // ── Deposit charge seam ───────────────────────────────────────────────
-      // When DEPOSIT_PAYMENTS_LIVE is true: collect the deposit here first —
-      // create a PaymentIntent on the groomer's connected account and confirm
-      // the card — and only create the booking once payment succeeds. Today the
-      // booking is created and the deposit recorded for the groomer.
       const result = await sendBooking({
         serviceId,
         startISO: `${date}T${time}:00.000Z`,
@@ -319,6 +380,9 @@ export function PublicBooking({
         phone: phone.trim(),
         petName: petName.trim(),
         breed: "",
+        paymentIntentId,
+        declarations: enabledDeclarations.map((d) => d.label),
+        termsSignedName: termsText ? signName.trim() : undefined,
       });
       if (!result.ok) {
         if (result.error === "slot_taken") {
@@ -335,6 +399,7 @@ export function PublicBooking({
         date,
         time,
         depositDue: result.depositDue,
+        depositPaid: result.depositPaid ?? false,
         serviceName: service.name,
         durationMin: groomMinutes,
         petName: petName.trim(),
@@ -353,6 +418,10 @@ export function PublicBooking({
     setTime("");
     setPetName("");
     setErrors({});
+    setAgreed({});
+    setTermsAgreed(false);
+    setTermsExpanded(false);
+    setSignName("");
     setRefresh((n) => n + 1);
     setStep("service");
   }
@@ -393,7 +462,8 @@ export function PublicBooking({
           <>
             {step !== "done" && (
               <StepHeader
-                index={STEP_INDEX[step]}
+                index={stepNumber(step as Exclude<Step, "done">)}
+                total={totalSteps}
                 title={STEP_TITLE[step]}
                 onBack={step === "service" ? undefined : goBack}
               />
@@ -590,6 +660,107 @@ export function PublicBooking({
                 </div>
               )}
 
+              {step === "checks" && (
+                <div className="flex flex-col gap-5">
+                  {enabledDeclarations.length > 0 && (
+                    <div className="flex flex-col gap-2.5">
+                      <p className="text-sm text-ink-muted">
+                        Please confirm the following about {petName.trim() || "your dog"}:
+                      </p>
+                      {enabledDeclarations.map((d) => {
+                        const on = !!agreed[d.id];
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => setAgreed((a) => ({ ...a, [d.id]: !a[d.id] }))}
+                            aria-pressed={on}
+                            className={cn(
+                              "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-colors",
+                              on ? "border-accent bg-accent-50" : "border-strong bg-surface hover:border-accent",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+                                on ? "border-accent bg-accent text-ink-inverse" : "border-strong bg-surface",
+                              )}
+                            >
+                              {on && <Check className="h-3.5 w-3.5" />}
+                            </span>
+                            <span className="text-sm leading-snug text-ink">{d.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {termsText && (
+                    <div className="flex flex-col gap-2.5">
+                      <p className="text-sm font-medium text-ink">
+                        {business.name}&apos;s terms &amp; conditions
+                      </p>
+                      <div
+                        className={cn(
+                          "relative overflow-hidden rounded-2xl border border-DEFAULT bg-surface-sunken p-4 text-sm leading-relaxed text-ink-muted",
+                          !termsExpanded && "max-h-32",
+                        )}
+                      >
+                        <p className="whitespace-pre-wrap">{termsText}</p>
+                        {!termsExpanded && (
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface-sunken to-transparent" />
+                        )}
+                      </div>
+                      {!termsExpanded && (
+                        <button
+                          type="button"
+                          onClick={() => setTermsExpanded(true)}
+                          className="self-start text-sm font-medium text-accent transition-colors hover:text-accent-600"
+                        >
+                          View full terms
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setTermsAgreed((v) => !v)}
+                        aria-pressed={termsAgreed}
+                        className={cn(
+                          "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-colors",
+                          termsAgreed ? "border-accent bg-accent-50" : "border-strong bg-surface hover:border-accent",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+                            termsAgreed ? "border-accent bg-accent text-ink-inverse" : "border-strong bg-surface",
+                          )}
+                        >
+                          {termsAgreed && <Check className="h-3.5 w-3.5" />}
+                        </span>
+                        <span className="text-sm leading-snug text-ink">
+                          I have read and agree to {business.name}&apos;s terms &amp; conditions.
+                        </span>
+                      </button>
+                      <Input
+                        label="Type your full name to sign"
+                        className="h-12 text-base"
+                        autoComplete="name"
+                        value={signName}
+                        onChange={(e) => setSignName(e.target.value)}
+                        error={errors.sign}
+                      />
+                    </div>
+                  )}
+
+                  {errors.checks && <p className="text-sm text-danger">{errors.checks}</p>}
+
+                  <Button size="lg" className="h-12 w-full" onClick={submitChecks}>
+                    Continue
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+
               {step === "deposit" && (
                 <div className="flex flex-col gap-5">
                   {/* Booking summary */}
@@ -606,7 +777,7 @@ export function PublicBooking({
                     </p>
                   </div>
 
-                  {depositDue > 0 && (
+                  {depositCfg.mode !== "off" && depositDue > 0 && (
                     <div className="rounded-2xl border border-accent/20 bg-accent-50 p-4">
                       <div className="flex items-center justify-between">
                         <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent-700">
@@ -615,31 +786,35 @@ export function PublicBooking({
                         <span className="text-lg font-semibold text-accent-700">{formatGBP(depositDue)}</span>
                       </div>
                       <p className="mt-1.5 text-sm text-accent-700">
-                        Secures your slot and comes off your total — you&apos;ll pay{" "}
+                        {depositCfg.mode === "charge" ? "Paid now to secure your slot" : "Secures your slot"} and
+                        comes off your total — you&apos;ll pay{" "}
                         {formatGBP(Math.max(estTotal - depositDue, 0))} to {business.name} on the day.
                       </p>
                     </div>
                   )}
 
-                  {/* Stripe Connect payment element mounts here when deposits go live. */}
-                  {DEPOSIT_PAYMENTS_LIVE && depositDue > 0 && (
-                    <div id="deposit-payment-element" className="rounded-2xl border border-DEFAULT bg-surface p-4" />
-                  )}
-
                   {errors.form && <p className="text-sm text-danger">{errors.form}</p>}
 
-                  <Button
-                    size="lg"
-                    className="h-12 w-full"
-                    onClick={confirmBooking}
-                    loading={submitting}
-                    disabled={submitting}
-                  >
-                    <Check className="h-4 w-4" />
-                    {DEPOSIT_PAYMENTS_LIVE && depositDue > 0
-                      ? `Pay ${formatGBP(depositDue)} & confirm`
-                      : "Confirm booking"}
-                  </Button>
+                  {depositCfg.mode === "charge" && depositDue > 0 ? (
+                    <ChargeDeposit
+                      slug={slug}
+                      serviceId={serviceId}
+                      deposit={depositCfg}
+                      submitting={submitting}
+                      onPaid={(pi) => confirmBooking(pi)}
+                    />
+                  ) : (
+                    <Button
+                      size="lg"
+                      className="h-12 w-full"
+                      onClick={() => confirmBooking()}
+                      loading={submitting}
+                      disabled={submitting}
+                    >
+                      <Check className="h-4 w-4" />
+                      Confirm booking
+                    </Button>
+                  )}
                   <p className="-mt-2 text-center text-xs text-ink-subtle">
                     No account needed{settings.cancellationNoticeHours ? ` · free to cancel up to ${settings.cancellationNoticeHours}h before` : ""}.
                   </p>
@@ -665,10 +840,12 @@ export function PublicBooking({
 /** Step counter + progress bar + back button + title. */
 function StepHeader({
   index,
+  total,
   title,
   onBack,
 }: {
   index: number;
+  total: number;
   title: string;
   onBack?: () => void;
 }) {
@@ -687,10 +864,10 @@ function StepHeader({
         ) : (
           <span />
         )}
-        <span className="text-xs font-medium text-ink-subtle">Step {index} of 4</span>
+        <span className="text-xs font-medium text-ink-subtle">Step {index} of {total}</span>
       </div>
       <div className="mt-2 flex gap-1.5" aria-hidden>
-        {[1, 2, 3, 4].map((i) => (
+        {Array.from({ length: total }, (_, i) => i + 1).map((i) => (
           <span
             key={i}
             className={cn("h-1.5 flex-1 rounded-full", i <= index ? "bg-accent" : "bg-surface-sunken")}
@@ -752,7 +929,12 @@ function Confirmation({
           <SummaryRow label="Groom" value={done.serviceName} />
           <SummaryRow label="When" value={`${dayLabel(done.date)} · ${slotLabel(done.time)}`} />
           <SummaryRow label="Dog" value={done.petName} />
-          {done.depositDue > 0 && <SummaryRow label="Deposit" value={`${formatGBP(done.depositDue)} secures your slot`} />}
+          {done.depositDue > 0 && (
+            <SummaryRow
+              label="Deposit"
+              value={done.depositPaid ? `${formatGBP(done.depositDue)} paid ✓` : `${formatGBP(done.depositDue)} secures your slot`}
+            />
+          )}
           <div className="mt-2 flex items-start gap-2 border-t border-DEFAULT pt-3">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-ink-subtle" />
             <div>
@@ -781,5 +963,151 @@ function Confirmation({
         </div>
       </div>
     </motion.div>
+  );
+}
+
+/** Brand-matched look for Stripe's hosted card fields. */
+const STRIPE_APPEARANCE = {
+  theme: "stripe" as const,
+  variables: {
+    colorPrimary: "#C9756B",
+    borderRadius: "12px",
+    fontFamily: "ui-sans-serif, system-ui, sans-serif",
+  },
+};
+
+/**
+ * Charge-mode deposit. Fetches a PaymentIntent on the business's connected
+ * account, mounts Stripe's card element, and only hands the succeeded
+ * PaymentIntent back to the parent — which then creates the booking. If the
+ * card fails, no booking is made.
+ */
+function ChargeDeposit({
+  slug,
+  serviceId,
+  deposit,
+  submitting,
+  onPaid,
+}: {
+  slug: string;
+  serviceId: string;
+  deposit: PublicDepositConfig;
+  submitting: boolean;
+  onPaid: (paymentIntentId: string) => void;
+}) {
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const stripePromise = useMemo(
+    () =>
+      deposit.publishableKey
+        ? loadStripe(deposit.publishableKey, { stripeAccount: deposit.connectedAccountId })
+        : null,
+    [deposit.publishableKey, deposit.connectedAccountId],
+  );
+
+  useEffect(() => {
+    let active = true;
+    setClientSecret(null);
+    setError(null);
+    fetch("/api/public/booking/intent", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ slug, serviceId }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!active) return;
+        if (d?.ok && d.clientSecret) setClientSecret(d.clientSecret as string);
+        else setError("We couldn't start the payment — please try again in a moment.");
+      })
+      .catch(() => {
+        if (active) setError("We couldn't reach the payment service — please try again.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [slug, serviceId]);
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger">
+        {error}
+      </div>
+    );
+  }
+  if (!clientSecret || !stripePromise) {
+    return (
+      <div className="flex h-24 items-center justify-center rounded-2xl border border-DEFAULT bg-surface text-ink-muted">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
+  return (
+    <Elements stripe={stripePromise} options={{ clientSecret, appearance: STRIPE_APPEARANCE }}>
+      <DepositPayForm amount={deposit.amount} submitting={submitting} onPaid={onPaid} />
+    </Elements>
+  );
+}
+
+/** The pay button inside the Stripe Elements context (needs useStripe/useElements). */
+function DepositPayForm({
+  amount,
+  submitting,
+  onPaid,
+}: {
+  amount: number;
+  submitting: boolean;
+  onPaid: (paymentIntentId: string) => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [paying, setPaying] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function pay() {
+    if (!stripe || !elements) return;
+    setPaying(true);
+    setError(null);
+    const { error: err, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: "if_required",
+    });
+    if (err) {
+      setError(err.message ?? "Your payment couldn't be completed — please try again.");
+      setPaying(false);
+      return;
+    }
+    if (paymentIntent && paymentIntent.status === "succeeded") {
+      // Keep the button busy — the parent now creates the booking.
+      onPaid(paymentIntent.id);
+      return;
+    }
+    setError("Your payment didn't complete — please try again.");
+    setPaying(false);
+  }
+
+  const busy = paying || submitting;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-2xl border border-DEFAULT bg-surface p-4">
+        <PaymentElement onReady={() => setReady(true)} options={{ layout: "tabs" }} />
+      </div>
+      {error && <p className="text-sm text-danger">{error}</p>}
+      <Button
+        size="lg"
+        className="h-12 w-full"
+        onClick={pay}
+        loading={busy}
+        disabled={busy || !stripe || !ready}
+      >
+        <Lock className="h-4 w-4" />
+        Pay {formatGBP(amount)} &amp; confirm
+      </Button>
+      <p className="-mt-1 flex items-center justify-center gap-1.5 text-center text-xs text-ink-subtle">
+        <Lock className="h-3 w-3" /> Secured by Stripe · your deposit goes straight to the groomer.
+      </p>
+    </div>
   );
 }
