@@ -353,7 +353,8 @@ function ConnectPayouts({ enabled, amount }: { enabled: boolean; amount: number 
       toast.error(
         d.error === "billing_not_configured"
           ? "Payments aren't set up on this account yet."
-          : "Couldn't start Stripe setup — please try again.",
+          : d.message || "Couldn't start Stripe setup — please try again.",
+        d.message ? { description: [d.type, d.code].filter(Boolean).join(" · ") || undefined } : undefined,
       );
     } catch {
       toast.error("Couldn't reach Stripe — please try again.");
