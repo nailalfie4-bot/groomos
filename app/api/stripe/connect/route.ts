@@ -77,7 +77,7 @@ export async function GET() {
     return NextResponse.json(status);
   } catch (err) {
     console.error("connect status refresh failed:", err);
-    return NextResponse.json({ error: "stripe_error" }, { status: 502 });
+    return NextResponse.json({ error: "stripe_error", ...stripeErrorDetail(err) }, { status: 502 });
   }
 }
 
@@ -97,6 +97,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ url });
   } catch (err) {
     console.error("connect onboarding link failed:", err);
-    return NextResponse.json({ error: "stripe_error" }, { status: 502 });
+    return NextResponse.json({ error: "stripe_error", ...stripeErrorDetail(err) }, { status: 502 });
   }
+}
+
+/**
+ * Pull the human-readable bits out of a Stripe error so the groomer sees the
+ * real reason (e.g. "complete your Connect platform profile") instead of a
+ * generic "please try again". These messages are Stripe's own setup guidance —
+ * safe to show the authenticated account owner.
+ */
+function stripeErrorDetail(err: unknown): { message?: string; code?: string; type?: string } {
+  const e = err as { message?: string; code?: string; type?: string; raw?: { message?: string } };
+  return {
+    message: e?.raw?.message ?? e?.message,
+    code: e?.code,
+    type: e?.type,
+  };
 }
