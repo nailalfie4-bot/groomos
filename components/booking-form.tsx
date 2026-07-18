@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, Clock, Heart, ShieldCheck } from "lucide-react";
+import { Check, Clock, Copy, Heart, Link2, Mail, ShieldCheck } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
 import { useStore } from "@/lib/mock/store";
+import { useAuth } from "@/components/auth-provider";
 import { formatGBP } from "@/lib/format";
 import { daySlots, findClash } from "@/lib/schedule";
 import { COAT_HELP, COAT_LABEL, SIZE_LABEL } from "@/lib/pricing";
@@ -53,8 +54,11 @@ export function BookingForm({
     groomers,
     createAppointment,
     getPetsForClient,
+    getClient,
     quoteFor,
+    flushWrites,
   } = useStore();
+  const { configured } = useAuth();
   const activeServices = useMemo(
     () => services.filter((s) => s.active),
     [services],
@@ -75,6 +79,9 @@ export function BookingForm({
   const [groomerId, setGroomerId] = useState(groomers[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Deposit-link flow (phone bookings): book + mint a link the groomer can copy.
+  const [sendingLink, setSendingLink] = useState(false);
+  const [linkResult, setLinkResult] = useState<{ url: string; emailedTo: string | null } | null>(null);
 
   // Reflect the latest defaults each time the form opens (slot click, rebook).
   useEffect(() => {
@@ -88,6 +95,8 @@ export function BookingForm({
     setDeposit(settings.depositEnabled);
     setGroomerId(groomers[0]?.id ?? "");
     setError(null);
+    setSendingLink(false);
+    setLinkResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultStart, defaultClientId, defaultPetId]);
 
@@ -121,15 +130,27 @@ export function BookingForm({
     if (time && !slots.some((s) => s.available && s.time === time)) setTime("");
   }, [slots, time]);
 
-  function submit() {
+  // Can this business charge a card deposit (so a link is worth sending)? In the
+  // demo we always show it to showcase the flow; live needs a connected account
+  // + publishable key. The button only appears when the deposit toggle is on.
+  const canSendDepositLink =
+    settings.depositAmount > 0 &&
+    (!configured
+      ? true
+      : Boolean(business.stripeConnectChargesEnabled) &&
+        Boolean(business.stripeConnectAccountId) &&
+        Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY));
+
+  /** Validate the form and build the appointment input, or set an error + null. */
+  function collectInput(): Parameters<typeof createAppointment>[0] | null {
     setError(null);
     if (!clientId || !effectivePetId || !serviceId) {
       setError("Pick a client, pet and service to book.");
-      return;
+      return null;
     }
     if (!time) {
       setError("Tap an available time slot to book.");
-      return;
+      return null;
     }
     const start = new Date(`${date}T${time}`);
     // Never let the groomer double-book themselves (incl. cleanup buffer).
@@ -138,24 +159,30 @@ export function BookingForm({
       : null;
     if (clash) {
       setError("That time clashes with another dog (including cleanup time). Pick another slot.");
-      return;
+      return null;
     }
+    return {
+      clientId,
+      petId: effectivePetId,
+      serviceId,
+      start: start.toISOString(),
+      source: "staff",
+      status: "confirmed",
+      coatCondition: coat,
+      size,
+      notes,
+      groomerId: groomerId || undefined,
+      deposit: deposit && settings.depositAmount > 0 ? settings.depositAmount : undefined,
+    };
+  }
+
+  function submit() {
+    const input = collectInput();
+    if (!input) return;
     setSaving(true);
     setTimeout(() => {
       try {
-        createAppointment({
-          clientId,
-          petId: effectivePetId,
-          serviceId,
-          start: start.toISOString(),
-          source: "staff",
-          status: "confirmed",
-          coatCondition: coat,
-          size,
-          notes,
-          groomerId: groomerId || undefined,
-          deposit: deposit && settings.depositAmount > 0 ? settings.depositAmount : undefined,
-        });
+        createAppointment(input);
         toast.success("Appointment booked", {
           description: `${pet?.name ?? "Pet"} · ${date} ${time}`,
         });
@@ -169,6 +196,64 @@ export function BookingForm({
     }, 450);
   }
 
+  async function copyToClipboard(text: string): Promise<boolean> {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Book the appointment AND mint its deposit link in one step — the exact
+   * moment the groomer is on the phone. Books first, then generates the link
+   * (server re-prices + emails the client if they have an address on file).
+   */
+  async function sendDepositLink() {
+    const input = collectInput();
+    if (!input) return;
+    setSendingLink(true);
+    try {
+      const appt = createAppointment({ ...input, deposit: settings.depositAmount });
+      const clientEmail = getClient(clientId)?.email || null;
+
+      if (!configured) {
+        // Demo: show a representative link so the whole flow is visible.
+        const url = `${window.location.origin}/pay/demo-${appt.id}`;
+        await copyToClipboard(url);
+        setLinkResult({ url, emailedTo: clientEmail });
+        toast.success("Appointment booked · deposit link ready");
+        return;
+      }
+
+      await flushWrites(); // ensure the appointment row exists before minting
+      const res = await fetch("/api/appointments/deposit-link", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ appointmentId: appt.id }),
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok || !d?.ok) {
+        toast.error(
+          d?.message ??
+            "Booked — but the deposit link couldn't be created. You can send it from the appointment.",
+        );
+        onClose();
+        return;
+      }
+      const url = `${window.location.origin}/pay/${d.token}`;
+      await copyToClipboard(url);
+      setLinkResult({ url, emailedTo: d.emailedTo ?? null });
+      toast.success("Appointment booked · deposit link ready");
+    } catch {
+      toast.error("Couldn't reach the server — the appointment may still have booked.");
+      onClose();
+    } finally {
+      setSendingLink(false);
+    }
+  }
+
   return (
     <Modal
       open={open}
@@ -176,17 +261,32 @@ export function BookingForm({
       title="New appointment"
       description="Book a slot — pricing and time adjust for size and coat."
       footer={
-        <>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
+        linkResult ? (
+          <Button size="sm" onClick={onClose}>
+            <Check className="h-4 w-4" />
+            Done
           </Button>
-          <Button size="sm" loading={saving} onClick={submit}>
-            {!saving && <Check className="h-4 w-4" />}
-            Book {quote ? formatGBP(quote.totalPriceGBP) : ""}
-          </Button>
-        </>
+        ) : (
+          <>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button size="sm" loading={saving} disabled={sendingLink} onClick={submit}>
+              {!saving && <Check className="h-4 w-4" />}
+              Book {quote ? formatGBP(quote.totalPriceGBP) : ""}
+            </Button>
+          </>
+        )
       }
     >
+      {linkResult ? (
+        <DepositLinkReady
+          result={linkResult}
+          amount={settings.depositAmount}
+          petName={pet?.name}
+          onCopy={copyToClipboard}
+        />
+      ) : (
       <div className="flex flex-col gap-4 pb-2">
         <Select
           label="Client"
@@ -297,6 +397,27 @@ export function BookingForm({
               free cancellation up to {settings.cancellationNoticeHours}h before.
             </p>
           )}
+          {/* Phone booking? Book + send a secure card link the client pays from
+              their phone — right here, at the moment you're on the call. */}
+          {deposit && canSendDepositLink && (
+            <div className="mt-3 border-t border-DEFAULT pt-3">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                loading={sendingLink}
+                disabled={sendingLink || saving}
+                onClick={sendDepositLink}
+              >
+                <Link2 className="h-4 w-4" />
+                Send deposit link
+              </Button>
+              <p className="mt-1.5 text-center text-[11px] text-ink-subtle">
+                Books the appointment and creates a link to text the client (also emailed if we have their address).
+              </p>
+            </div>
+          )}
         </div>
 
         <Input
@@ -368,7 +489,64 @@ export function BookingForm({
 
         {error && <p className="text-xs text-danger">{error}</p>}
       </div>
+      )}
     </Modal>
+  );
+}
+
+/** The "link ready" panel shown after Book + Send deposit link — copy + status. */
+function DepositLinkReady({
+  result,
+  amount,
+  petName,
+  onCopy,
+}: {
+  result: { url: string; emailedTo: string | null };
+  amount: number;
+  petName?: string;
+  onCopy: (text: string) => Promise<boolean>;
+}) {
+  const [copied, setCopied] = useState(true); // auto-copied on generate
+
+  async function copy() {
+    const ok = await onCopy(result.url);
+    setCopied(ok);
+    if (ok) toast.success("Link copied");
+    else toast.error("Couldn't copy — long-press the link to copy it.");
+  }
+
+  return (
+    <div className="flex flex-col gap-4 pb-2">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-success-soft text-success-deep">
+          <Check className="h-6 w-6" />
+        </span>
+        <p className="text-base font-semibold text-ink">Booked — deposit link ready</p>
+        <p className="max-w-xs text-sm text-ink-muted">
+          Text this to {petName ? `${petName}'s owner` : "the client"} to take their {formatGBP(amount)} deposit.
+          It pays straight into your Stripe account and marks this booking paid.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-DEFAULT bg-surface-sunken p-3">
+        <p className="break-all text-xs text-ink-muted">{result.url}</p>
+      </div>
+
+      <Button size="md" className="w-full" onClick={copy}>
+        <Copy className="h-4 w-4" />
+        {copied ? "Copied — copy again" : "Copy link"}
+      </Button>
+
+      {result.emailedTo ? (
+        <p className="flex items-center justify-center gap-1.5 text-center text-xs text-ink-subtle">
+          <Mail className="h-3.5 w-3.5" /> Also emailed to {result.emailedTo}.
+        </p>
+      ) : (
+        <p className="text-center text-xs text-ink-subtle">
+          No email on file for this client — text them the link above.
+        </p>
+      )}
+    </div>
   );
 }
 
