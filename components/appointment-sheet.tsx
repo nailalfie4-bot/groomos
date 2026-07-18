@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Sparkles,
   UserRound,
+  Users,
   X,
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
@@ -67,12 +68,14 @@ export function AppointmentSheet({
     appointments,
     settings,
     business,
+    groomers,
     getPet,
     getClient,
     getService,
     setAppointmentStatus,
     updateAppointmentNotes,
     patchAppointmentDeposit,
+    assignAppointmentGroomer,
     rescheduleAppointment,
   } = useStore();
 
@@ -290,6 +293,36 @@ export function AppointmentSheet({
               />
             ) : null}
           </dl>
+
+          {/* Assigned groomer (only when the business has a team) */}
+          {groomers.length > 0 && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-DEFAULT bg-surface px-4 py-2.5">
+              <span className="inline-flex items-center gap-2 text-sm text-ink-muted">
+                <Users className="h-4 w-4 text-ink-subtle" />
+                Groomer
+              </span>
+              <div className="flex items-center gap-2">
+                {appt.groomerId && (
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full border border-black/10"
+                    style={{ backgroundColor: getGroomerColour(groomers, appt.groomerId) }}
+                  />
+                )}
+                <select
+                  value={appt.groomerId ?? ""}
+                  onChange={(e) => assignAppointmentGroomer(appt.id, e.target.value || null)}
+                  className="rounded-lg border border-strong bg-surface py-1.5 pl-2 pr-7 text-sm font-medium text-ink outline-none focus:border-accent"
+                >
+                  <option value="">Unassigned</option>
+                  {groomers.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* add-ons chosen at booking */}
           {appt.addons && appt.addons.length > 0 && (
@@ -573,6 +606,11 @@ export function AppointmentSheet({
       </>
     );
   }
+}
+
+/** The colour of the groomer an appointment is assigned to (for the swatch). */
+function getGroomerColour(groomers: { id: string; colour: string }[], id?: string): string {
+  return groomers.find((g) => g.id === id)?.colour ?? "#C9756B";
 }
 
 function Detail({

@@ -16,6 +16,7 @@ import type {
   Business,
   Client,
   CoatCondition,
+  Groomer,
   GroomingReport,
   Pet,
   Service,
@@ -31,7 +32,14 @@ export interface SeedData {
   services: Service[];
   appointments: Appointment[];
   settings: Settings;
+  groomers: Groomer[];
 }
+
+/** Two demo groomers so the calendar filter + assignment have something to show. */
+const groomers: Groomer[] = [
+  { id: "grm_1", businessId: "biz_1", name: "Alex (you)", colour: "#C9756B" },
+  { id: "grm_2", businessId: "biz_1", name: "Sam", colour: "#6B8FC9" },
+];
 
 const business: Business = {
   id: "biz_1",
@@ -201,9 +209,11 @@ function buildAppointments(): Appointment[] {
   make(todayOffset - 78, 14, "pet_10", "cl_8", "svc_1", "completed", "staff", "Full groom, ears cleaned.");
 
   // Deposits secure most bookings — no-show protection working in the demo.
-  for (const a of out) {
+  // Spread bookings across the two demo groomers so the calendar filter is lively.
+  out.forEach((a, i) => {
     if (a.status !== "cancelled") a.deposit = DEFAULT_SETTINGS.depositAmount;
-  }
+    a.groomerId = groomers[i % groomers.length].id;
+  });
 
   return out;
 }
@@ -216,6 +226,7 @@ export function createSeed(): SeedData {
     services,
     appointments: buildAppointments(),
     settings: { ...DEFAULT_SETTINGS },
+    groomers,
   };
 }
 
@@ -243,5 +254,6 @@ export function createEmptySeed(): SeedData {
     services: [],
     appointments: [],
     settings: { ...DEFAULT_SETTINGS },
+    groomers: [],
   };
 }

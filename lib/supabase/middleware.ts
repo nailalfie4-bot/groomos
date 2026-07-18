@@ -9,6 +9,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { isAppLocked } from "@/lib/trial";
 
 /** App routes that require a logged-in user (the (app) route group). */
 const PROTECTED_PREFIXES = [
@@ -22,8 +23,28 @@ const PROTECTED_PREFIXES = [
   "/settings",
 ];
 
+/**
+ * The "main app" working screens that are blocked once the free trial ends with
+ * no active subscription. Billing + Settings stay open (so they can subscribe /
+ * find their booking link), and public booking pages are never in this group.
+ */
+const TRIAL_GATED_PREFIXES = [
+  "/dashboard",
+  "/calendar",
+  "/clients",
+  "/appointments",
+  "/retention",
+  "/services",
+];
+
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
+function isTrialGated(pathname: string): boolean {
+  return TRIAL_GATED_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 }
@@ -84,6 +105,39 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
+  }
+
+  // Trial gate: once the 30-day trial is over with no active subscription, block
+  // the main working screens and send them to the "trial ended" page. Public
+  // booking pages (outside these prefixes) keep working so live bookings don't
+  // break; Billing + Settings stay reachable so they can subscribe.
+  if (user && isTrialGated(path)) {
+    // Fail OPEN: a DB hiccup must never lock a paying groomer out of their app.
+    try {
+      const { data: biz } = await supabase
+        .from("businesses")
+        .select("subscription_status, plan, trial_ends_at")
+        .maybeSingle();
+      const b = biz as {
+        subscription_status?: string | null;
+        plan?: string | null;
+        trial_ends_at?: string | null;
+      } | null;
+      if (
+        b &&
+        isAppLocked({
+          subscriptionStatus: b.subscription_status,
+          plan: b.plan,
+          trialEndsAt: b.trial_ends_at,
+        })
+      ) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/trial-ended";
+        return NextResponse.redirect(url);
+      }
+    } catch {
+      // ignore — let them through rather than risk a false lockout
+    }
   }
 
   return response;

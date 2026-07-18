@@ -154,6 +154,7 @@ const PLANS: Plan[] = [
     features: [
       "SMS reminders (coming soon)",
       "Matting meter & smart pricing",
+      "Multi-groomer scheduling",
       "“Due for a groom” rebooking list",
       "Before & after reports",
     ],
@@ -164,9 +165,9 @@ const PLANS: Plan[] = [
     name: "Team",
     monthly: 59,
     annual: 49,
-    tagline: "For growing teams — multi-groomer support coming soon.",
+    tagline: "For growing teams and busy salons.",
     inherits: "Pro",
-    features: ["Multi-groomer support (coming soon)", "Multiple locations (coming soon)", "Priority support"],
+    features: ["Multi-groomer scheduling", "Multiple locations (coming soon)", "Priority support"],
   },
 ];
 
