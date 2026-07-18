@@ -20,6 +20,8 @@ export interface AppointmentRow {
   coat_condition: Appointment["coatCondition"];
   duration_min: number;
   deposit: number | string | null;
+  deposit_status: string | null;
+  deposit_payment_intent_id: string | null;
   reminder_sent_at: string | null;
   report: Appointment["report"] | null;
   declarations: string[] | null;
@@ -28,6 +30,9 @@ export interface AppointmentRow {
   terms_accepted_at: string | null;
   matting_level: string | null;
   temperament_level: string | null;
+  addons: { name: string; price: number }[] | null;
+  deposit_link_token: string | null;
+  deposit_link_expires_at: string | null;
 }
 
 const num = (v: number | string | null | undefined): number =>
@@ -48,6 +53,8 @@ export function rowToAppointment(r: AppointmentRow): Appointment {
     coatCondition: r.coat_condition,
     durationMin: r.duration_min,
     deposit: r.deposit == null ? undefined : num(r.deposit),
+    depositStatus: (r.deposit_status as Appointment["depositStatus"]) ?? undefined,
+    depositPaymentIntentId: r.deposit_payment_intent_id ?? undefined,
     reminderSentAt: r.reminder_sent_at ?? undefined,
     report: r.report ?? undefined,
     declarations: Array.isArray(r.declarations) ? r.declarations : undefined,
@@ -56,6 +63,9 @@ export function rowToAppointment(r: AppointmentRow): Appointment {
     termsAcceptedAt: r.terms_accepted_at ?? undefined,
     mattingLevel: r.matting_level ?? undefined,
     temperamentLevel: r.temperament_level ?? undefined,
+    addons: Array.isArray(r.addons) ? r.addons : undefined,
+    depositLinkToken: r.deposit_link_token ?? undefined,
+    depositLinkExpiresAt: r.deposit_link_expires_at ?? undefined,
   };
 }
 

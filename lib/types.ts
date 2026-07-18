@@ -139,9 +139,12 @@ export interface Service {
   businessId: ID;
   name: string;
   description: string;
+  /** For add-ons this is the *extra* duration added to the groom (may be 0). */
   durationMin: number;
   priceGBP: number;
   active: boolean;
+  /** True for add-on extras (teeth clean, nail trim…), kept separate from main services. */
+  isAddon?: boolean;
 }
 
 export type AppointmentStatus =
@@ -178,10 +181,16 @@ export interface Appointment {
   reminderSentAt?: string;
   /** Deposit taken to secure the booking (GBP). Applied on completion, kept on a no-show. */
   deposit?: number;
-  /** How the deposit was handled: 'none' | 'recorded' (agreed, not charged) | 'paid' (card-charged). */
-  depositStatus?: "none" | "recorded" | "paid";
+  /** Deposit handling: 'none' | 'recorded' | 'paid' (card-charged) | 'link_sent' (link generated, unpaid). */
+  depositStatus?: "none" | "recorded" | "paid" | "link_sent";
   /** Stripe PaymentIntent id for a card-charged deposit, if any. */
   depositPaymentIntentId?: string;
+  /** Add-ons chosen at booking (name + price snapshot). */
+  addons?: { name: string; price: number }[];
+  /** Secure token for the deposit payment link (phone bookings), if generated. */
+  depositLinkToken?: string;
+  /** When the deposit link expires (ISO) — usually the appointment start. */
+  depositLinkExpiresAt?: string;
   /** Exact labels of the declarations the client agreed to at booking (frozen). */
   declarations?: string[];
   /** Exact T&Cs text the client was shown (snapshot, frozen at booking). */

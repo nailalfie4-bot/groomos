@@ -106,6 +106,7 @@ export interface NewServiceInput {
   description: string;
   durationMin: number;
   priceGBP: number;
+  isAddon?: boolean;
 }
 export interface NewAppointmentInput {
   petId: string;
@@ -167,6 +168,20 @@ interface StoreContextValue extends StoreState {
   createAppointment: (input: NewAppointmentInput) => Appointment;
   setAppointmentStatus: (id: string, status: AppointmentStatus) => void;
   updateAppointmentNotes: (id: string, notes: string) => void;
+  /**
+   * Reflect a server-side deposit change (link minted / paid) locally. The
+   * server route already wrote it to the DB, so this only patches local state —
+   * it never re-persists.
+   */
+  patchAppointmentDeposit: (
+    id: string,
+    patch: Partial<
+      Pick<
+        Appointment,
+        "deposit" | "depositStatus" | "depositLinkToken" | "depositLinkExpiresAt" | "depositPaymentIntentId"
+      >
+    >,
+  ) => void;
   /** Reschedule an appointment to a new ISO start (calendar drag). */
   rescheduleAppointment: (id: string, start: string) => void;
   /** Attach a before/after report to a completed appointment. */
@@ -640,6 +655,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [live, persist],
   );
 
+  const patchAppointmentDeposit = useCallback(
+    (id: string, patch: Partial<Appointment>) => {
+      setState((s) => ({
+        ...s,
+        appointments: s.appointments.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+      }));
+    },
+    [],
+  );
+
   const value = useMemo<StoreContextValue>(
     () => ({
       ...state,
@@ -662,6 +687,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       createAppointment,
       setAppointmentStatus,
       updateAppointmentNotes,
+      patchAppointmentDeposit,
       rescheduleAppointment,
       attachReport,
       markReminderSent,

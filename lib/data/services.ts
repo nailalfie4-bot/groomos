@@ -25,6 +25,7 @@ interface ServiceRow {
   /** numeric(10,2) — PostgREST serialises this as a string, e.g. "45.00". */
   price_gbp: number | string;
   active: boolean;
+  is_addon: boolean | null;
 }
 
 /** Map a DB row to the app's `Service` shape (camelCase, numeric price). */
@@ -37,6 +38,7 @@ export function rowToService(r: ServiceRow): Service {
     durationMin: r.duration_min,
     priceGBP: typeof r.price_gbp === "string" ? Number(r.price_gbp) : r.price_gbp,
     active: r.active,
+    isAddon: Boolean(r.is_addon),
   };
 }
 
@@ -94,6 +96,7 @@ export async function insertService(
       duration_min: input.durationMin,
       price_gbp: input.priceGBP,
       active: true,
+      is_addon: input.isAddon ?? false,
     })
     .select()
     .single();
@@ -111,6 +114,7 @@ export async function updateService(
   if (patch.description !== undefined) dbPatch.description = patch.description;
   if (patch.durationMin !== undefined) dbPatch.duration_min = patch.durationMin;
   if (patch.priceGBP !== undefined) dbPatch.price_gbp = patch.priceGBP;
+  if (patch.isAddon !== undefined) dbPatch.is_addon = patch.isAddon;
   if (Object.keys(dbPatch).length === 0) return;
 
   const supabase = createSupabaseBrowserClient();
