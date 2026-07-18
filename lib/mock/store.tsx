@@ -53,6 +53,7 @@ import {
   fetchPets,
   insertPet,
   updatePetNotes as updatePetNotesRow,
+  updatePetRebookWeeks as updatePetRebookWeeksRow,
 } from "@/lib/data/pets";
 import {
   fetchServices,
@@ -100,6 +101,8 @@ export interface NewPetInput {
   coatType?: string;
   temperament?: string;
   notes?: string;
+  /** How often this dog usually rebooks, in weeks (optional). */
+  rebookWeeks?: number;
 }
 export interface NewServiceInput {
   name: string;
@@ -162,6 +165,8 @@ interface StoreContextValue extends StoreState {
   addClient: (input: NewClientInput) => Client;
   addPet: (input: NewPetInput) => Pet;
   updatePetNotes: (petId: string, notes: string) => void;
+  /** Set (or clear, with null) how often a dog usually rebooks, in weeks. */
+  updatePetRebookWeeks: (petId: string, weeks: number | null) => void;
   addService: (input: NewServiceInput) => Service;
   updateService: (id: string, patch: Partial<NewServiceInput>) => void;
   deleteService: (id: string) => void;
@@ -200,6 +205,8 @@ export interface DueForGroom {
   lastGroomedAt: string;
   weeksSince: number;
   lastPriceGBP: number;
+  /** This dog's own rebook frequency (weeks) that made it due. */
+  rebookWeeks: number;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -402,6 +409,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const weeks = (ms: number) => ms / (1000 * 60 * 60 * 24 * 7);
     return state.pets
       .map((pet): DueForGroom | null => {
+        // Every dog is different — a dog only appears here if the groomer has
+        // set its own rebook frequency. No global assumption.
+        if (!pet.rebookWeeks || pet.rebookWeeks <= 0) return null;
         const past = state.appointments
           .filter((a) => a.petId === pet.id && a.status === "completed")
           .sort((a, b) => (a.start < b.start ? 1 : -1));
@@ -418,7 +428,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const weeksSince = Math.floor(
           weeks(now - new Date(last.start).getTime()),
         );
-        if (weeksSince < state.settings.defaultRebookWeeks) return null;
+        if (weeksSince < pet.rebookWeeks) return null;
         const client = state.clients.find((c) => c.id === pet.clientId);
         if (!client) return null;
         return {
@@ -427,11 +437,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           lastGroomedAt: last.start,
           weeksSince,
           lastPriceGBP: last.priceGBP,
+          rebookWeeks: pet.rebookWeeks,
         };
       })
       .filter((d): d is DueForGroom => d !== null)
       .sort((a, b) => b.weeksSince - a.weeksSince);
-  }, [state.pets, state.appointments, state.clients, state.settings]);
+  }, [state.pets, state.appointments, state.clients]);
 
   const quoteFor = useCallback(
     (
@@ -484,6 +495,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         pets: s.pets.map((p) => (p.id === petId ? { ...p, notes } : p)),
       }));
       if (live) persist(() => updatePetNotesRow(petId, notes), ["pets"]);
+    },
+    [live, persist],
+  );
+
+  const updatePetRebookWeeks = useCallback(
+    (petId: string, weeks: number | null) => {
+      setState((s) => ({
+        ...s,
+        pets: s.pets.map((p) =>
+          p.id === petId ? { ...p, rebookWeeks: weeks ?? undefined } : p,
+        ),
+      }));
+      if (live) persist(() => updatePetRebookWeeksRow(petId, weeks), ["pets"]);
     },
     [live, persist],
   );
@@ -681,6 +705,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addClient,
       addPet,
       updatePetNotes,
+      updatePetRebookWeeks,
       addService,
       updateService,
       deleteService,
@@ -709,6 +734,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addClient,
       addPet,
       updatePetNotes,
+      updatePetRebookWeeks,
       addService,
       updateService,
       deleteService,

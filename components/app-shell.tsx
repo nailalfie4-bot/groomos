@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { BusinessLogo } from "@/components/business-logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStore } from "@/lib/mock/store";
 import { useAuth } from "@/components/auth-provider";
@@ -144,15 +145,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile overflow menu */}
       {menuOpen && (
         <div className="fixed inset-0 top-14 z-20 bg-canvas px-4 py-4 md:hidden">
-          <div className="px-1 pb-2">
-            <p className="text-xs font-medium uppercase tracking-wider text-ink-subtle">
-              {business.name}
-            </p>
-            {configured && user?.email && (
-              <p className="pt-0.5 text-xs normal-case tracking-normal text-ink-subtle">
-                {user.email}
-              </p>
-            )}
+          <div className="mb-1 flex items-center gap-3 px-1 pb-3">
+            <BusinessLogo
+              name={business.name}
+              logoUrl={business.logoUrl}
+              className="h-10 w-10 text-sm"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-ink">{business.name}</p>
+              {configured && user?.email && (
+                <p className="truncate text-xs text-ink-subtle">{user.email}</p>
+              )}
+            </div>
           </div>
           <nav className="space-y-1">
             {NAV.map(({ href, label, icon: Icon }) => (

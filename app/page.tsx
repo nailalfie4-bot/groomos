@@ -438,71 +438,6 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
-/** A simple, original flat dog-face avatar. Pure inline SVG, no animation. */
-function DogFace({
-  bg,
-  fur,
-  muzzle,
-  pointy,
-}: {
-  bg: string;
-  fur: string;
-  muzzle: string;
-  pointy?: boolean;
-}) {
-  return (
-    <svg viewBox="0 0 44 44" className="h-full w-full" aria-hidden>
-      <circle cx="22" cy="22" r="22" fill={bg} />
-      {pointy ? (
-        <>
-          <path d="M12 9 L9.5 23 L19 17 Z" fill={fur} />
-          <path d="M32 9 L34.5 23 L25 17 Z" fill={fur} />
-        </>
-      ) : (
-        <>
-          <ellipse cx="11.5" cy="19" rx="5.5" ry="9" fill={fur} />
-          <ellipse cx="32.5" cy="19" rx="5.5" ry="9" fill={fur} />
-        </>
-      )}
-      <circle cx="22" cy="24" r="12" fill={fur} />
-      <ellipse cx="22" cy="28.5" rx="7" ry="6" fill={muzzle} />
-      <circle cx="17.6" cy="22" r="1.7" fill="#3f2d28" />
-      <circle cx="26.4" cy="22" r="1.7" fill="#3f2d28" />
-      <ellipse cx="22" cy="27.5" rx="2.3" ry="1.7" fill="#3f2d28" />
-    </svg>
-  );
-}
-
-/** A warm row of dog avatars near the hero — cosmetic warmth, no fake stats.
- *  Fixed-size inline SVGs, so nothing loads late and nothing shifts. */
-function DogAvatars() {
-  const dogs = [
-    { bg: "#FBEEE8", fur: "#E8C4A0", muzzle: "#F5E4D0" },
-    { bg: "#F7E3DF", fur: "#C9756B", muzzle: "#E9B7AE", pointy: true },
-    { bg: "#F0E6DD", fur: "#A9764F", muzzle: "#D8B48C" },
-    { bg: "#EDE9E6", fur: "#B7ACA4", muzzle: "#D8D0CA", pointy: true },
-    { bg: "#EFE4DC", fur: "#7C5744", muzzle: "#B0876A" },
-    { bg: "#FBF0E6", fur: "#EAB98C", muzzle: "#F6E2CC" },
-  ];
-  return (
-    <div className="mt-8 flex items-center gap-3">
-      <div className="flex -space-x-2.5">
-        {dogs.map((d, i) => (
-          <span
-            key={i}
-            className="inline-block h-9 w-9 overflow-hidden rounded-full ring-2 ring-surface shadow-sm"
-          >
-            <DogFace {...d} />
-          </span>
-        ))}
-      </div>
-      <span className="max-w-[11rem] text-xs leading-snug text-ink-muted">
-        Built for groomers and the dogs they love.
-      </span>
-    </div>
-  );
-}
-
 /** Static preview of the coat/matting declaration scale (no animation, fixed
  *  height so it can't shift layout). Used in the matting-meter spotlight. */
 function MattingMeterVisual() {
@@ -677,7 +612,6 @@ export default function LandingPage() {
                   </Button>
                 </div>
                 <p className="mt-5 max-w-md text-xs text-ink-muted">{HERO_UNDER_CTA}</p>
-                <DogAvatars />
               </motion.div>
 
               {/* Client-booking widget — a single static frame (a picture of

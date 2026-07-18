@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
+  ArrowRight,
   Bell,
   Building2,
   CalendarClock,
@@ -14,16 +16,18 @@ import {
   FileText,
   Gauge,
   Heart,
+  ImagePlus,
   Link2,
   Loader2,
   Plus,
-  RefreshCw,
+  Scissors,
   ShieldCheck,
   Sparkles,
   Trash2,
 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { PageHeader } from "@/components/page-header";
+import { BusinessLogo } from "@/components/business-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -32,6 +36,8 @@ import { Toggle } from "@/components/ui/toggle";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStore } from "@/lib/mock/store";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { resizeImageToSquare } from "@/lib/image";
 import { computeQuote } from "@/lib/pricing";
 import { formatGBP } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -90,6 +96,13 @@ function SettingsForm({
     toast.success("Settings saved");
   }
 
+  // The logo is uploaded immediately (see LogoUpload), so persist it straight
+  // away rather than waiting for Save — and keep the local form copy in sync.
+  function setLogo(url: string) {
+    setB((f) => ({ ...f, logoUrl: url || undefined }));
+    updateBusiness({ logoUrl: url });
+  }
+
   // Live matting-meter example, updates as fees change.
   const preview = useMemo(
     () => computeQuote({ priceGBP: 45, durationMin: 90 }, "giant", "matted", s),
@@ -109,189 +122,191 @@ function SettingsForm({
         }
       />
 
-      <div className="flex flex-col gap-5">
-        {/* Business */}
-        <Section icon={<Building2 className="h-[18px] w-[18px]" />} title="Your business" description="Shown to clients on your booking page and receipts.">
-          <div className="flex flex-col gap-3">
-            <Input label="Business name" value={b.name} onChange={(e) => setBiz("name", e.target.value)} />
-            <BookingLinkField slug={b.slug ?? ""} onChange={(v) => setBiz("slug", v)} />
-            <Input label="Phone" value={b.phone} onChange={(e) => setBiz("phone", e.target.value)} />
-            <Input label="Address" value={b.addressLine} onChange={(e) => setBiz("addressLine", e.target.value)} />
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Town / city" value={b.city} onChange={(e) => setBiz("city", e.target.value)} />
-              <Input label="Postcode" value={b.postcode} onChange={(e) => setBiz("postcode", e.target.value)} />
+      <div className="flex flex-col gap-9">
+        {/* ── Your business ──────────────────────────────────────────────── */}
+        <SettingsGroup title="Your business">
+          <Section icon={<Building2 className="h-[18px] w-[18px]" />} title="Business details" description="Shown to clients on your booking page, confirmations and receipts.">
+            <div className="flex flex-col gap-4">
+              <LogoUpload name={b.name} logoUrl={b.logoUrl} onChange={setLogo} />
+              <Input label="Business name" value={b.name} onChange={(e) => setBiz("name", e.target.value)} />
+              <BookingLinkField slug={b.slug ?? ""} onChange={(v) => setBiz("slug", v)} />
+              <Input label="Phone" value={b.phone} onChange={(e) => setBiz("phone", e.target.value)} />
+              <Input label="Address" value={b.addressLine} onChange={(e) => setBiz("addressLine", e.target.value)} />
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Town / city" value={b.city} onChange={(e) => setBiz("city", e.target.value)} />
+                <Input label="Postcode" value={b.postcode} onChange={(e) => setBiz("postcode", e.target.value)} />
+              </div>
             </div>
-          </div>
-        </Section>
+          </Section>
+        </SettingsGroup>
 
-        {/* Opening hours */}
-        <Section
-          icon={<CalendarClock className="h-[18px] w-[18px]" />}
-          title="Working hours"
-          description="Sets the range your calendar board shows and what clients can book."
-        >
-          <div className="grid max-w-sm grid-cols-2 gap-3">
-            <Select label="Opens" value={String(b.openHour)} onChange={(e) => setBiz("openHour", num(e.target.value))}>
-              {HOURS.filter((h) => h < b.closeHour).map((h) => (
-                <option key={h} value={h}>{hhmm(h)}</option>
-              ))}
-            </Select>
-            <Select label="Closes" value={String(b.closeHour)} onChange={(e) => setBiz("closeHour", num(e.target.value))}>
-              {HOURS.filter((h) => h > b.openHour).map((h) => (
-                <option key={h} value={h}>{hhmm(h)}</option>
-              ))}
-            </Select>
-          </div>
-        </Section>
-
-        {/* Deposits & no-show protection */}
-        <Section
-          icon={<ShieldCheck className="h-[18px] w-[18px]" />}
-          title="Deposits & no-show protection"
-          description="Take a small deposit to confirm a booking — applied to the groom, or kept if they don't show."
-          action={<Toggle checked={s.depositEnabled} onChange={(v) => setSet("depositEnabled", v)} label="Require deposits" />}
-        >
-          <div className={cn("grid max-w-sm grid-cols-2 gap-3 transition-opacity", !s.depositEnabled && "pointer-events-none opacity-50")}>
-            <Input
-              label="Deposit amount (£)"
-              type="number"
-              min={0}
-              step={1}
-              value={String(s.depositAmount)}
-              onChange={(e) => setSet("depositAmount", num(e.target.value))}
-            />
-            <Select
-              label="Free cancellation up to"
-              value={String(s.cancellationNoticeHours)}
-              onChange={(e) => setSet("cancellationNoticeHours", num(e.target.value))}
+        {/* ── Services & pricing ─────────────────────────────────────────── */}
+        <SettingsGroup title="Services & pricing">
+          <Section icon={<Scissors className="h-[18px] w-[18px]" />} title="Services & add-ons" description="Your grooms and the extras clients can add — priced and timed.">
+            <Link
+              href="/services"
+              className="flex items-center justify-between gap-3 rounded-xl border border-DEFAULT bg-surface-sunken p-4 transition-colors hover:border-accent"
             >
-              <option value="24">24 hours before</option>
-              <option value="48">48 hours before</option>
-              <option value="72">72 hours before</option>
-            </Select>
-          </div>
-          <div className="mt-4 flex items-start gap-2 rounded-xl bg-accent-50 p-3">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent-700" />
-            <p className="text-sm text-accent-700">
-              Clients pay <span className="font-semibold tabular-nums">{formatGBP(s.depositAmount)}</span> to confirm, free to cancel up to{" "}
-              <span className="font-semibold">{s.cancellationNoticeHours}h</span> before. No-shows add up fast — deposits help you stop quietly losing money to them.
-            </p>
-          </div>
-          <ConnectPayouts enabled={s.depositEnabled} amount={s.depositAmount} />
-        </Section>
+              <span className="text-sm text-ink">Manage your services &amp; add-ons</span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle" />
+            </Link>
+          </Section>
 
-        {/* Coat & temperament scales */}
-        <Section
-          icon={<Gauge className="h-[18px] w-[18px]" />}
-          title="Coat & temperament scales"
-          description="Clients self-declare their dog's coat and temperament on a visual scale at booking. Turn off any level you don't take online — clients who pick it are asked to contact you first."
-        >
-          <div className="flex flex-col gap-4">
-            <ScaleEditor heading="Coat / matting" value={s.mattingScale} onChange={(v) => setSet("mattingScale", v)} />
-            <ScaleEditor heading="Temperament" value={s.temperamentScale} onChange={(v) => setSet("temperamentScale", v)} />
-          </div>
-        </Section>
+          <Section
+            icon={<Heart className="h-[18px] w-[18px]" />}
+            title="Matting meter"
+            description="Fair, automatic surcharges for tricky coats and big dogs — added to price and time, explained kindly to owners."
+          >
+            <div className="flex flex-col gap-3">
+              <FeeRow title="A bit tangled" fee={s.tangledFee} mins={s.tangledExtraMin} onFee={(v) => setSet("tangledFee", v)} onMins={(v) => setSet("tangledExtraMin", v)} />
+              <FeeRow title="Matted / pelted" fee={s.mattedFee} mins={s.mattedExtraMin} onFee={(v) => setSet("mattedFee", v)} onMins={(v) => setSet("mattedExtraMin", v)} />
+              <FeeRow title="Giant breed" fee={s.giantFee} mins={s.giantExtraMin} onFee={(v) => setSet("giantFee", v)} onMins={(v) => setSet("giantExtraMin", v)} />
+            </div>
+            <div className="mt-4 flex items-start gap-2 rounded-xl bg-accent-50 p-3">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent-700" />
+              <p className="text-sm text-accent-700">
+                For example, a matted, giant Full Groom comes to{" "}
+                <span className="font-semibold tabular-nums">{formatGBP(preview.totalPriceGBP)}</span> over{" "}
+                <span className="font-semibold tabular-nums">{preview.totalDurationMin} min</span> — with{" "}
+                {formatGBP(preview.mattingFee + preview.sizeFee)} and {preview.mattingExtraMin + preview.sizeExtraMin} extra minutes set aside for care.
+              </p>
+            </div>
+          </Section>
+        </SettingsGroup>
 
-        {/* Client declarations */}
-        <Section
-          icon={<ClipboardList className="h-[18px] w-[18px]" />}
-          title="Client declarations"
-          description="Short yes/no confirmations clients must tick before booking. Toggle any off, or edit the wording."
-        >
-          <DeclarationsEditor value={s.declarations} onChange={(d) => setSet("declarations", d)} />
-        </Section>
+        {/* ── Bookings & availability ────────────────────────────────────── */}
+        <SettingsGroup title="Bookings & availability">
+          <Section
+            icon={<CalendarClock className="h-[18px] w-[18px]" />}
+            title="Working hours"
+            description="Sets the range your calendar board shows and what clients can book."
+          >
+            <div className="grid max-w-sm grid-cols-2 gap-3">
+              <Select label="Opens" value={String(b.openHour)} onChange={(e) => setBiz("openHour", num(e.target.value))}>
+                {HOURS.filter((h) => h < b.closeHour).map((h) => (
+                  <option key={h} value={h}>{hhmm(h)}</option>
+                ))}
+              </Select>
+              <Select label="Closes" value={String(b.closeHour)} onChange={(e) => setBiz("closeHour", num(e.target.value))}>
+                {HOURS.filter((h) => h > b.openHour).map((h) => (
+                  <option key={h} value={h}>{hhmm(h)}</option>
+                ))}
+              </Select>
+            </div>
+          </Section>
 
-        {/* Terms & conditions */}
-        <Section
-          icon={<FileText className="h-[18px] w-[18px]" />}
-          title="Terms & conditions"
-          description="Paste your own terms — cancellation policy, late arrivals, anything. Leave blank to skip."
-        >
-          <Textarea
-            label="Your terms"
-            rows={6}
-            value={s.termsText}
-            onChange={(e) => setSet("termsText", e.target.value)}
-            placeholder="e.g. Deposits are non-refundable within 48 hours of the appointment. Please arrive on time — arrivals more than 15 minutes late may need to rebook…"
-          />
-          {s.termsText.trim() ? (
-            <p className="mt-3 flex items-start gap-2 rounded-xl bg-accent-50 p-3 text-sm text-accent-700">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              Clients tick “I agree” and type their name to sign. The exact text, their name and the time are stored with every booking as your proof.
-            </p>
-          ) : (
-            <p className="mt-2 text-xs text-ink-subtle">
-              No terms yet — the agreement step won&apos;t show on your booking page.
-            </p>
-          )}
-        </Section>
+          <Section
+            icon={<Clock className="h-[18px] w-[18px]" />}
+            title="Cleanup time"
+            description="Added automatically after every dog so you're never rushed — and never double-booked."
+          >
+            <div className="max-w-xs">
+              <Input
+                label="Minutes between dogs"
+                type="number"
+                min={0}
+                step={5}
+                value={String(s.bufferMin)}
+                onChange={(e) => setSet("bufferMin", num(e.target.value))}
+                leadingIcon={<Clock />}
+              />
+            </div>
+          </Section>
+        </SettingsGroup>
 
-        {/* Cleanup buffer */}
-        <Section
-          icon={<Clock className="h-[18px] w-[18px]" />}
-          title="Cleanup time"
-          description="Added automatically after every dog so you're never rushed — and never double-booked."
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Minutes between dogs"
-              type="number"
-              min={0}
-              step={5}
-              value={String(s.bufferMin)}
-              onChange={(e) => setSet("bufferMin", num(e.target.value))}
-              leadingIcon={<Clock />}
+        {/* ── Deposits & payments ────────────────────────────────────────── */}
+        <SettingsGroup title="Deposits & payments">
+          <Section
+            icon={<ShieldCheck className="h-[18px] w-[18px]" />}
+            title="Deposits & no-show protection"
+            description="Take a small deposit to confirm a booking — applied to the groom, or kept if they don't show."
+            action={<Toggle checked={s.depositEnabled} onChange={(v) => setSet("depositEnabled", v)} label="Require deposits" />}
+          >
+            <div className={cn("grid max-w-sm grid-cols-2 gap-3 transition-opacity", !s.depositEnabled && "pointer-events-none opacity-50")}>
+              <Input
+                label="Deposit amount (£)"
+                type="number"
+                min={0}
+                step={1}
+                value={String(s.depositAmount)}
+                onChange={(e) => setSet("depositAmount", num(e.target.value))}
+              />
+              <Select
+                label="Free cancellation up to"
+                value={String(s.cancellationNoticeHours)}
+                onChange={(e) => setSet("cancellationNoticeHours", num(e.target.value))}
+              >
+                <option value="24">24 hours before</option>
+                <option value="48">48 hours before</option>
+                <option value="72">72 hours before</option>
+              </Select>
+            </div>
+            <div className="mt-4 flex items-start gap-2 rounded-xl bg-accent-50 p-3">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent-700" />
+              <p className="text-sm text-accent-700">
+                Clients pay <span className="font-semibold tabular-nums">{formatGBP(s.depositAmount)}</span> to confirm, free to cancel up to{" "}
+                <span className="font-semibold">{s.cancellationNoticeHours}h</span> before. No-shows add up fast — deposits help you stop quietly losing money to them.
+              </p>
+            </div>
+            <ConnectPayouts enabled={s.depositEnabled} amount={s.depositAmount} />
+          </Section>
+        </SettingsGroup>
+
+        {/* ── Client checks ──────────────────────────────────────────────── */}
+        <SettingsGroup title="Client checks">
+          <Section
+            icon={<Gauge className="h-[18px] w-[18px]" />}
+            title="Coat & temperament scales"
+            description="Clients self-declare their dog's coat and temperament on a visual scale at booking. Turn off any level you don't take online — clients who pick it are asked to contact you first."
+          >
+            <div className="flex flex-col gap-4">
+              <ScaleEditor heading="Coat / matting" value={s.mattingScale} onChange={(v) => setSet("mattingScale", v)} />
+              <ScaleEditor heading="Temperament" value={s.temperamentScale} onChange={(v) => setSet("temperamentScale", v)} />
+            </div>
+          </Section>
+
+          <Section
+            icon={<ClipboardList className="h-[18px] w-[18px]" />}
+            title="Client declarations"
+            description="Short yes/no confirmations clients must tick before booking. Toggle any off, or edit the wording."
+          >
+            <DeclarationsEditor value={s.declarations} onChange={(d) => setSet("declarations", d)} />
+          </Section>
+
+          <Section
+            icon={<FileText className="h-[18px] w-[18px]" />}
+            title="Terms & conditions"
+            description="Paste your own terms — cancellation policy, late arrivals, anything. Leave blank to skip."
+          >
+            <Textarea
+              label="Your terms"
+              rows={6}
+              value={s.termsText}
+              onChange={(e) => setSet("termsText", e.target.value)}
+              placeholder="e.g. Deposits are non-refundable within 48 hours of the appointment. Please arrive on time — arrivals more than 15 minutes late may need to rebook…"
             />
-          </div>
-        </Section>
+            {s.termsText.trim() ? (
+              <p className="mt-3 flex items-start gap-2 rounded-xl bg-accent-50 p-3 text-sm text-accent-700">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                Clients tick “I agree” and type their name to sign. The exact text, their name and the time are stored with every booking as your proof.
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-ink-subtle">
+                No terms yet — the agreement step won&apos;t show on your booking page.
+              </p>
+            )}
+          </Section>
+        </SettingsGroup>
 
-        {/* Matting meter */}
-        <Section
-          icon={<Heart className="h-[18px] w-[18px]" />}
-          title="Matting meter"
-          description="Fair, automatic surcharges for tricky coats and big dogs — added to price and time, explained kindly to owners."
-        >
-          <div className="flex flex-col gap-3">
-            <FeeRow title="A bit tangled" fee={s.tangledFee} mins={s.tangledExtraMin} onFee={(v) => setSet("tangledFee", v)} onMins={(v) => setSet("tangledExtraMin", v)} />
-            <FeeRow title="Matted / pelted" fee={s.mattedFee} mins={s.mattedExtraMin} onFee={(v) => setSet("mattedFee", v)} onMins={(v) => setSet("mattedExtraMin", v)} />
-            <FeeRow title="Giant breed" fee={s.giantFee} mins={s.giantExtraMin} onFee={(v) => setSet("giantFee", v)} onMins={(v) => setSet("giantExtraMin", v)} />
-          </div>
-          <div className="mt-4 flex items-start gap-2 rounded-xl bg-accent-50 p-3">
-            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent-700" />
-            <p className="text-sm text-accent-700">
-              For example, a matted, giant Full Groom comes to{" "}
-              <span className="font-semibold tabular-nums">{formatGBP(preview.totalPriceGBP)}</span> over{" "}
-              <span className="font-semibold tabular-nums">{preview.totalDurationMin} min</span> — with{" "}
-              {formatGBP(preview.mattingFee + preview.sizeFee)} and {preview.mattingExtraMin + preview.sizeExtraMin} extra minutes set aside for care.
+        {/* ── Reminders & notifications ──────────────────────────────────── */}
+        <SettingsGroup title="Reminders & notifications">
+          <Section icon={<Bell className="h-[18px] w-[18px]" />} title="Reminders" description="Automatic email reminders before every appointment. SMS coming soon." action={<Badge tone="success" dot>Email · included</Badge>}>
+            <p className="rounded-xl bg-surface-sunken p-3 text-sm text-ink-muted">
+              Appointment reminders and booking confirmations go out by email automatically —
+              included in your plan, with no per-message fees.
             </p>
-          </div>
-        </Section>
-
-        {/* Rebooking */}
-        <Section
-          icon={<RefreshCw className="h-[18px] w-[18px]" />}
-          title="Rebooking"
-          description="We'll flag a dog as “due for a groom” once it's been this long since their last visit."
-        >
-          <div className="max-w-xs">
-            <Input
-              label="Default weeks between grooms"
-              type="number"
-              min={1}
-              step={1}
-              value={String(s.defaultRebookWeeks)}
-              onChange={(e) => setSet("defaultRebookWeeks", num(e.target.value))}
-            />
-          </div>
-        </Section>
-
-        {/* Reminders — the selling point */}
-        <Section icon={<Bell className="h-[18px] w-[18px]" />} title="Reminders" description="Automatic email reminders before every appointment. SMS coming soon." action={<Badge tone="success" dot>Email · included</Badge>}>
-          <p className="rounded-xl bg-surface-sunken p-3 text-sm text-ink-muted">
-            Appointment reminders and booking confirmations go out by email automatically —
-            included in your plan, with no per-message fees.
-          </p>
-        </Section>
+          </Section>
+        </SettingsGroup>
       </div>
 
       {/* Unsaved changes bar */}
@@ -574,6 +589,112 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+/** A labelled group of setting cards — the scannable top-level structure. */
+function SettingsGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <h2 className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink-subtle">
+        {title}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Business logo picker. Center-crops + shrinks the chosen image to a small
+ * square, then (live) uploads it to the public business-logos Storage bucket and
+ * hands back its URL, or (demo) hands back a data URL. Falls back to the
+ * initial-letter avatar when no logo is set.
+ */
+function LogoUpload({
+  name,
+  logoUrl,
+  onChange,
+}: {
+  name: string;
+  logoUrl?: string;
+  onChange: (url: string) => void;
+}) {
+  const { businessId, configured } = useAuth();
+  const live = configured && !!businessId;
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("That image is too large — 5MB max.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { blob, dataUrl } = await resizeImageToSquare(file, 256);
+      if (live && businessId) {
+        const supabase = createSupabaseBrowserClient();
+        const path = `${businessId}/logo-${Date.now()}.png`;
+        const { error } = await supabase.storage
+          .from("business-logos")
+          .upload(path, blob, { upsert: true, contentType: "image/png" });
+        if (error) throw error;
+        const { data } = supabase.storage.from("business-logos").getPublicUrl(path);
+        onChange(data.publicUrl);
+      } else {
+        onChange(dataUrl); // demo: keep it local as a data URL
+      }
+      toast.success("Logo updated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't upload that logo — please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium text-ink">Logo</p>
+      <div className="flex items-center gap-4">
+        <BusinessLogo name={name} logoUrl={logoUrl} className="h-16 w-16 text-2xl" />
+        <div className="flex flex-col gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFile(f);
+              e.target.value = "";
+            }}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              loading={busy}
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+            >
+              <ImagePlus className="h-4 w-4" />
+              {logoUrl ? "Change" : "Upload logo"}
+            </Button>
+            {logoUrl && (
+              <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => onChange("")}>
+                Remove
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-ink-subtle">Square looks best. PNG or JPG, up to 5MB.</p>
+        </div>
+      </div>
+    </div>
   );
 }
 

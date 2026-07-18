@@ -13,6 +13,7 @@ import {
   PawPrint,
   Phone,
   PlusCircle,
+  RefreshCw,
   Save,
   Scissors,
 } from "lucide-react";
@@ -63,7 +64,7 @@ export default function ClientDetailPage() {
     getHistoryForPet,
     getLastGroomedAt,
     updatePetNotes,
-    settings,
+    updatePetRebookWeeks,
     loading,
   } = useClientsData();
   const [addingPet, setAddingPet] = useState(false);
@@ -164,7 +165,7 @@ export default function ClientDetailPage() {
               history={getHistoryForPet(pet.id)}
               lastGroomed={getLastGroomedAt(pet.id)}
               updatePetNotes={updatePetNotes}
-              defaultRebookWeeks={settings.defaultRebookWeeks}
+              updatePetRebookWeeks={updatePetRebookWeeks}
             />
           ))}
         </div>
@@ -211,14 +212,14 @@ function PetProfile({
   history,
   lastGroomed,
   updatePetNotes,
-  defaultRebookWeeks,
+  updatePetRebookWeeks,
 }: {
   pet: Pet;
   onBook: () => void;
   history: GroomingHistoryEntry[];
   lastGroomed: string | undefined;
   updatePetNotes: (petId: string, notes: string) => Promise<void>;
-  defaultRebookWeeks: number;
+  updatePetRebookWeeks: (petId: string, weeks: number | null) => void;
 }) {
   const [notes, setNotes] = useState(pet.notes);
   const dirty = notes !== pet.notes;
@@ -227,7 +228,8 @@ function PetProfile({
   const weeksSince = lastGroomed
     ? Math.floor((Date.now() - new Date(lastGroomed).getTime()) / (7 * 24 * 3600 * 1000))
     : null;
-  const overdue = weeksSince !== null && weeksSince >= defaultRebookWeeks;
+  const freq = pet.rebookWeeks ?? null;
+  const overdue = weeksSince !== null && freq !== null && weeksSince >= freq;
   const age = ageLabel(pet.dateOfBirth);
   const completedCount = history.filter((h) => h.appointment.status === "completed").length;
 
@@ -276,15 +278,23 @@ function PetProfile({
           <Fact
             label="Next due"
             value={
-              weeksSince === null
-                ? "—"
-                : overdue
-                  ? "Due now"
-                  : `${defaultRebookWeeks - weeksSince}w`
+              freq === null
+                ? "Not set"
+                : weeksSince === null
+                  ? `Every ${freq}w`
+                  : overdue
+                    ? "Due now"
+                    : `${freq - weeksSince}w`
             }
             accent={overdue}
           />
         </div>
+
+        {/* Per-dog rebook frequency — every dog is different */}
+        <RebookFrequency
+          value={freq}
+          onChange={(w) => updatePetRebookWeeks(pet.id, w)}
+        />
 
         {/* Standing notes */}
         <div className="flex flex-col gap-2">
@@ -366,6 +376,87 @@ function Fact({ label, value, accent = false }: { label: string; value: string; 
       </p>
       <p className="mt-0.5 text-[11px] text-ink-subtle">{label}</p>
     </div>
+  );
+}
+
+/** Per-dog rebook frequency picker — quick presets + a custom value, or Off. */
+function RebookFrequency({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (weeks: number | null) => void;
+}) {
+  const presets = [4, 6, 8, 12];
+  const isCustom = value !== null && !presets.includes(value);
+  return (
+    <div className="rounded-xl border border-DEFAULT bg-surface-sunken p-4">
+      <div className="flex items-center gap-2">
+        <RefreshCw className="h-4 w-4 text-accent" />
+        <p className="text-sm font-medium text-ink">Rebook reminder</p>
+      </div>
+      <p className="mt-1 text-xs text-ink-muted">
+        How often this dog usually needs a groom — we&apos;ll flag them in &ldquo;Due for a groom&rdquo; when it&apos;s
+        time. Off means no reminder.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <FreqChip active={value === null} onClick={() => onChange(null)}>
+          Off
+        </FreqChip>
+        {presets.map((w) => (
+          <FreqChip key={w} active={value === w} onClick={() => onChange(w)}>
+            {w}w
+          </FreqChip>
+        ))}
+        <div
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors",
+            isCustom ? "border-accent bg-accent-50" : "border-strong bg-surface",
+          )}
+        >
+          <input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={isCustom ? String(value) : ""}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              onChange(Number.isFinite(n) && n > 0 ? Math.round(n) : null);
+            }}
+            placeholder="Custom"
+            aria-label="Custom rebook weeks"
+            className="w-16 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
+          />
+          <span className="text-xs text-ink-subtle">weeks</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FreqChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+        active
+          ? "border-accent bg-accent text-ink-inverse"
+          : "border-strong bg-surface text-ink hover:border-accent",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

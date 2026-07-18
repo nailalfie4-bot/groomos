@@ -31,7 +31,7 @@ type Row = {
   client: { first_name: string | null; email: string | null } | null;
   pet: { name: string | null } | null;
   service: { name: string | null } | null;
-  business: { name: string | null; address_line: string | null; city: string | null; postcode: string | null } | null;
+  business: { name: string | null; logo_url: string | null; address_line: string | null; city: string | null; postcode: string | null } | null;
 };
 
 export async function GET(request: Request) {
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
   const { data, error } = await admin
     .from("appointments")
     .select(
-      "id, start_at, deposit, client:clients(first_name,email), pet:pets(name), service:services(name), business:businesses(name,address_line,city,postcode)",
+      "id, start_at, deposit, client:clients(first_name,email), pet:pets(name), service:services(name), business:businesses(name,logo_url,address_line,city,postcode)",
     )
     .is("appointment_reminder_sent_at", null)
     .neq("status", "cancelled")
@@ -78,6 +78,7 @@ export async function GET(request: Request) {
       serviceName: r.service?.name ?? "Groom",
       whenLabel: whenLabel(r.start_at),
       address: address || undefined,
+      logoUrl: r.business?.logo_url ?? undefined,
       depositLabel: deposit > 0 ? `£${deposit} deposit secures your slot.` : undefined,
     });
     const result = await sendEmail({ to: email, subject: msg.subject, html: msg.html });
