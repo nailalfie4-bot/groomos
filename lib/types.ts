@@ -15,6 +15,8 @@ export interface Business {
   name: string;
   /** URL-safe handle for the public booking page at /book/<slug>. */
   slug?: string;
+  /** Uploaded business logo (public URL). Undefined → initial-letter avatar. */
+  logoUrl?: string;
   /** Current Stripe subscription plan id, if subscribed. */
   plan?: string;
   /** Stripe subscription status: 'active' | 'past_due' | 'canceled' | …. */
@@ -66,6 +68,11 @@ export interface Pet {
   notes: string;
   /** ISO date string of birth (optional). */
   dateOfBirth?: string;
+  /**
+   * How often this dog usually rebooks, in weeks (groomer-set, optional). Drives
+   * the per-dog "Due for a groom" list. Undefined → excluded from that list.
+   */
+  rebookWeeks?: number;
 }
 
 /** A yes/no client declaration the groomer can toggle on/off and reword. */

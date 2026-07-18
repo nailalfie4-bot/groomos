@@ -11,9 +11,16 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function shell(businessName: string, heading: string, bodyHtml: string): string {
+function shell(businessName: string, heading: string, bodyHtml: string, logoUrl?: string): string {
+  // Only hosted (https) logos render reliably in email clients; a data URL from
+  // the demo is skipped in favour of the business-name label.
+  const logo =
+    logoUrl && /^https:\/\//.test(logoUrl)
+      ? `<img src="${logoUrl}" alt="${esc(businessName)}" width="48" height="48" style="display:block;width:48px;height:48px;border-radius:12px;object-fit:cover;margin:0 0 12px;" />`
+      : "";
   return `<!doctype html><html><body style="margin:0;background:#FCF6F4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#2A2422;">
   <div style="max-width:520px;margin:0 auto;padding:24px 16px;">
+    ${logo}
     <p style="margin:0 0 16px;font-size:13px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#C9756B;">${esc(businessName)}</p>
     <div style="background:#FFFFFF;border:1px solid #F1DEDA;border-radius:16px;padding:24px;">
       <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3;color:#2A2422;">${esc(heading)}</h1>
@@ -40,6 +47,7 @@ export type GroomEmailData = {
   address?: string;
   depositLabel?: string; // e.g. "£10 deposit secures your slot"
   addons?: string[]; // chosen extras, e.g. ["Nail trim", "Teeth cleaning"]
+  logoUrl?: string; // hosted business logo (https) shown in the email header
 };
 
 /** Reminder sent ~24h before an appointment (no-show protection). */
@@ -58,7 +66,7 @@ export function appointmentReminderEmail(d: GroomEmailData): { subject: string; 
     <p style="margin:0;font-size:14px;line-height:1.6;color:#8A7470;">Need to change or cancel? Just reply to this email and we'll sort it.</p>`;
   return {
     subject: `Reminder: ${d.petName}'s groom ${d.whenLabel}`,
-    html: shell(d.businessName, `${d.petName}'s groom is ${d.whenLabel}`, body),
+    html: shell(d.businessName, `${d.petName}'s groom is ${d.whenLabel}`, body, d.logoUrl),
   };
 }
 
@@ -78,7 +86,7 @@ export function bookingConfirmationEmail(d: GroomEmailData): { subject: string; 
     <p style="margin:0;font-size:14px;line-height:1.6;color:#8A7470;">Need to change anything? Just reply to this email.</p>`;
   return {
     subject: `Booking received — ${d.petName}'s groom with ${d.businessName}`,
-    html: shell(d.businessName, "Booking request received", body),
+    html: shell(d.businessName, "Booking request received", body, d.logoUrl),
   };
 }
 
@@ -91,6 +99,7 @@ export function depositLinkEmail(d: {
   whenLabel: string;
   amount: number;
   url: string;
+  logoUrl?: string;
 }): { subject: string; html: string } {
   const rows = [
     detailRow("Groom", d.serviceName),
@@ -106,7 +115,7 @@ export function depositLinkEmail(d: {
     <p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:#B3A39E;">Or paste this link into your browser:<br>${esc(d.url)}</p>`;
   return {
     subject: `Secure ${d.petName}'s groom — £${d.amount} deposit`,
-    html: shell(d.businessName, `Pay your deposit to secure the slot`, body),
+    html: shell(d.businessName, `Pay your deposit to secure the slot`, body, d.logoUrl),
   };
 }
 

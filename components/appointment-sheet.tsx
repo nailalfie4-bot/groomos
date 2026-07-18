@@ -14,6 +14,7 @@ import {
   Heart,
   Link2,
   PoundSterling,
+  RefreshCw,
   Repeat,
   Save,
   Scissors,
@@ -281,6 +282,13 @@ export function AppointmentSheet({
             {pet && (
               <Detail icon={<UserRound className="h-4 w-4" />} label="Breed" value={pet.breed} />
             )}
+            {pet?.rebookWeeks ? (
+              <Detail
+                icon={<RefreshCw className="h-4 w-4" />}
+                label="Rebooks"
+                value={`Every ${pet.rebookWeeks} weeks`}
+              />
+            ) : null}
           </dl>
 
           {/* add-ons chosen at booking */}
@@ -531,7 +539,7 @@ export function AppointmentSheet({
         defaultClientId={appt.clientId}
         defaultPetId={appt.petId}
         defaultStart={atHour(
-          addDays(new Date(), settings.defaultRebookWeeks * 7),
+          addDays(new Date(), (pet?.rebookWeeks ?? 6) * 7),
           9,
         )}
       />

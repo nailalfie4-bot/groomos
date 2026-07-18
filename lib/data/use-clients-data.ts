@@ -33,6 +33,7 @@ export interface UseClientsDataResult {
   addClient: (input: NewClientInput) => Promise<Client>;
   addPet: (input: NewPetInput) => Promise<Pet>;
   updatePetNotes: (petId: string, notes: string) => Promise<void>;
+  updatePetRebookWeeks: (petId: string, weeks: number | null) => void;
   isLive: boolean;
 }
 
@@ -67,6 +68,7 @@ export function useClientsData(): UseClientsDataResult {
     addClient,
     addPet,
     updatePetNotes,
+    updatePetRebookWeeks: store.updatePetRebookWeeks,
     isLive: configured,
   };
 }

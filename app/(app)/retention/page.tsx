@@ -27,7 +27,7 @@ import { addDays, atHour, formatGBP } from "@/lib/format";
 export default function RetentionPage() {
   const loading = useDemoLoad();
   const { configured } = useAuth();
-  const { getDueForGroom, business, settings, markReminderSent } = useStore();
+  const { getDueForGroom, business, markReminderSent } = useStore();
   const due = getDueForGroom();
   const [reminder, setReminder] = useState<DueForGroom | null>(null);
   const [rebook, setRebook] = useState<DueForGroom | null>(null);
@@ -112,7 +112,7 @@ export default function RetentionPage() {
         ) : (
           <ul className="divide-y divide-border">
             {due.map((d) => {
-              const over = d.weeksSince - settings.defaultRebookWeeks;
+              const over = d.weeksSince - d.rebookWeeks;
               return (
                 <li key={d.pet.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
                   <div className="flex min-w-0 flex-1 items-center gap-3">

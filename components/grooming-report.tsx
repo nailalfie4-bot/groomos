@@ -223,7 +223,10 @@ export function CompleteFlow({
       ) : (
         <div className="flex flex-col gap-3 pb-2">
           <div className="grid grid-cols-3 gap-2">
-            {[settings.defaultRebookWeeks, settings.defaultRebookWeeks + 2, settings.defaultRebookWeeks + 6].map((w) => (
+            {(() => {
+              const base = pet.rebookWeeks ?? settings.defaultRebookWeeks;
+              return [base, base + 2, base + 6];
+            })().map((w) => (
               <button
                 key={w}
                 onClick={() => rebook(w)}

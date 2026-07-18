@@ -24,12 +24,12 @@ import {
   Loader2,
   Lock,
   MapPin,
-  PawPrint,
   ShieldCheck,
 } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { Logo } from "@/components/logo";
+import { BusinessLogo } from "@/components/business-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -476,10 +476,12 @@ export function PublicBooking({
 
       <main className="mx-auto max-w-xl px-5 py-7">
         {/* Who they're booking with — always visible for trust. */}
-        <div className="mb-5 flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-100 text-accent-700">
-            <PawPrint className="h-5 w-5" />
-          </span>
+        <div className="mb-6 flex items-center gap-3.5">
+          <BusinessLogo
+            name={business.name}
+            logoUrl={business.logoUrl}
+            className="h-12 w-12 text-lg"
+          />
           <div className="min-w-0">
             <p className="text-base font-semibold leading-tight text-ink">{business.name}</p>
             {address && <p className="mt-0.5 text-sm text-ink-muted">{address}</p>}
@@ -508,7 +510,12 @@ export function PublicBooking({
               />
             )}
 
-            <motion.div key={step} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: EASE }}>
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: EASE }}
+            >
               {step === "service" && (
                 <div className="flex flex-col gap-3">
                   {mainServices.map((s) => (
@@ -754,9 +761,9 @@ export function PublicBooking({
               )}
 
               {step === "checks" && (
-                <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-6">
                   {mattingScale && (
-                    <ScalePicker
+                    <ScaleMeter
                       scale={mattingScale}
                       businessName={business.name}
                       selectedId={mattingLevelId}
@@ -764,7 +771,7 @@ export function PublicBooking({
                     />
                   )}
                   {temperamentScale && (
-                    <ScalePicker
+                    <ScaleMeter
                       scale={temperamentScale}
                       businessName={business.name}
                       selectedId={temperamentLevelId}
@@ -1008,12 +1015,14 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Tap-to-select segmented declaration scale (matting / temperament). Plain
- * buttons, one per level — no drag, no slider, so it can't jank. A level the
- * groomer doesn't accept turns red and shows a "contact us" note; the parent's
- * gate stops the booking from completing.
+ * A calm, tappable "meter" for a declaration scale (matting / temperament):
+ * a soft gradient track with one tappable point per level. Only the *selected*
+ * level's label + description is shown, so it reads as a few seconds of light
+ * tapping rather than a wall of cards. Plain buttons (no drag/slider), so it
+ * can't jank. A level the groomer doesn't accept turns red and shows a kind
+ * "contact us" note; the parent's gate stops the booking from completing.
  */
-function ScalePicker({
+function ScaleMeter({
   scale,
   businessName,
   selectedId,
@@ -1026,50 +1035,67 @@ function ScalePicker({
 }) {
   const selected = scale.levels.find((l) => l.id === selectedId);
   const blocked = selected && !selected.accepted;
+  const first = scale.levels[0];
+  const last = scale.levels[scale.levels.length - 1];
   return (
-    <div className="flex flex-col gap-2.5">
-      <p className="text-sm font-medium text-ink">{scale.title}</p>
-      <div className="flex flex-col gap-2">
-        {scale.levels.map((l) => {
-          const on = l.id === selectedId;
-          const bad = on && !l.accepted;
-          return (
-            <button
-              key={l.id}
-              type="button"
-              onClick={() => onSelect(l.id)}
-              aria-pressed={on}
-              className={cn(
-                "flex w-full items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors",
-                bad
-                  ? "border-danger bg-danger-soft"
-                  : on
-                    ? "border-accent bg-accent-50"
-                    : "border-strong bg-surface hover:border-accent",
-              )}
-            >
-              <span
-                className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  bad
-                    ? "border-danger bg-danger text-ink-inverse"
-                    : on
-                      ? "border-accent bg-accent text-ink-inverse"
-                      : "border-strong bg-surface",
-                )}
+    <div className="rounded-2xl border border-DEFAULT bg-surface p-5 shadow-card">
+      <p className="text-[15px] font-semibold text-ink">{scale.title}</p>
+
+      {/* Gradient track + evenly-spaced tappable points */}
+      <div className="relative mt-6 mb-2.5">
+        <div className="absolute inset-x-[22px] top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gradient-to-r from-[#9CC3A6] via-[#EAC08A] to-[#D98B7D]" />
+        <div className="relative flex justify-between">
+          {scale.levels.map((l) => {
+            const on = l.id === selectedId;
+            const bad = on && !l.accepted;
+            return (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => onSelect(l.id)}
+                aria-pressed={on}
+                aria-label={l.label}
+                className="flex h-11 w-11 items-center justify-center"
               >
-                {on && <Check className="h-3 w-3" />}
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-medium text-ink">{l.label}</span>
-                <span className="mt-0.5 block text-xs leading-snug text-ink-muted">{l.description}</span>
-              </span>
-            </button>
-          );
-        })}
+                <span
+                  className={cn(
+                    "flex items-center justify-center rounded-full border-2 bg-surface transition-all duration-150",
+                    on ? "h-6 w-6 shadow-sm" : "h-3.5 w-3.5",
+                    bad ? "border-danger" : on ? "border-accent" : "border-strong",
+                  )}
+                >
+                  {on && (
+                    <span className={cn("h-2.5 w-2.5 rounded-full", bad ? "bg-danger" : "bg-accent")} />
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {/* End anchors for orientation */}
+      <div className="flex justify-between gap-3 px-0.5 text-[11px] text-ink-subtle">
+        <span className="max-w-[45%] truncate">{first?.label}</span>
+        <span className="max-w-[45%] truncate text-right">{last?.label}</span>
+      </div>
+
+      {/* Only the selected level's detail is shown */}
+      <div className="mt-4 rounded-xl bg-surface-sunken p-3.5">
+        {selected ? (
+          <>
+            <p className={cn("text-sm font-semibold", blocked ? "text-danger" : "text-ink")}>
+              {selected.label}
+            </p>
+            <p className="mt-0.5 text-xs leading-snug text-ink-muted">{selected.description}</p>
+          </>
+        ) : (
+          <p className="text-sm text-ink-muted">Tap the scale above to tell us how your dog is.</p>
+        )}
+      </div>
+
       {blocked && (
-        <p className="rounded-xl bg-danger-soft p-3 text-sm text-danger">
+        <p className="mt-2.5 rounded-xl bg-danger-soft p-3 text-sm text-danger">
           <span className="font-medium">{selected!.label}</span> — please contact {businessName} directly
           before booking online.
         </p>
@@ -1102,14 +1128,14 @@ function Confirmation({
   });
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: EASE }}>
-      <div className="rounded-2xl border border-DEFAULT bg-surface p-6 shadow-card">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: EASE }}>
+      <div className="rounded-3xl border border-DEFAULT bg-surface p-7 shadow-card">
         <div className="flex flex-col items-center text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-50 text-accent-700">
-            <CalendarCheck className="h-6 w-6" />
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-success-soft text-success-deep ring-8 ring-success-soft/40">
+            <CalendarCheck className="h-7 w-7" />
           </span>
-          <h1 className="mt-4 text-xl font-semibold tracking-tight text-ink">Booking request sent</h1>
-          <p className="mt-2 max-w-sm text-sm text-ink-muted">
+          <h1 className="mt-5 text-[22px] font-semibold tracking-tight text-ink">Booking request sent</h1>
+          <p className="mt-2 max-w-sm text-sm leading-relaxed text-ink-muted">
             Thanks {done.customerName.split(/\s+/)[0]}! {business.name} will confirm {done.petName}&apos;s
             groom shortly — keep an eye on your phone.
           </p>

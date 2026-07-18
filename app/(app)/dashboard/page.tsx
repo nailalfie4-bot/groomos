@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DogEmpty } from "@/components/illustrations";
 import { PetAvatar } from "@/components/pet-avatar";
+import { BusinessLogo } from "@/components/business-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { BookingForm } from "@/components/booking-form";
 import { AppointmentSheet } from "@/components/appointment-sheet";
@@ -104,11 +105,16 @@ export default function DashboardPage() {
     <>
       {/* Greeting + one clear primary action */}
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm text-ink-muted">{dateLabel}</p>
-          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-ink">
-            {greeting}
-          </h1>
+        <div className="flex items-center gap-3">
+          <BusinessLogo
+            name={business.name}
+            logoUrl={business.logoUrl}
+            className="h-11 w-11 text-base"
+          />
+          <div>
+            <p className="text-sm text-ink-muted">{dateLabel}</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">{greeting}</h1>
+          </div>
         </div>
         <Button size="md" onClick={() => setBooking(true)} className="w-full sm:w-auto">
           <CalendarPlus className="h-4 w-4" />

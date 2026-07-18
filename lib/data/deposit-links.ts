@@ -171,11 +171,12 @@ export async function generateDepositLink(
 
   const { data: bizRow } = await admin
     .from("businesses")
-    .select("id, name, stripe_connect_account_id, stripe_connect_charges_enabled")
+    .select("id, name, logo_url, stripe_connect_account_id, stripe_connect_charges_enabled")
     .eq("id", businessId)
     .maybeSingle();
   const biz = (bizRow as {
     name?: string;
+    logo_url?: string | null;
     stripe_connect_account_id?: string | null;
     stripe_connect_charges_enabled?: boolean | null;
   } | null) ?? {};
@@ -243,6 +244,7 @@ export async function generateDepositLink(
         whenLabel: when,
         amount,
         url,
+        logoUrl: biz.logo_url ?? undefined,
       });
       const res = await sendEmail({ to: c.email, subject: msg.subject, html: msg.html });
       if (res.ok) emailedTo = c.email;

@@ -18,6 +18,7 @@ interface PetRow {
   temperament: string | null;
   notes: string | null;
   date_of_birth: string | null;
+  rebook_weeks: number | null;
 }
 
 export function rowToPet(r: PetRow): Pet {
@@ -31,6 +32,7 @@ export function rowToPet(r: PetRow): Pet {
     temperament: r.temperament ?? undefined,
     notes: r.notes ?? "",
     dateOfBirth: r.date_of_birth ?? undefined,
+    rebookWeeks: r.rebook_weeks ?? undefined,
   };
 }
 
@@ -65,6 +67,7 @@ export async function insertPet(
       coat_type: input.coatType || null,
       temperament: input.temperament || null,
       notes: input.notes ?? "",
+      rebook_weeks: input.rebookWeeks ?? null,
     })
     .select()
     .single();
@@ -76,5 +79,12 @@ export async function insertPet(
 export async function updatePetNotes(petId: string, notes: string): Promise<void> {
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.from("pets").update({ notes }).eq("id", petId);
+  if (error) throw error;
+}
+
+/** Update a pet's rebook frequency (weeks). Null clears it. */
+export async function updatePetRebookWeeks(petId: string, weeks: number | null): Promise<void> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("pets").update({ rebook_weeks: weeks }).eq("id", petId);
   if (error) throw error;
 }

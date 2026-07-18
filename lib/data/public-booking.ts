@@ -211,7 +211,7 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   const { data: biz, error: bizErr } = await admin
     .from("businesses")
     .select(
-      "id, name, open_hour, close_hour, address_line, city, postcode, stripe_connect_account_id, stripe_connect_charges_enabled",
+      "id, name, logo_url, open_hour, close_hour, address_line, city, postcode, stripe_connect_account_id, stripe_connect_charges_enabled",
     )
     .eq("slug", input.slug.trim().toLowerCase())
     .maybeSingle();
@@ -456,7 +456,7 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   // Confirmation email to the client — best-effort, never blocks the booking
   // (and a safe no-op until email is configured).
   try {
-    const b = biz as { name?: string; address_line?: string; city?: string; postcode?: string };
+    const b = biz as { name?: string; logo_url?: string; address_line?: string; city?: string; postcode?: string };
     const when = start.toLocaleString("en-GB", {
       weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC",
     });
@@ -467,6 +467,7 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       serviceName: service.name,
       addons: addonsSnapshot?.map((a) => a.name),
       whenLabel: when,
+      logoUrl: b.logo_url ?? undefined,
       address: [b.address_line, b.city, b.postcode].filter(Boolean).join(", ") || undefined,
       depositLabel:
         depositDue > 0
