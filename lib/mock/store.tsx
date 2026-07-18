@@ -210,6 +210,12 @@ interface StoreContextValue extends StoreState {
   updateSettings: (patch: Partial<Settings>) => void;
   /** Update business details (name, hours, contact) from Settings. */
   updateBusiness: (patch: Partial<Business>) => void;
+  /**
+   * Resolve once every queued background write has flushed to the database.
+   * Used before a follow-up server call that needs a just-created row to exist
+   * (e.g. minting a deposit link for an appointment you've only just booked).
+   */
+  flushWrites: () => Promise<void>;
   // Groomers (staff assignment)
   addGroomer: (input: NewGroomerInput) => Groomer;
   updateGroomer: (id: string, patch: Partial<NewGroomerInput>) => void;
@@ -373,6 +379,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     [reload],
   );
+
+  // Await the currently-queued background writes (used before a follow-up
+  // server call that needs the just-written row to already exist).
+  const flushWrites = useCallback(() => writeChain.current.then(() => undefined), []);
 
   const resetDemo = useCallback(() => {
     setState(configured ? createEmptySeed() : createSeed());
@@ -806,6 +816,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       markReminderSent,
       updateSettings,
       updateBusiness,
+      flushWrites,
     }),
     [
       state,
@@ -840,6 +851,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       markReminderSent,
       updateSettings,
       updateBusiness,
+      flushWrites,
     ],
   );
 
