@@ -39,12 +39,14 @@ export type GroomEmailData = {
   whenLabel: string; // e.g. "Tue 14 Jul at 1:30 pm"
   address?: string;
   depositLabel?: string; // e.g. "£10 deposit secures your slot"
+  addons?: string[]; // chosen extras, e.g. ["Nail trim", "Teeth cleaning"]
 };
 
 /** Reminder sent ~24h before an appointment (no-show protection). */
 export function appointmentReminderEmail(d: GroomEmailData): { subject: string; html: string } {
   const rows = [
     detailRow("Groom", d.serviceName),
+    d.addons && d.addons.length ? detailRow("Extras", d.addons.join(", ")) : "",
     detailRow("When", d.whenLabel),
     detailRow("Dog", d.petName),
     d.address ? detailRow("Where", d.address) : "",
@@ -64,6 +66,7 @@ export function appointmentReminderEmail(d: GroomEmailData): { subject: string; 
 export function bookingConfirmationEmail(d: GroomEmailData): { subject: string; html: string } {
   const rows = [
     detailRow("Groom", d.serviceName),
+    d.addons && d.addons.length ? detailRow("Extras", d.addons.join(", ")) : "",
     detailRow("When", d.whenLabel),
     detailRow("Dog", d.petName),
     d.address ? detailRow("Where", d.address) : "",
@@ -76,6 +79,34 @@ export function bookingConfirmationEmail(d: GroomEmailData): { subject: string; 
   return {
     subject: `Booking received — ${d.petName}'s groom with ${d.businessName}`,
     html: shell(d.businessName, "Booking request received", body),
+  };
+}
+
+/** Deposit payment link sent to a phone-booked client to secure their slot. */
+export function depositLinkEmail(d: {
+  businessName: string;
+  firstName: string;
+  petName: string;
+  serviceName: string;
+  whenLabel: string;
+  amount: number;
+  url: string;
+}): { subject: string; html: string } {
+  const rows = [
+    detailRow("Groom", d.serviceName),
+    detailRow("When", d.whenLabel),
+    detailRow("Dog", d.petName),
+    detailRow("Deposit", `£${d.amount}`),
+  ].join("");
+  const cta = `<a href="${d.url}" style="display:inline-block;background:#C9756B;color:#FCF6F4;text-decoration:none;font-weight:600;font-size:15px;padding:12px 20px;border-radius:12px;">Pay £${d.amount} deposit</a>`;
+  const body = `
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#8A7470;">Hi ${esc(d.firstName)}, to secure ${esc(d.petName)}'s appointment with ${esc(d.businessName)}, please pay the deposit below. It comes off your total on the day.</p>
+    <table role="presentation" width="100%" style="border-collapse:collapse;border-top:1px solid #F1DEDA;border-bottom:1px solid #F1DEDA;margin:4px 0 16px;">${rows}</table>
+    ${cta}
+    <p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:#B3A39E;">Or paste this link into your browser:<br>${esc(d.url)}</p>`;
+  return {
+    subject: `Secure ${d.petName}'s groom — £${d.amount} deposit`,
+    html: shell(d.businessName, `Pay your deposit to secure the slot`, body),
   };
 }
 

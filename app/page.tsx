@@ -164,9 +164,9 @@ const PLANS: Plan[] = [
     name: "Team",
     monthly: 59,
     annual: 49,
-    tagline: "For when you've grown past one person.",
+    tagline: "For growing teams — multi-groomer support coming soon.",
     inherits: "Pro",
-    features: ["Unlimited groomers", "Unlimited locations", "Priority support"],
+    features: ["Multi-groomer support (coming soon)", "Multiple locations (coming soon)", "Priority support"],
   },
 ];
 

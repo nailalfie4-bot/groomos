@@ -144,6 +144,7 @@ type Done = {
   depositDue: number;
   depositPaid: boolean;
   serviceName: string;
+  addons: { name: string; price: number }[];
   durationMin: number;
   petName: string;
   customerName: string;
@@ -171,6 +172,8 @@ export type PublicBookingSubmit = {
   mattingLevelId?: string;
   /** Selected temperament-scale level id (when the temperament scale is enabled). */
   temperamentLevelId?: string;
+  /** Selected add-on service ids (server re-prices + snapshots them). */
+  addonIds?: string[];
 };
 export type PublicBookingResult =
   | { ok: true; depositDue: number; depositPaid?: boolean }
@@ -197,7 +200,8 @@ export function PublicBooking({
   fetchSlots?: (date: string, minutes: number) => Promise<string[]>;
   submitBooking?: (input: PublicBookingSubmit) => Promise<PublicBookingResult>;
 }) {
-  const activeServices = useMemo(() => services.filter((s) => s.active), [services]);
+  const mainServices = useMemo(() => services.filter((s) => s.active && !s.isAddon), [services]);
+  const addOns = useMemo(() => services.filter((s) => s.active && s.isAddon), [services]);
   const slug = business.slug ?? "";
   const days = useMemo(() => nextDays(14), []);
   const address = [business.addressLine, business.city, business.postcode]
@@ -205,7 +209,7 @@ export function PublicBooking({
     .join(", ");
 
   const [step, setStep] = useState<Step>("service");
-  const [serviceId, setServiceId] = useState(activeServices[0]?.id ?? "");
+  const [serviceId, setServiceId] = useState(mainServices[0]?.id ?? "");
   const [size, setSize] = useState<DogSize>("medium");
   const [date, setDate] = useState(days[0]);
   const [time, setTime] = useState("");
@@ -226,13 +230,17 @@ export function PublicBooking({
   const [signName, setSignName] = useState("");
   const [mattingLevelId, setMattingLevelId] = useState("");
   const [temperamentLevelId, setTemperamentLevelId] = useState("");
+  const [addonIds, setAddonIds] = useState<string[]>([]);
 
-  const service = activeServices.find((s) => s.id === serviceId);
+  const service = mainServices.find((s) => s.id === serviceId);
   // Coat is assessed by the groomer in person; the customer estimate assumes a
   // brushed coat. Size only changes the quote for giant breeds.
   const quote = service ? computeQuote(service, size, "smooth", settings, petName.trim() || "your dog") : null;
-  const groomMinutes = quote?.totalDurationMin ?? service?.durationMin ?? 60;
-  const estTotal = quote?.totalPriceGBP ?? service?.priceGBP ?? 0;
+  const selectedAddons = addOns.filter((a) => addonIds.includes(a.id));
+  const addonsTotal = selectedAddons.reduce((sum, a) => sum + a.priceGBP, 0);
+  const addonsMinutes = selectedAddons.reduce((sum, a) => sum + a.durationMin, 0);
+  const groomMinutes = (quote?.totalDurationMin ?? service?.durationMin ?? 60) + addonsMinutes;
+  const estTotal = (quote?.totalPriceGBP ?? service?.priceGBP ?? 0) + addonsTotal;
   // Deposit behaviour comes from the server (settings + connected account). When
   // omitted (older callers), fall back to a recorded deposit from settings.
   const depositCfg: PublicDepositConfig = deposit ?? {
@@ -335,7 +343,17 @@ export function PublicBooking({
   function chooseService(id: string) {
     setServiceId(id);
     setTime("");
+    // With add-ons available, stay here to offer extras; otherwise go straight on.
+    if (addOns.length === 0) setStep("when");
+  }
+
+  function goToWhen() {
+    setTime("");
     setStep("when");
+  }
+
+  function toggleAddon(id: string) {
+    setAddonIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
   }
 
   function chooseTime(s: string) {
@@ -399,6 +417,7 @@ export function PublicBooking({
         termsSignedName: termsText ? signName.trim() : undefined,
         mattingLevelId: mattingScale ? mattingLevelId : undefined,
         temperamentLevelId: temperamentScale ? temperamentLevelId : undefined,
+        addonIds: selectedAddons.map((a) => a.id),
       });
       if (!result.ok) {
         if (result.error === "slot_taken") {
@@ -417,6 +436,7 @@ export function PublicBooking({
         depositDue: result.depositDue,
         depositPaid: result.depositPaid ?? false,
         serviceName: service.name,
+        addons: selectedAddons.map((a) => ({ name: a.name, price: a.priceGBP })),
         durationMin: groomMinutes,
         petName: petName.trim(),
         customerName: name.trim(),
@@ -440,6 +460,7 @@ export function PublicBooking({
     setSignName("");
     setMattingLevelId("");
     setTemperamentLevelId("");
+    setAddonIds([]);
     setRefresh((n) => n + 1);
     setStep("service");
   }
@@ -465,7 +486,7 @@ export function PublicBooking({
           </div>
         </div>
 
-        {activeServices.length === 0 ? (
+        {mainServices.length === 0 ? (
           <div className="rounded-2xl border border-DEFAULT bg-surface px-6 py-12 text-center text-sm text-ink-muted shadow-card">
             {business.name} hasn&apos;t published any services yet. Please check back soon.
           </div>
@@ -490,11 +511,12 @@ export function PublicBooking({
             <motion.div key={step} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: EASE }}>
               {step === "service" && (
                 <div className="flex flex-col gap-3">
-                  {activeServices.map((s) => (
+                  {mainServices.map((s) => (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => chooseService(s.id)}
+                      aria-pressed={serviceId === s.id}
                       className={cn(
                         "flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-colors",
                         serviceId === s.id
@@ -511,10 +533,63 @@ export function PublicBooking({
                       </span>
                       <span className="flex shrink-0 items-center gap-1.5">
                         <span className="text-base font-semibold text-ink">{formatGBP(s.priceGBP)}</span>
-                        <ChevronRight className="h-5 w-5 text-ink-subtle" />
+                        {addOns.length === 0 && <ChevronRight className="h-5 w-5 text-ink-subtle" />}
                       </span>
                     </button>
                   ))}
+
+                  {/* Add extras? — only when the groomer has add-ons */}
+                  {addOns.length > 0 && service && (
+                    <div className="mt-1 flex flex-col gap-4">
+                      <div className="border-t border-DEFAULT pt-4">
+                        <p className="text-sm font-medium text-ink">Add extras?</p>
+                        <p className="mt-0.5 text-xs text-ink-muted">Optional — tap any you&apos;d like added to the groom.</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {addOns.map((a) => {
+                            const on = addonIds.includes(a.id);
+                            return (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => toggleAddon(a.id)}
+                                aria-pressed={on}
+                                className={cn(
+                                  "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors",
+                                  on
+                                    ? "border-accent bg-accent text-ink-inverse"
+                                    : "border-strong bg-surface text-ink hover:border-accent",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "flex h-4 w-4 items-center justify-center rounded-full border",
+                                    on ? "border-ink-inverse/50" : "border-strong",
+                                  )}
+                                >
+                                  {on && <Check className="h-2.5 w-2.5" />}
+                                </span>
+                                {a.name}
+                                <span className={cn("tabular-nums", on ? "text-ink-inverse/90" : "text-ink-muted")}>
+                                  +{formatGBP(a.priceGBP)}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between rounded-2xl border border-DEFAULT bg-surface-sunken px-4 py-3">
+                        <span className="text-sm text-ink-muted">
+                          {service.name}
+                          {selectedAddons.length > 0 && ` + ${selectedAddons.length} extra${selectedAddons.length > 1 ? "s" : ""}`}
+                        </span>
+                        <span className="text-base font-semibold text-ink">{formatGBP(estTotal)}</span>
+                      </div>
+                      <Button size="lg" className="h-12 w-full" onClick={goToWhen}>
+                        Continue
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -800,6 +875,12 @@ export function PublicBooking({
                   {/* Booking summary */}
                   <div className="rounded-2xl border border-DEFAULT bg-surface p-4 shadow-card">
                     <SummaryRow label="Groom" value={service?.name ?? ""} />
+                    {selectedAddons.length > 0 && (
+                      <SummaryRow
+                        label="Extras"
+                        value={selectedAddons.map((a) => a.name).join(", ")}
+                      />
+                    )}
                     <SummaryRow label="When" value={`${dayLabel(date)} · ${slotLabel(time)}`} />
                     <SummaryRow label="Dog" value={`${petName.trim()} · ${SIZE_LABEL[size]}`} />
                     <div className="mt-3 flex items-center justify-between border-t border-DEFAULT pt-3">
@@ -1036,6 +1117,9 @@ function Confirmation({
 
         <div className="mt-6 flex flex-col gap-1 rounded-2xl bg-surface-sunken p-4">
           <SummaryRow label="Groom" value={done.serviceName} />
+          {done.addons.length > 0 && (
+            <SummaryRow label="Extras" value={done.addons.map((a) => a.name).join(", ")} />
+          )}
           <SummaryRow label="When" value={`${dayLabel(done.date)} · ${slotLabel(done.time)}`} />
           <SummaryRow label="Dog" value={done.petName} />
           {done.depositDue > 0 && (

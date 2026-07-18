@@ -172,6 +172,8 @@ export interface PublicBookingInput {
   mattingLevelId?: string;
   /** Selected temperament-scale level id (when the temperament scale is enabled). */
   temperamentLevelId?: string;
+  /** Selected add-on service ids (re-priced + snapshotted server-side). */
+  addonIds?: string[];
 }
 
 export type CreateBookingResult =
@@ -239,12 +241,40 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   // staff console uses.
   const quote = computeQuote(service, input.size, input.coat, settings, petName);
 
+  // ── Add-ons: only this business's active add-on services count. Re-priced
+  //    here (never trusting the client) and snapshotted onto the appointment so
+  //    later edits to the add-on don't rewrite a booked price. Their price and
+  //    extra time fold into the appointment total + the slot's duration. ──────
+  const addonIds = Array.from(new Set((input.addonIds ?? []).filter((id) => typeof id === "string" && id)));
+  let addonsSnapshot: { name: string; price: number }[] | null = null;
+  let addonsTotal = 0;
+  let addonsMinutes = 0;
+  if (addonIds.length > 0) {
+    const { data: addonRows, error: addonErr } = await admin
+      .from("services")
+      .select("*")
+      .eq("business_id", businessId)
+      .eq("active", true)
+      .eq("is_addon", true)
+      .in("id", addonIds);
+    if (addonErr) throw addonErr;
+    const addons = ((addonRows as unknown[]) ?? []).map((r) => rowToService(r as never));
+    if (addons.length !== addonIds.length) {
+      return { ok: false, error: "invalid_service", message: "One of the extras isn't available." };
+    }
+    addonsSnapshot = addons.map((a) => ({ name: a.name, price: a.priceGBP }));
+    addonsTotal = addons.reduce((sum, a) => sum + a.priceGBP, 0);
+    addonsMinutes = addons.reduce((sum, a) => sum + a.durationMin, 0);
+  }
+  const totalPriceGBP = quote.totalPriceGBP + addonsTotal;
+  const totalDurationMin = quote.totalDurationMin + addonsMinutes;
+
   // The whole groom must fit inside opening hours (UTC wall-clock, matching how
   // availability is generated above).
   const openMin = (biz as { open_hour: number }).open_hour * 60;
   const closeMin = (biz as { close_hour: number }).close_hour * 60;
   const startMin = start.getUTCHours() * 60 + start.getUTCMinutes();
-  if (startMin < openMin || startMin + quote.totalDurationMin > closeMin) {
+  if (startMin < openMin || startMin + totalDurationMin > closeMin) {
     return { ok: false, error: "invalid_input", message: "That time is outside opening hours." };
   }
 
@@ -396,9 +426,10 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       status: "pending",
       source: "online",
       notes: "",
-      price_gbp: quote.totalPriceGBP,
+      price_gbp: totalPriceGBP,
       coat_condition: input.coat,
-      duration_min: quote.totalDurationMin,
+      duration_min: totalDurationMin,
+      addons: addonsSnapshot,
       deposit: depositDue > 0 ? depositDue : null,
       deposit_status: depositMode === "charge" ? "paid" : depositMode === "recorded" ? "recorded" : "none",
       deposit_payment_intent_id: depositMode === "charge" ? paymentIntentId : null,
@@ -434,6 +465,7 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       firstName,
       petName,
       serviceName: service.name,
+      addons: addonsSnapshot?.map((a) => a.name),
       whenLabel: when,
       address: [b.address_line, b.city, b.postcode].filter(Boolean).join(", ") || undefined,
       depositLabel:
