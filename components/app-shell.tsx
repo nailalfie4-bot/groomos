@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { BusinessLogo } from "@/components/business-logo";
+import { PlanBadge } from "@/components/plan-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStore } from "@/lib/mock/store";
 import { useAuth } from "@/components/auth-provider";
@@ -84,8 +85,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-canvas">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-DEFAULT bg-surface md:flex">
-        <div className="flex h-16 items-center px-5">
+        <div className="flex h-16 items-center gap-2 px-5">
           <Logo />
+          <PlanBadge business={business} />
         </div>
         <nav className="flex-1 space-y-1 px-3 py-2">
           {NAV.map(({ href, label, icon: Icon }) => (
@@ -132,7 +134,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-DEFAULT bg-canvas/85 px-4 backdrop-blur-md md:hidden">
-        <Logo />
+        <div className="flex items-center gap-2">
+          <Logo />
+          <PlanBadge business={business} />
+        </div>
         <button
           onClick={() => setMenuOpen((v) => !v)}
           aria-label="Menu"

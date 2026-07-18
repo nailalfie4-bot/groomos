@@ -44,7 +44,7 @@ export default function BillingPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.url) {
         window.location.assign(data.url);
         return;
@@ -52,7 +52,10 @@ export default function BillingPage() {
       toast.error(
         data.error === "price_not_configured"
           ? "This plan isn't set up in Stripe yet."
-          : "Couldn't start checkout — please try again.",
+          : data.error === "billing_not_configured"
+            ? "Payments aren't set up on this account yet."
+            : data.message || "Couldn't start checkout — please try again.",
+        data.message ? { description: [data.type, data.code].filter(Boolean).join(" · ") || undefined } : undefined,
       );
     } catch {
       toast.error("Couldn't reach billing — please try again.");

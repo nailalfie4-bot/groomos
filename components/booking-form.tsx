@@ -50,6 +50,7 @@ export function BookingForm({
     appointments,
     settings,
     business,
+    groomers,
     createAppointment,
     getPetsForClient,
     quoteFor,
@@ -71,6 +72,7 @@ export function BookingForm({
   );
   const [notes, setNotes] = useState("");
   const [deposit, setDeposit] = useState(settings.depositEnabled);
+  const [groomerId, setGroomerId] = useState(groomers[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +86,7 @@ export function BookingForm({
     setPetId(defaultPetId ?? "");
     setNotes("");
     setDeposit(settings.depositEnabled);
+    setGroomerId(groomers[0]?.id ?? "");
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultStart, defaultClientId, defaultPetId]);
@@ -150,6 +153,7 @@ export function BookingForm({
           coatCondition: coat,
           size,
           notes,
+          groomerId: groomerId || undefined,
           deposit: deposit && settings.depositAmount > 0 ? settings.depositAmount : undefined,
         });
         toast.success("Appointment booked", {
@@ -224,6 +228,20 @@ export function BookingForm({
             </option>
           ))}
         </Select>
+
+        {groomers.length > 0 && (
+          <Select
+            label="Groomer"
+            value={groomerId}
+            onChange={(e) => setGroomerId(e.target.value)}
+          >
+            {groomers.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </Select>
+        )}
 
         {/* Matting meter */}
         <div className="grid grid-cols-2 gap-3">

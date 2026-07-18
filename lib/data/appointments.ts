@@ -33,6 +33,7 @@ export interface AppointmentRow {
   addons: { name: string; price: number }[] | null;
   deposit_link_token: string | null;
   deposit_link_expires_at: string | null;
+  groomer_id: string | null;
 }
 
 const num = (v: number | string | null | undefined): number =>
@@ -66,6 +67,7 @@ export function rowToAppointment(r: AppointmentRow): Appointment {
     addons: Array.isArray(r.addons) ? r.addons : undefined,
     depositLinkToken: r.deposit_link_token ?? undefined,
     depositLinkExpiresAt: r.deposit_link_expires_at ?? undefined,
+    groomerId: r.groomer_id ?? undefined,
   };
 }
 
@@ -109,6 +111,7 @@ export async function insertAppointment(a: Appointment): Promise<Appointment> {
       coat_condition: a.coatCondition,
       duration_min: a.durationMin,
       deposit: a.deposit ?? null,
+      groomer_id: a.groomerId ?? null,
     })
     .select()
     .single();

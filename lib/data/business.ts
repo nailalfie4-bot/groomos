@@ -20,6 +20,7 @@ interface BusinessRow {
   plan?: string | null;
   subscription_status?: string | null;
   current_period_end?: string | null;
+  trial_ends_at?: string | null;
   stripe_connect_account_id?: string | null;
   stripe_connect_charges_enabled?: boolean | null;
 }
@@ -40,6 +41,7 @@ export function rowToBusiness(r: BusinessRow): Business {
     plan: r.plan ?? undefined,
     subscriptionStatus: r.subscription_status ?? undefined,
     currentPeriodEnd: r.current_period_end ?? undefined,
+    trialEndsAt: r.trial_ends_at ?? undefined,
     stripeConnectAccountId: r.stripe_connect_account_id ?? undefined,
     stripeConnectChargesEnabled: r.stripe_connect_charges_enabled ?? undefined,
   };

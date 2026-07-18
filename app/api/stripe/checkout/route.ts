@@ -57,31 +57,47 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   const stripe = getStripe();
-
-  // Reuse this business's Stripe customer, or create one and remember it.
-  let customerId = (biz as { stripe_customer_id?: string | null } | null)?.stripe_customer_id ?? undefined;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email ?? undefined,
-      name: (biz as { name?: string } | null)?.name ?? undefined,
-      metadata: { business_id: businessId },
-    });
-    customerId = customer.id;
-    await admin.from("businesses").update({ stripe_customer_id: customerId }).eq("id", businessId);
-  }
-
   const origin = request.headers.get("origin") ?? new URL(request.url).origin;
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    allow_promotion_codes: true,
-    client_reference_id: businessId,
-    metadata: { business_id: businessId, plan },
-    subscription_data: { metadata: { business_id: businessId, plan } },
-    success_url: `${origin}/billing?checkout=success`,
-    cancel_url: `${origin}/billing?checkout=cancelled`,
-  });
 
-  return NextResponse.json({ url: session.url });
+  // Every Stripe call is wrapped so a real error (bad/wrong-mode price id, a
+  // test-vs-live key mismatch, etc.) comes back as a specific message instead
+  // of an unhandled 500 that the client can only show as "couldn't reach
+  // billing". These are Stripe's own messages — safe to show the account owner.
+  try {
+    // Reuse this business's Stripe customer, or create one and remember it.
+    let customerId =
+      (biz as { stripe_customer_id?: string | null } | null)?.stripe_customer_id ?? undefined;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email ?? undefined,
+        name: (biz as { name?: string } | null)?.name ?? undefined,
+        metadata: { business_id: businessId },
+      });
+      customerId = customer.id;
+      await admin.from("businesses").update({ stripe_customer_id: customerId }).eq("id", businessId);
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      allow_promotion_codes: true,
+      client_reference_id: businessId,
+      metadata: { business_id: businessId, plan },
+      subscription_data: { metadata: { business_id: businessId, plan } },
+      success_url: `${origin}/billing?checkout=success`,
+      cancel_url: `${origin}/billing?checkout=cancelled`,
+    });
+
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    console.error("checkout session create failed:", err);
+    return NextResponse.json({ error: "stripe_error", ...stripeErrorDetail(err) }, { status: 502 });
+  }
+}
+
+/** Pull the human-readable reason out of a Stripe error (safe for the owner). */
+function stripeErrorDetail(err: unknown): { message?: string; code?: string; type?: string } {
+  const e = err as { message?: string; code?: string; type?: string; raw?: { message?: string } };
+  return { message: e?.raw?.message ?? e?.message, code: e?.code, type: e?.type };
 }

@@ -23,6 +23,8 @@ export interface Business {
   subscriptionStatus?: string;
   /** ISO datetime the current period ends / renews. */
   currentPeriodEnd?: string;
+  /** ISO datetime the 30-day free trial ends. After it, no active sub = gated. */
+  trialEndsAt?: string;
   /** The groomer's connected Stripe (Express) account id, once they connect. */
   stripeConnectAccountId?: string;
   /** True once the connected account can accept charges (card deposits go live). */
@@ -47,6 +49,15 @@ export interface Client {
   phone: string;
   /** ISO date string. */
   createdAt: string;
+}
+
+/** A staff member (groomer) an appointment can be assigned to. */
+export interface Groomer {
+  id: ID;
+  businessId: ID;
+  name: string;
+  /** Hex colour used to tint this groomer's bookings on the calendar. */
+  colour: string;
 }
 
 export type DogSize = "small" | "medium" | "large" | "giant";
@@ -182,6 +193,8 @@ export interface Appointment {
   coatCondition: CoatCondition;
   /** Total minutes reserved (service + matting/size extension), excl. buffer. */
   durationMin: number;
+  /** Which groomer this booking is assigned to (undefined = unassigned). */
+  groomerId?: ID;
   /** Optional before/after report attached on completion. */
   report?: GroomingReport;
   /** Mock reminder timestamp — when a "friendly reminder" was sent. */

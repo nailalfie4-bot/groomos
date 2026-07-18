@@ -37,6 +37,7 @@ import type {
   Client,
   CoatCondition,
   DogSize,
+  Groomer,
   GroomingHistoryEntry,
   GroomingReport,
   Pet,
@@ -73,6 +74,14 @@ import {
 } from "@/lib/data/appointments";
 import { fetchSettings, updateSettingsRow } from "@/lib/data/settings";
 import { fetchBusiness, updateBusinessRow } from "@/lib/data/business";
+import {
+  fetchGroomers,
+  insertGroomer,
+  updateGroomerRow,
+  deleteGroomerRow,
+  setAppointmentGroomerRow,
+  type NewGroomerInput,
+} from "@/lib/data/groomers";
 
 /** Which collections a rollback should re-pull from the database. */
 type Collection =
@@ -81,10 +90,11 @@ type Collection =
   | "services"
   | "appointments"
   | "settings"
-  | "business";
+  | "business"
+  | "groomers";
 
-// Bumped when seed/shape changes (v7: auth/session moved to real Supabase).
-const STORAGE_KEY = "groomos.demo.v7";
+// Bumped when seed/shape changes (v8: per-pet rebook weeks + groomers).
+const STORAGE_KEY = "groomos.demo.v8";
 
 /** Input shapes for create operations (server-assigned fields omitted). */
 export interface NewClientInput {
@@ -125,6 +135,8 @@ export interface NewAppointmentInput {
   size?: DogSize;
   /** Deposit taken to secure the booking (GBP). */
   deposit?: number;
+  /** Which groomer this booking is assigned to. */
+  groomerId?: string;
 }
 
 interface StoreState {
@@ -134,6 +146,7 @@ interface StoreState {
   services: Service[];
   appointments: Appointment[];
   settings: Settings;
+  groomers: Groomer[];
 }
 
 interface StoreContextValue extends StoreState {
@@ -147,6 +160,7 @@ interface StoreContextValue extends StoreState {
   getClient: (id: string) => Client | undefined;
   getPet: (id: string) => Pet | undefined;
   getService: (id: string) => Service | undefined;
+  getGroomer: (id: string) => Groomer | undefined;
   getPetsForClient: (clientId: string) => Pet[];
   getHistoryForPet: (petId: string) => GroomingHistoryEntry[];
   /** Most recent completed groom date for a pet, or undefined. */
@@ -196,6 +210,12 @@ interface StoreContextValue extends StoreState {
   updateSettings: (patch: Partial<Settings>) => void;
   /** Update business details (name, hours, contact) from Settings. */
   updateBusiness: (patch: Partial<Business>) => void;
+  // Groomers (staff assignment)
+  addGroomer: (input: NewGroomerInput) => Groomer;
+  updateGroomer: (id: string, patch: Partial<NewGroomerInput>) => void;
+  deleteGroomer: (id: string) => void;
+  /** Assign (or clear, with null) which groomer an appointment belongs to. */
+  assignAppointmentGroomer: (appointmentId: string, groomerId: string | null) => void;
 }
 
 /** A pet that's overdue for a groom, with retention context. */
@@ -271,8 +291,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       fetchAppointments(businessId),
       fetchSettings(businessId),
       fetchBusiness(businessId),
+      fetchGroomers(businessId),
     ])
-      .then(([clients, pets, services, appointments, settings, business]) => {
+      .then(([clients, pets, services, appointments, settings, business, groomers]) => {
         if (!active) return;
         setState((s) => ({
           clients,
@@ -281,6 +302,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           appointments,
           settings,
           business: business ?? s.business,
+          groomers,
         }));
         setHydrated(true);
       })
@@ -318,7 +340,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           else if (k === "business") {
             const b = await fetchBusiness(businessId);
             if (b) patch.business = b;
-          }
+          } else if (k === "groomers") patch.groomers = await fetchGroomers(businessId);
         }),
       );
       setState((s) => ({ ...s, ...patch }));
@@ -374,6 +396,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getService = useCallback(
     (id: string) => state.services.find((s) => s.id === id),
     [state.services],
+  );
+  const getGroomer = useCallback(
+    (id: string) => state.groomers.find((g) => g.id === id),
+    [state.groomers],
   );
   const getPetsForClient = useCallback(
     (clientId: string) => state.pets.filter((p) => p.clientId === clientId),
@@ -542,6 +568,62 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [live, persist],
   );
 
+  const addGroomer = useCallback(
+    (input: NewGroomerInput): Groomer => {
+      const groomer: Groomer = { id: newId("grm"), businessId: businessId ?? "biz_1", ...input };
+      let sortOrder = 0;
+      setState((s) => {
+        sortOrder = s.groomers.length;
+        return { ...s, groomers: [...s.groomers, groomer] };
+      });
+      if (live && businessId) {
+        persist(() => insertGroomer(businessId, input, groomer.id, sortOrder), ["groomers"]);
+      }
+      return groomer;
+    },
+    [live, businessId, newId, persist],
+  );
+
+  const updateGroomer = useCallback(
+    (id: string, patch: Partial<NewGroomerInput>) => {
+      setState((s) => ({
+        ...s,
+        groomers: s.groomers.map((g) => (g.id === id ? { ...g, ...patch } : g)),
+      }));
+      if (live) persist(() => updateGroomerRow(id, patch), ["groomers"]);
+    },
+    [live, persist],
+  );
+
+  const deleteGroomer = useCallback(
+    (id: string) => {
+      // Unassign this groomer from any local appointments too (DB does it via
+      // ON DELETE SET NULL).
+      setState((s) => ({
+        ...s,
+        groomers: s.groomers.filter((g) => g.id !== id),
+        appointments: s.appointments.map((a) =>
+          a.groomerId === id ? { ...a, groomerId: undefined } : a,
+        ),
+      }));
+      if (live) persist(() => deleteGroomerRow(id), ["groomers", "appointments"]);
+    },
+    [live, persist],
+  );
+
+  const assignAppointmentGroomer = useCallback(
+    (appointmentId: string, groomerId: string | null) => {
+      setState((s) => ({
+        ...s,
+        appointments: s.appointments.map((a) =>
+          a.id === appointmentId ? { ...a, groomerId: groomerId ?? undefined } : a,
+        ),
+      }));
+      if (live) persist(() => setAppointmentGroomerRow(appointmentId, groomerId), ["appointments"]);
+    },
+    [live, persist],
+  );
+
   const deleteService = useCallback(
     (id: string) => {
       setState((s) => ({ ...s, services: s.services.filter((sv) => sv.id !== id) }));
@@ -574,6 +656,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         coatCondition: coat,
         durationMin: quote?.totalDurationMin ?? svc?.durationMin ?? 60,
         deposit: input.deposit,
+        groomerId: input.groomerId,
       };
       setState((s) => ({
         ...s,
@@ -697,6 +780,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getClient,
       getPet,
       getService,
+      getGroomer,
       getPetsForClient,
       getHistoryForPet,
       getLastGroomedAt,
@@ -709,6 +793,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addService,
       updateService,
       deleteService,
+      addGroomer,
+      updateGroomer,
+      deleteGroomer,
+      assignAppointmentGroomer,
       createAppointment,
       setAppointmentStatus,
       updateAppointmentNotes,
@@ -726,6 +814,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getClient,
       getPet,
       getService,
+      getGroomer,
       getPetsForClient,
       getHistoryForPet,
       getLastGroomedAt,
@@ -738,9 +827,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addService,
       updateService,
       deleteService,
+      addGroomer,
+      updateGroomer,
+      deleteGroomer,
+      assignAppointmentGroomer,
       createAppointment,
       setAppointmentStatus,
       updateAppointmentNotes,
+      patchAppointmentDeposit,
       rescheduleAppointment,
       attachReport,
       markReminderSent,

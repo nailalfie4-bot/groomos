@@ -83,12 +83,15 @@ export default function CalendarPage() {
     appointments,
     business,
     settings,
+    groomers,
     getPet,
+    getGroomer,
     services,
     rescheduleAppointment,
   } = useStore();
   const [view, setView] = useState<View>("day");
   const [cursor, setCursor] = useState<Date>(new Date());
+  const [groomerFilter, setGroomerFilter] = useState<string>("all"); // "all" | groomer id
   const [booking, setBooking] = useState<string | null>(null);
   const [openAppt, setOpenAppt] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -100,12 +103,15 @@ export default function CalendarPage() {
     return out;
   }, [business.openHour, business.closeHour]);
 
+  const matchesGroomer = (a: Appointment) =>
+    groomerFilter === "all" || a.groomerId === groomerFilter;
+
   const dayAppts = useMemo(
     () =>
       appointments
-        .filter((a) => isSameDay(a.start, cursor) && a.status !== "cancelled")
+        .filter((a) => isSameDay(a.start, cursor) && a.status !== "cancelled" && matchesGroomer(a))
         .sort((a, b) => (a.start < b.start ? -1 : 1)),
-    [appointments, cursor],
+    [appointments, cursor, groomerFilter], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const cols = useMemo(() => packColumns(dayAppts), [dayAppts]);
 
@@ -212,6 +218,22 @@ export default function CalendarPage() {
         </div>
       </div>
 
+      {/* Per-groomer filter — tap a name to see just their day */}
+      {groomers.length > 0 && (
+        <div className="-mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+          <GroomerTab active={groomerFilter === "all"} onClick={() => setGroomerFilter("all")} label="All" />
+          {groomers.map((g) => (
+            <GroomerTab
+              key={g.id}
+              active={groomerFilter === g.id}
+              onClick={() => setGroomerFilter(g.id)}
+              label={g.name}
+              colour={g.colour}
+            />
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <BoardFrame>
           <div className="space-y-3 p-4">
@@ -305,6 +327,13 @@ export default function CalendarPage() {
                   >
                     {/* magnet edge */}
                     <span className={cn("absolute inset-y-1.5 left-1 w-1 rounded-full", m.edge)} />
+                    {groomers.length > 0 && a.groomerId && (
+                      <span
+                        className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-1 ring-surface"
+                        style={{ backgroundColor: getGroomer(a.groomerId)?.colour ?? "#C9756B" }}
+                        title={getGroomer(a.groomerId)?.name}
+                      />
+                    )}
                     <div className="flex h-full flex-col justify-center">
                       {compact ? (
                         // Short groom (≤45 min): one tidy line so nothing clips.
@@ -349,7 +378,7 @@ export default function CalendarPage() {
           <div className="grid grid-cols-2 gap-2 p-2.5 sm:grid-cols-4 lg:grid-cols-7">
             {weekDays.map((day) => {
               const list = appointments
-                .filter((a) => isSameDay(a.start, day) && a.status !== "cancelled")
+                .filter((a) => isSameDay(a.start, day) && a.status !== "cancelled" && matchesGroomer(a))
                 .sort((a, b) => (a.start < b.start ? -1 : 1));
               const today = isSameDay(day, new Date());
               return (
@@ -431,6 +460,36 @@ export default function CalendarPage() {
       />
       <AppointmentSheet appointmentId={openAppt} onClose={() => setOpenAppt(null)} />
     </>
+  );
+}
+
+/** A pill in the per-groomer filter row (with the groomer's colour dot). */
+function GroomerTab({
+  active,
+  onClick,
+  label,
+  colour,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  colour?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+        active
+          ? "border-accent bg-accent-50 text-accent-700"
+          : "border-strong bg-surface text-ink-muted hover:text-ink",
+      )}
+    >
+      {colour && <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colour }} />}
+      {label}
+    </button>
   );
 }
 

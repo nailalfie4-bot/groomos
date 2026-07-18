@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { PageHeader } from "@/components/page-header";
@@ -38,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useStore } from "@/lib/mock/store";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { resizeImageToSquare } from "@/lib/image";
+import { canUseGroomers } from "@/lib/trial";
 import { computeQuote } from "@/lib/pricing";
 import { formatGBP } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -137,6 +139,17 @@ function SettingsForm({
                 <Input label="Postcode" value={b.postcode} onChange={(e) => setBiz("postcode", e.target.value)} />
               </div>
             </div>
+          </Section>
+        </SettingsGroup>
+
+        {/* ── Your team ──────────────────────────────────────────────────── */}
+        <SettingsGroup title="Your team">
+          <Section
+            icon={<Users className="h-[18px] w-[18px]" />}
+            title="Groomers"
+            description="Add the groomers who work with you, then assign each booking to one. Filter the calendar by groomer to see just their day."
+          >
+            <GroomersSection />
           </Section>
         </SettingsGroup>
 
@@ -555,6 +568,118 @@ function ScaleEditor({
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Preset groomer colours — calm, distinct, on-brand. */
+const GROOMER_COLOURS = [
+  "#C9756B", "#6B8FC9", "#7CA982", "#C99B6B",
+  "#9B6BC9", "#C96B9B", "#5FA8A0", "#B0894F",
+];
+
+/** A colour dot that cycles to the next preset on tap (no popover needed). */
+function CycleColourDot({ colour, onChange }: { colour: string; onChange: (c: string) => void }) {
+  return (
+    <button
+      type="button"
+      title="Tap to change colour"
+      aria-label="Groomer colour"
+      onClick={() => {
+        const i = GROOMER_COLOURS.indexOf(colour);
+        onChange(GROOMER_COLOURS[(i + 1) % GROOMER_COLOURS.length]);
+      }}
+      className="h-6 w-6 shrink-0 rounded-full border border-black/10 transition-transform active:scale-90"
+      style={{ backgroundColor: colour }}
+    />
+  );
+}
+
+/** Manage the business's groomers (Pro/Team). Assigns colours for the calendar. */
+function GroomersSection() {
+  const { groomers, business, addGroomer, updateGroomer, deleteGroomer } = useStore();
+  const { configured } = useAuth();
+  const allowed = canUseGroomers({
+    subscriptionStatus: business.subscriptionStatus,
+    plan: business.plan,
+    trialEndsAt: business.trialEndsAt,
+    configured,
+  });
+  const [name, setName] = useState("");
+  const [colour, setColour] = useState(GROOMER_COLOURS[0]);
+
+  if (!allowed) {
+    return (
+      <div className="flex flex-col items-start gap-3 rounded-xl border border-DEFAULT bg-surface-sunken p-4">
+        <p className="text-sm text-ink-muted">
+          Adding groomers and assigning bookings is a{" "}
+          <span className="font-medium text-ink">Pro</span> feature — upgrade to build your team.
+        </p>
+        <Link
+          href="/billing"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-ink-inverse transition-colors hover:bg-accent-600"
+        >
+          See plans <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+    );
+  }
+
+  function add() {
+    const n = name.trim();
+    if (!n) return;
+    addGroomer({ name: n, colour });
+    setName("");
+    setColour(GROOMER_COLOURS[(GROOMER_COLOURS.indexOf(colour) + 1) % GROOMER_COLOURS.length]);
+    toast.success(`${n} added`);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {groomers.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {groomers.map((g) => (
+            <div
+              key={g.id}
+              className="flex items-center gap-2.5 rounded-xl border border-DEFAULT bg-surface-sunken p-2.5 pl-3"
+            >
+              <CycleColourDot colour={g.colour} onChange={(c) => updateGroomer(g.id, { colour: c })} />
+              <input
+                value={g.name}
+                onChange={(e) => updateGroomer(g.id, { name: e.target.value })}
+                placeholder="Groomer's name"
+                className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  deleteGroomer(g.id);
+                  toast.success(`${g.name || "Groomer"} removed`);
+                }}
+                aria-label="Remove groomer"
+                className="shrink-0 rounded-lg p-1.5 text-ink-subtle transition-colors hover:bg-danger-soft hover:text-danger"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add a groomer */}
+      <div className="flex items-center gap-2.5 rounded-xl border border-dashed border-strong p-2.5 pl-3">
+        <CycleColourDot colour={colour} onChange={setColour} />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+          placeholder="Add a groomer…"
+          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
+        />
+        <Button size="sm" variant="secondary" onClick={add} disabled={!name.trim()}>
+          <Plus className="h-4 w-4" /> Add
+        </Button>
       </div>
     </div>
   );
