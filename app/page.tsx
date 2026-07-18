@@ -19,6 +19,7 @@ import {
   Camera,
   Check,
   ChevronDown,
+  Gauge,
   Lock,
   MapPin,
   Moon,
@@ -58,6 +59,11 @@ const FEATURES: Feature[] = [
     icon: Bell,
     title: "Automatic reminders that cut no-shows",
     body: "A friendly nudge before every appointment, so far fewer forget. SMS coming soon.",
+  },
+  {
+    icon: Gauge,
+    title: "Matting meter & temperament scales",
+    body: "Clients declare coat and temperament at booking — you set what you take, and every booking keeps the record.",
   },
   {
     icon: PawPrint,
@@ -133,6 +139,7 @@ const PLANS: Plan[] = [
       "Smart colour-coded calendar",
       "24/7 online booking page",
       "Deposits & no-show protection",
+      "Coat & temperament scales",
       "Unlimited client & pet records",
       "Email reminders",
     ],
@@ -431,6 +438,123 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
+/** A simple, original flat dog-face avatar. Pure inline SVG, no animation. */
+function DogFace({
+  bg,
+  fur,
+  muzzle,
+  pointy,
+}: {
+  bg: string;
+  fur: string;
+  muzzle: string;
+  pointy?: boolean;
+}) {
+  return (
+    <svg viewBox="0 0 44 44" className="h-full w-full" aria-hidden>
+      <circle cx="22" cy="22" r="22" fill={bg} />
+      {pointy ? (
+        <>
+          <path d="M12 9 L9.5 23 L19 17 Z" fill={fur} />
+          <path d="M32 9 L34.5 23 L25 17 Z" fill={fur} />
+        </>
+      ) : (
+        <>
+          <ellipse cx="11.5" cy="19" rx="5.5" ry="9" fill={fur} />
+          <ellipse cx="32.5" cy="19" rx="5.5" ry="9" fill={fur} />
+        </>
+      )}
+      <circle cx="22" cy="24" r="12" fill={fur} />
+      <ellipse cx="22" cy="28.5" rx="7" ry="6" fill={muzzle} />
+      <circle cx="17.6" cy="22" r="1.7" fill="#3f2d28" />
+      <circle cx="26.4" cy="22" r="1.7" fill="#3f2d28" />
+      <ellipse cx="22" cy="27.5" rx="2.3" ry="1.7" fill="#3f2d28" />
+    </svg>
+  );
+}
+
+/** A warm row of dog avatars near the hero — cosmetic warmth, no fake stats.
+ *  Fixed-size inline SVGs, so nothing loads late and nothing shifts. */
+function DogAvatars() {
+  const dogs = [
+    { bg: "#FBEEE8", fur: "#E8C4A0", muzzle: "#F5E4D0" },
+    { bg: "#F7E3DF", fur: "#C9756B", muzzle: "#E9B7AE", pointy: true },
+    { bg: "#F0E6DD", fur: "#A9764F", muzzle: "#D8B48C" },
+    { bg: "#EDE9E6", fur: "#B7ACA4", muzzle: "#D8D0CA", pointy: true },
+    { bg: "#EFE4DC", fur: "#7C5744", muzzle: "#B0876A" },
+    { bg: "#FBF0E6", fur: "#EAB98C", muzzle: "#F6E2CC" },
+  ];
+  return (
+    <div className="mt-8 flex items-center gap-3">
+      <div className="flex -space-x-2.5">
+        {dogs.map((d, i) => (
+          <span
+            key={i}
+            className="inline-block h-9 w-9 overflow-hidden rounded-full ring-2 ring-surface shadow-sm"
+          >
+            <DogFace {...d} />
+          </span>
+        ))}
+      </div>
+      <span className="max-w-[11rem] text-xs leading-snug text-ink-muted">
+        Built for groomers and the dogs they love.
+      </span>
+    </div>
+  );
+}
+
+/** Static preview of the coat/matting declaration scale (no animation, fixed
+ *  height so it can't shift layout). Used in the matting-meter spotlight. */
+function MattingMeterVisual() {
+  const levels = [
+    { label: "Smooth & brushed", accepted: true, selected: false },
+    { label: "A few tangles", accepted: true, selected: false },
+    { label: "Matted in places", accepted: true, selected: true },
+    { label: "Heavily matted / pelted", accepted: false, selected: false },
+  ];
+  return (
+    <div className="mx-auto w-full max-w-sm rounded-2xl border border-DEFAULT bg-surface p-5 shadow-lg ring-1 ring-border/60">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-subtle">
+        Declared at booking
+      </p>
+      <p className="mt-1.5 text-sm font-medium text-ink">How is your dog&apos;s coat right now?</p>
+      <div className="mt-4 flex flex-col gap-2">
+        {levels.map((l) => (
+          <div
+            key={l.label}
+            className={cn(
+              "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm",
+              l.selected
+                ? "border-accent bg-accent-50 font-medium text-ink"
+                : !l.accepted
+                  ? "border-dashed border-strong bg-surface text-ink-subtle"
+                  : "border-DEFAULT bg-surface text-ink-muted",
+            )}
+          >
+            <span
+              className={cn(
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
+                l.selected ? "border-accent bg-accent text-ink-inverse" : "border-strong",
+              )}
+            >
+              {l.selected && <Check className="h-2.5 w-2.5" />}
+            </span>
+            <span className="flex-1">{l.label}</span>
+            {!l.accepted && (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">
+                Contact us
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 rounded-lg bg-surface-sunken p-2.5 text-xs text-ink-muted">
+        Stored with the booking — so the coat that turns up matches what was declared.
+      </p>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const router = useRouter();
   const { user, loading, configured } = useAuth();
@@ -553,6 +677,7 @@ export default function LandingPage() {
                   </Button>
                 </div>
                 <p className="mt-5 max-w-md text-xs text-ink-muted">{HERO_UNDER_CTA}</p>
+                <DogAvatars />
               </motion.div>
 
               {/* Client-booking widget — a single static frame (a picture of
@@ -653,7 +778,7 @@ export default function LandingPage() {
             <Reveal className="mb-12 max-w-2xl sm:mb-16">
               <Eyebrow>Everything, nothing more</Eyebrow>
               <h2 className="mt-3 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
-                Built for one-person grooming businesses. Not salons with a front desk.
+                Built by pet professionals, for pet professionals — scaled to fit you.
               </h2>
             </Reveal>
             <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
@@ -740,6 +865,50 @@ export default function LandingPage() {
                   <DepositVisual />
                 </Reveal>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Matting meter & temperament — the "doodle tax" section */}
+        <section className="border-t border-DEFAULT bg-canvas">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+            <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+              <Reveal>
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-700">
+                  <Gauge className="h-3.5 w-3.5" /> Matting meter &amp; temperament
+                </span>
+                <h2 className="mt-4 font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-ink text-balance sm:text-[40px]">
+                  Stop arguing about the &ldquo;doodle tax&rdquo; at the counter
+                </h2>
+                <p className="mt-4 text-base leading-relaxed text-ink-muted sm:text-lg">
+                  Clients honestly declare their dog&apos;s coat and temperament on a simple visual
+                  scale when they book — so the pelted doodle and the dog that can&apos;t be safely
+                  handled stop being a doorstep surprise.
+                </p>
+                <ul className="mt-6 flex flex-col gap-3">
+                  {[
+                    "Clients self-assess on a clear, plain-English scale — no guesswork.",
+                    "You choose which levels you take online; the rest are asked to contact you first.",
+                    "Every booking carries a proof record of exactly what was declared.",
+                  ].map((line) => (
+                    <li key={line} className="flex items-start gap-2.5 text-sm text-ink sm:text-base">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-100 text-accent-700">
+                        <Check className="h-3 w-3" />
+                      </span>
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-7">
+                  <Button size="lg" onClick={handleCta} className="w-full sm:w-auto">
+                    {CTA_LABEL}
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Reveal>
+              <Reveal delay={0.1}>
+                <MattingMeterVisual />
+              </Reveal>
             </div>
           </div>
         </section>
@@ -874,6 +1043,9 @@ export default function LandingPage() {
             <p className="mt-8 text-center text-xs text-ink-subtle">
               30-day free trial on every plan · cancel any time.
             </p>
+            <p className="mt-2 text-center text-xs text-ink-subtle">
+              Email reminders are live and automatic today — SMS is next on the roadmap.
+            </p>
           </div>
         </section>
 
@@ -968,7 +1140,12 @@ export default function LandingPage() {
                 Contact
               </a>
             </div>
-            <p className="text-xs text-ink-subtle">© {new Date().getFullYear()} GroomOS</p>
+            <div className="flex flex-col items-center gap-1.5 sm:items-end">
+              <span className="inline-flex items-center gap-1 text-xs text-ink-subtle">
+                <Lock className="h-3 w-3" /> Payments powered by Stripe
+              </span>
+              <p className="text-xs text-ink-subtle">© {new Date().getFullYear()} GroomOS</p>
+            </div>
           </div>
         </footer>
         </div>

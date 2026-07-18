@@ -12,6 +12,7 @@ import {
   Copy,
   CreditCard,
   FileText,
+  Gauge,
   Heart,
   Link2,
   Loader2,
@@ -34,7 +35,7 @@ import { useStore } from "@/lib/mock/store";
 import { computeQuote } from "@/lib/pricing";
 import { formatGBP } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Business, Declaration, Settings } from "@/lib/types";
+import type { Business, Declaration, DeclarationScale, Settings } from "@/lib/types";
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00–21:00
 const hhmm = (h: number) => `${String(h).padStart(2, "0")}:00`;
@@ -177,6 +178,18 @@ function SettingsForm({
             </p>
           </div>
           <ConnectPayouts enabled={s.depositEnabled} amount={s.depositAmount} />
+        </Section>
+
+        {/* Coat & temperament scales */}
+        <Section
+          icon={<Gauge className="h-[18px] w-[18px]" />}
+          title="Coat & temperament scales"
+          description="Clients self-declare their dog's coat and temperament on a visual scale at booking. Turn off any level you don't take online — clients who pick it are asked to contact you first."
+        >
+          <div className="flex flex-col gap-4">
+            <ScaleEditor heading="Coat / matting" value={s.mattingScale} onChange={(v) => setSet("mattingScale", v)} />
+            <ScaleEditor heading="Temperament" value={s.temperamentScale} onChange={(v) => setSet("temperamentScale", v)} />
+          </div>
         </Section>
 
         {/* Client declarations */}
@@ -480,6 +493,54 @@ function DeclarationsEditor({
       >
         <Plus className="h-4 w-4" /> Add declaration
       </button>
+    </div>
+  );
+}
+
+/** Editor for one declaration scale: on/off, the client-facing question, and a
+ *  per-level "accepted" toggle. Level wording is fixed; acceptance is the lever. */
+function ScaleEditor({
+  heading,
+  value,
+  onChange,
+}: {
+  heading: string;
+  value: DeclarationScale;
+  onChange: (s: DeclarationScale) => void;
+}) {
+  const setLevel = (id: string, accepted: boolean) =>
+    onChange({ ...value, levels: value.levels.map((l) => (l.id === id ? { ...l, accepted } : l)) });
+  return (
+    <div className="rounded-xl border border-DEFAULT bg-surface-sunken p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-ink">{heading}</span>
+        <Toggle
+          checked={value.enabled}
+          onChange={(v) => onChange({ ...value, enabled: v })}
+          label={`Show the ${heading} scale`}
+        />
+      </div>
+      <div className={cn("flex flex-col gap-3 transition-opacity", !value.enabled && "pointer-events-none opacity-50")}>
+        <Input
+          label="Question shown to clients"
+          value={value.title}
+          onChange={(e) => onChange({ ...value, title: e.target.value })}
+        />
+        <div className="flex flex-col gap-2">
+          {value.levels.map((l) => (
+            <div key={l.id} className="flex items-center gap-3 rounded-lg border border-DEFAULT bg-surface p-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-ink">{l.label}</p>
+                <p className="text-xs text-ink-muted">{l.description}</p>
+              </div>
+              <div className="flex shrink-0 flex-col items-center gap-0.5">
+                <Toggle checked={l.accepted} onChange={(v) => setLevel(l.id, v)} label={`Accept ${l.label}`} />
+                <span className="text-[10px] font-medium text-ink-subtle">{l.accepted ? "Accepted" : "Contact me"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

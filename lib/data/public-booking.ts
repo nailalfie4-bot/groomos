@@ -168,6 +168,10 @@ export interface PublicBookingInput {
   declarations?: string[];
   /** Client's typed full name as their T&Cs e-signature (when terms exist). */
   termsSignedName?: string;
+  /** Selected matting-scale level id (when the matting scale is enabled). */
+  mattingLevelId?: string;
+  /** Selected temperament-scale level id (when the temperament scale is enabled). */
+  temperamentLevelId?: string;
 }
 
 export type CreateBookingResult =
@@ -257,6 +261,23 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   }
   const declarationsSnapshot = enabledDeclarations.length ? enabledDeclarations.map((d) => d.label) : null;
   const acceptedAt = termsRequired || enabledDeclarations.length ? new Date().toISOString() : null;
+
+  // ── Declaration scales (matting + temperament): if a scale is enabled the
+  //    client must have picked a level the groomer accepts. The booking page
+  //    blocks not-accepted levels; this backstops it and snapshots the label.
+  let mattingLevelLabel: string | null = null;
+  let temperamentLevelLabel: string | null = null;
+  for (const [scale, levelId, set] of [
+    [settings.mattingScale, input.mattingLevelId, (v: string) => (mattingLevelLabel = v)],
+    [settings.temperamentScale, input.temperamentLevelId, (v: string) => (temperamentLevelLabel = v)],
+  ] as const) {
+    if (!scale?.enabled) continue;
+    const level = scale.levels.find((l) => l.id === levelId);
+    if (!level || !level.accepted) {
+      return { ok: false, error: "invalid_input", message: "Please complete the required checks before booking." };
+    }
+    set(level.label);
+  }
 
   // ── Deposit: decide charge vs recorded, and (charge mode) verify the card
   //    was actually taken BEFORE we create any rows. Failed/absent payment in
@@ -385,6 +406,8 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       terms_text: termsRequired || null,
       terms_signed_name: termsRequired ? signedName : null,
       terms_accepted_at: acceptedAt,
+      matting_level: mattingLevelLabel,
+      temperament_level: temperamentLevelLabel,
     })
     .select("id")
     .single();

@@ -26,6 +26,8 @@ export interface AppointmentRow {
   terms_text: string | null;
   terms_signed_name: string | null;
   terms_accepted_at: string | null;
+  matting_level: string | null;
+  temperament_level: string | null;
 }
 
 const num = (v: number | string | null | undefined): number =>
@@ -52,6 +54,8 @@ export function rowToAppointment(r: AppointmentRow): Appointment {
     termsText: r.terms_text ?? undefined,
     termsSignedName: r.terms_signed_name ?? undefined,
     termsAcceptedAt: r.terms_accepted_at ?? undefined,
+    mattingLevel: r.matting_level ?? undefined,
+    temperamentLevel: r.temperament_level ?? undefined,
   };
 }
 

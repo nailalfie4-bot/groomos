@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatGBP } from "@/lib/format";
 import { computeQuote, SIZE_LABEL } from "@/lib/pricing";
-import type { Business, CoatCondition, DogSize, Service, Settings } from "@/lib/types";
+import type { Business, CoatCondition, DeclarationScale, DogSize, Service, Settings } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -167,6 +167,10 @@ export type PublicBookingSubmit = {
   declarations?: string[];
   /** Client's typed full name as their T&Cs e-signature (when terms exist). */
   termsSignedName?: string;
+  /** Selected matting-scale level id (when the matting scale is enabled). */
+  mattingLevelId?: string;
+  /** Selected temperament-scale level id (when the temperament scale is enabled). */
+  temperamentLevelId?: string;
 };
 export type PublicBookingResult =
   | { ok: true; depositDue: number; depositPaid?: boolean }
@@ -215,11 +219,13 @@ export function PublicBooking({
   const [refresh, setRefresh] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<Done | null>(null);
-  // Declarations + T&Cs ("checks" step)
+  // Declarations + T&Cs + scales ("checks" step)
   const [agreed, setAgreed] = useState<Record<string, boolean>>({});
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [termsExpanded, setTermsExpanded] = useState(false);
   const [signName, setSignName] = useState("");
+  const [mattingLevelId, setMattingLevelId] = useState("");
+  const [temperamentLevelId, setTemperamentLevelId] = useState("");
 
   const service = activeServices.find((s) => s.id === serviceId);
   // Coat is assessed by the groomer in person; the customer estimate assumes a
@@ -242,7 +248,14 @@ export function PublicBooking({
     [settings.declarations],
   );
   const termsText = (settings.termsText ?? "").trim();
-  const hasChecks = enabledDeclarations.length > 0 || termsText.length > 0;
+  const mattingScale = settings.mattingScale?.enabled ? settings.mattingScale : undefined;
+  const temperamentScale = settings.temperamentScale?.enabled ? settings.temperamentScale : undefined;
+  const mattingSel = mattingScale?.levels.find((l) => l.id === mattingLevelId);
+  const temperamentSel = temperamentScale?.levels.find((l) => l.id === temperamentLevelId);
+  const mattingOk = !mattingScale || (!!mattingSel && mattingSel.accepted);
+  const temperamentOk = !temperamentScale || (!!temperamentSel && temperamentSel.accepted);
+  const hasChecks =
+    enabledDeclarations.length > 0 || termsText.length > 0 || !!mattingScale || !!temperamentScale;
   const activeSteps = useMemo<Exclude<Step, "done">[]>(
     () => ["service", "when", "details", ...(hasChecks ? (["checks"] as const) : []), "deposit"],
     [hasChecks],
@@ -250,9 +263,6 @@ export function PublicBooking({
   const totalSteps = activeSteps.length;
   const stepNumber = (s: Exclude<Step, "done">) => activeSteps.indexOf(s) + 1;
   const allDeclarationsChecked = enabledDeclarations.every((d) => agreed[d.id]);
-  const checksComplete =
-    allDeclarationsChecked &&
-    (termsText.length === 0 || (termsAgreed && signName.trim().length > 0));
 
   // Resolve the two side-effects: injected callbacks (demo) or the real public
   // API routes (default). Memoised so the availability effect stays stable.
@@ -354,7 +364,11 @@ export function PublicBooking({
   // and (if the groomer has T&Cs) the terms agreed + signed.
   function submitChecks() {
     const next: Record<string, string> = {};
-    if (!allDeclarationsChecked) next.checks = "Please tick each confirmation to continue.";
+    if (mattingScale && !mattingSel) next.checks = "Please tell us how your dog's coat is.";
+    else if (temperamentScale && !temperamentSel) next.checks = "Please tell us how your dog finds grooming.";
+    else if (!mattingOk || !temperamentOk)
+      next.checks = "That option can't be booked online — please contact the groomer directly (above).";
+    else if (!allDeclarationsChecked) next.checks = "Please tick each confirmation to continue.";
     else if (termsText && !termsAgreed) next.checks = "Please agree to the terms to continue.";
     else if (termsText && !signName.trim()) next.sign = "Type your name to sign";
     setErrors(next);
@@ -383,6 +397,8 @@ export function PublicBooking({
         paymentIntentId,
         declarations: enabledDeclarations.map((d) => d.label),
         termsSignedName: termsText ? signName.trim() : undefined,
+        mattingLevelId: mattingScale ? mattingLevelId : undefined,
+        temperamentLevelId: temperamentScale ? temperamentLevelId : undefined,
       });
       if (!result.ok) {
         if (result.error === "slot_taken") {
@@ -422,6 +438,8 @@ export function PublicBooking({
     setTermsAgreed(false);
     setTermsExpanded(false);
     setSignName("");
+    setMattingLevelId("");
+    setTemperamentLevelId("");
     setRefresh((n) => n + 1);
     setStep("service");
   }
@@ -662,6 +680,22 @@ export function PublicBooking({
 
               {step === "checks" && (
                 <div className="flex flex-col gap-5">
+                  {mattingScale && (
+                    <ScalePicker
+                      scale={mattingScale}
+                      businessName={business.name}
+                      selectedId={mattingLevelId}
+                      onSelect={setMattingLevelId}
+                    />
+                  )}
+                  {temperamentScale && (
+                    <ScalePicker
+                      scale={temperamentScale}
+                      businessName={business.name}
+                      selectedId={temperamentLevelId}
+                      onSelect={setTemperamentLevelId}
+                    />
+                  )}
                   {enabledDeclarations.length > 0 && (
                     <div className="flex flex-col gap-2.5">
                       <p className="text-sm text-ink-muted">
@@ -829,6 +863,10 @@ export function PublicBooking({
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs text-ink-subtle">
           <span>Powered by GroomOS</span>
           <span aria-hidden>·</span>
+          <span className="inline-flex items-center gap-1">
+            <Lock className="h-3 w-3" /> Payments powered by Stripe
+          </span>
+          <span aria-hidden>·</span>
           <a href="/privacy" className="transition-colors hover:text-ink">Privacy</a>
           <a href="/terms" className="transition-colors hover:text-ink">Terms</a>
         </div>
@@ -884,6 +922,77 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-baseline justify-between gap-4 py-1">
       <span className="shrink-0 text-sm text-ink-muted">{label}</span>
       <span className="text-right text-sm font-medium text-ink">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Tap-to-select segmented declaration scale (matting / temperament). Plain
+ * buttons, one per level — no drag, no slider, so it can't jank. A level the
+ * groomer doesn't accept turns red and shows a "contact us" note; the parent's
+ * gate stops the booking from completing.
+ */
+function ScalePicker({
+  scale,
+  businessName,
+  selectedId,
+  onSelect,
+}: {
+  scale: DeclarationScale;
+  businessName: string;
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const selected = scale.levels.find((l) => l.id === selectedId);
+  const blocked = selected && !selected.accepted;
+  return (
+    <div className="flex flex-col gap-2.5">
+      <p className="text-sm font-medium text-ink">{scale.title}</p>
+      <div className="flex flex-col gap-2">
+        {scale.levels.map((l) => {
+          const on = l.id === selectedId;
+          const bad = on && !l.accepted;
+          return (
+            <button
+              key={l.id}
+              type="button"
+              onClick={() => onSelect(l.id)}
+              aria-pressed={on}
+              className={cn(
+                "flex w-full items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors",
+                bad
+                  ? "border-danger bg-danger-soft"
+                  : on
+                    ? "border-accent bg-accent-50"
+                    : "border-strong bg-surface hover:border-accent",
+              )}
+            >
+              <span
+                className={cn(
+                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  bad
+                    ? "border-danger bg-danger text-ink-inverse"
+                    : on
+                      ? "border-accent bg-accent text-ink-inverse"
+                      : "border-strong bg-surface",
+                )}
+              >
+                {on && <Check className="h-3 w-3" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-ink">{l.label}</span>
+                <span className="mt-0.5 block text-xs leading-snug text-ink-muted">{l.description}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {blocked && (
+        <p className="rounded-xl bg-danger-soft p-3 text-sm text-danger">
+          <span className="font-medium">{selected!.label}</span> — please contact {businessName} directly
+          before booking online.
+        </p>
+      )}
     </div>
   );
 }

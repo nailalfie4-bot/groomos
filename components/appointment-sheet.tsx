@@ -197,11 +197,30 @@ export function AppointmentSheet({
           )}
 
           {/* client declarations & terms — the proof record */}
-          {((appt.declarations && appt.declarations.length > 0) || appt.termsSignedName) && (
+          {((appt.declarations && appt.declarations.length > 0) ||
+            appt.termsSignedName ||
+            appt.mattingLevel ||
+            appt.temperamentLevel) && (
             <div className="rounded-xl border border-DEFAULT bg-surface-sunken p-4">
               <p className="mb-2.5 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-ink-subtle">
                 <ClipboardCheck className="h-3.5 w-3.5" /> Client declarations &amp; terms
               </p>
+              {(appt.mattingLevel || appt.temperamentLevel) && (
+                <dl className="mb-3 flex flex-col gap-1.5">
+                  {appt.mattingLevel && (
+                    <div className="flex items-baseline justify-between gap-3 text-sm">
+                      <dt className="text-ink-muted">Coat declared</dt>
+                      <dd className="text-right font-medium text-ink">{appt.mattingLevel}</dd>
+                    </div>
+                  )}
+                  {appt.temperamentLevel && (
+                    <div className="flex items-baseline justify-between gap-3 text-sm">
+                      <dt className="text-ink-muted">Temperament declared</dt>
+                      <dd className="text-right font-medium text-ink">{appt.temperamentLevel}</dd>
+                    </div>
+                  )}
+                </dl>
+              )}
               {appt.declarations && appt.declarations.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
                   {appt.declarations.map((label, i) => (

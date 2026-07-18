@@ -43,6 +43,8 @@ export async function POST(request: Request) {
     paymentIntentId: body.paymentIntentId ? String(body.paymentIntentId) : undefined,
     declarations: Array.isArray(body.declarations) ? body.declarations.map(String) : undefined,
     termsSignedName: body.termsSignedName ? String(body.termsSignedName) : undefined,
+    mattingLevelId: body.mattingLevelId ? String(body.mattingLevelId) : undefined,
+    temperamentLevelId: body.temperamentLevelId ? String(body.temperamentLevelId) : undefined,
   };
 
   try {
