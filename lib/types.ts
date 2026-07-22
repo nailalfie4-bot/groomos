@@ -127,6 +127,12 @@ export interface Settings {
   remindersEnabled: boolean;
   /** Default weeks between grooms, used for rebooking suggestions. */
   defaultRebookWeeks: number;
+  /**
+   * How many weeks BEFORE a dog is due the groomer wants to be nudged to
+   * rebook them (they're often booked up weeks ahead). A dog shows in "Due for
+   * a groom" this many weeks before its own due date.
+   */
+  rebookLeadWeeks: number;
   /** Require a deposit to confirm a booking (no-show protection). */
   depositEnabled: boolean;
   /** Deposit amount (GBP) — applied to the groom, or kept on a no-show. */

@@ -82,7 +82,7 @@ export default function RetentionPage() {
     <>
       <PageHeader
         title="Due for a groom"
-        subtitle="Past clients with no next visit booked — a gentle nudge brings them back."
+        subtitle="Dogs coming due with no next visit booked — nudged early so you can get them a slot in time."
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3">
@@ -112,7 +112,7 @@ export default function RetentionPage() {
         ) : (
           <ul className="divide-y divide-border">
             {due.map((d) => {
-              const over = d.weeksSince - d.rebookWeeks;
+              const over = d.weeksSince - d.rebookWeeks; // >0 overdue, <0 due soon
               return (
                 <li key={d.pet.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -128,9 +128,17 @@ export default function RetentionPage() {
                         Last groomed {d.weeksSince}w ago · usually {formatGBP(d.lastPriceGBP)}
                       </p>
                     </div>
-                    {over > 0 && (
+                    {over > 0 ? (
                       <span className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning-deep">
-                        {over}w over
+                        {over}w overdue
+                      </span>
+                    ) : over === 0 ? (
+                      <span className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning-deep">
+                        due now
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded-full bg-accent-50 px-2 py-0.5 text-[11px] font-medium text-accent-700">
+                        due in {-over}w
                       </span>
                     )}
                   </div>

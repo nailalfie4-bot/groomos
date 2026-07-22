@@ -367,7 +367,11 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
     }
   };
 
-  // ── Reuse-or-create the client (by email within this business) ───────────
+  // ── Reuse-or-create the client ───────────────────────────────────────────
+  // Primary match: email (case-insensitive) within this business. Fallback:
+  // phone number, compared by digit-tail so "+44 7…" and "07…" count as the
+  // same — a returning owner who mistypes or changes their email but keeps the
+  // same number is recognised instead of duplicated.
   const { data: existingClient } = await admin
     .from("clients")
     .select("id")
@@ -377,6 +381,21 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
     .maybeSingle();
 
   let clientId = (existingClient as { id: string } | null)?.id;
+
+  if (!clientId) {
+    const key = phoneKey(phone);
+    if (key) {
+      const { data: candidates } = await admin
+        .from("clients")
+        .select("id, phone")
+        .eq("business_id", businessId)
+        .limit(2000);
+      clientId = ((candidates as { id: string; phone: string | null }[] | null) ?? []).find(
+        (c) => phoneKey(c.phone ?? "") === key,
+      )?.id;
+    }
+  }
+
   if (!clientId) {
     const { data: created, error } = await admin
       .from("clients")
@@ -491,6 +510,17 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Digit-tail of a phone number, for tolerant matching across formats: the last
+ * 9 digits after stripping spaces/punctuation, so "07123 456789" and
+ * "+44 7123 456789" resolve to the same key. Empty when there aren't enough
+ * digits to trust (avoids matching junk).
+ */
+function phoneKey(phone: string): string {
+  const digits = phone.replace(/\D+/g, "");
+  return digits.length >= 7 ? digits.slice(-9) : "";
+}
 
 /** A settings object when a business somehow has no row (shouldn't happen). */
 function defaultishSettings(): Settings {

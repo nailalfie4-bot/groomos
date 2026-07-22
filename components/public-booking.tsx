@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Info,
   Loader2,
   Lock,
   MapPin,
@@ -539,7 +540,10 @@ export function PublicBooking({
                         )}
                       </span>
                       <span className="flex shrink-0 items-center gap-1.5">
-                        <span className="text-base font-semibold text-ink">{formatGBP(s.priceGBP)}</span>
+                        <span className="text-base font-semibold text-ink">
+                          <span className="mr-0.5 text-xs font-normal text-ink-muted">from</span>
+                          {formatGBP(s.priceGBP)}
+                        </span>
                         {addOns.length === 0 && <ChevronRight className="h-5 w-5 text-ink-subtle" />}
                       </span>
                     </button>
@@ -589,7 +593,10 @@ export function PublicBooking({
                           {service.name}
                           {selectedAddons.length > 0 && ` + ${selectedAddons.length} extra${selectedAddons.length > 1 ? "s" : ""}`}
                         </span>
-                        <span className="text-base font-semibold text-ink">{formatGBP(estTotal)}</span>
+                        <span className="text-base font-semibold text-ink">
+                          <span className="mr-1 text-xs font-normal text-ink-muted">from</span>
+                          {formatGBP(estTotal)}
+                        </span>
                       </div>
                       <Button size="lg" className="h-12 w-full" onClick={goToWhen}>
                         Continue
@@ -892,10 +899,17 @@ export function PublicBooking({
                     <SummaryRow label="Dog" value={`${petName.trim()} · ${SIZE_LABEL[size]}`} />
                     <div className="mt-3 flex items-center justify-between border-t border-DEFAULT pt-3">
                       <span className="text-sm font-medium text-ink">Estimated total</span>
-                      <span className="text-base font-semibold text-ink">{formatGBP(estTotal)}</span>
+                      <span className="text-base font-semibold text-ink">
+                        <span className="mr-1 text-sm font-normal text-ink-muted">from</span>
+                        {formatGBP(estTotal)}
+                      </span>
                     </div>
-                    <p className="mt-1 text-xs text-ink-subtle">
-                      Final price is confirmed by {business.name} on the day, after they&apos;ve met your dog.
+                    <p className="mt-2 flex items-start gap-2 rounded-xl bg-surface-sunken p-3 text-xs leading-snug text-ink-muted">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                      <span>
+                        This is an <span className="font-medium text-ink">estimate</span> — {business.name} confirms the
+                        final price on the day, once they&apos;ve met {petName.trim() || "your dog"} and their coat.
+                      </span>
                     </p>
                   </div>
 

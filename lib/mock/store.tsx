@@ -464,7 +464,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const weeksSince = Math.floor(
           weeks(now - new Date(last.start).getTime()),
         );
-        if (weeksSince < pet.rebookWeeks) return null;
+        // Nudge the groomer `rebookLeadWeeks` BEFORE the dog is actually due, so
+        // there's time to get them a slot (groomers book weeks ahead).
+        const flagAt = Math.max(pet.rebookWeeks - state.settings.rebookLeadWeeks, 0);
+        if (weeksSince < flagAt) return null;
         const client = state.clients.find((c) => c.id === pet.clientId);
         if (!client) return null;
         return {
@@ -478,7 +481,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       })
       .filter((d): d is DueForGroom => d !== null)
       .sort((a, b) => b.weeksSince - a.weeksSince);
-  }, [state.pets, state.appointments, state.clients]);
+  }, [state.pets, state.appointments, state.clients, state.settings.rebookLeadWeeks]);
 
   const quoteFor = useCallback(
     (

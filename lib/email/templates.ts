@@ -107,15 +107,15 @@ export function depositLinkEmail(d: {
     detailRow("Dog", d.petName),
     detailRow("Deposit", `£${d.amount}`),
   ].join("");
-  const cta = `<a href="${d.url}" style="display:inline-block;background:#C9756B;color:#FCF6F4;text-decoration:none;font-weight:600;font-size:15px;padding:12px 20px;border-radius:12px;">Pay £${d.amount} deposit</a>`;
+  const cta = `<a href="${d.url}" style="display:inline-block;background:#C9756B;color:#FCF6F4;text-decoration:none;font-weight:600;font-size:16px;padding:14px 24px;border-radius:12px;">Pay your £${d.amount} deposit &rarr;</a>`;
   const body = `
-    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#8A7470;">Hi ${esc(d.firstName)}, to secure ${esc(d.petName)}'s appointment with ${esc(d.businessName)}, please pay the deposit below. It comes off your total on the day.</p>
-    <table role="presentation" width="100%" style="border-collapse:collapse;border-top:1px solid #F1DEDA;border-bottom:1px solid #F1DEDA;margin:4px 0 16px;">${rows}</table>
-    ${cta}
-    <p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:#B3A39E;">Or paste this link into your browser:<br>${esc(d.url)}</p>`;
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#8A7470;">Hi ${esc(d.firstName)}, ${esc(d.petName)}'s groom with ${esc(d.businessName)} is booked in. To secure the slot, please pay your deposit — it comes off your total on the day.</p>
+    <table role="presentation" width="100%" style="border-collapse:collapse;border-top:1px solid #F1DEDA;border-bottom:1px solid #F1DEDA;margin:4px 0 20px;">${rows}</table>
+    <div style="text-align:center;margin:0 0 8px;">${cta}</div>
+    <p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:#B3A39E;">Or paste this link into your browser:<br><a href="${d.url}" style="color:#C9756B;">${esc(d.url)}</a></p>`;
   return {
-    subject: `Secure ${d.petName}'s groom — £${d.amount} deposit`,
-    html: shell(d.businessName, `Pay your deposit to secure the slot`, body, d.logoUrl),
+    subject: `${d.petName}'s groom is booked — pay your £${d.amount} deposit`,
+    html: shell(d.businessName, `${d.petName}'s groom is booked`, body, d.logoUrl),
   };
 }
 
