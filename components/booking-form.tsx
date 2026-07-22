@@ -17,6 +17,12 @@ import { COAT_HELP, COAT_LABEL, SIZE_LABEL } from "@/lib/pricing";
 import type { CoatCondition, DogSize } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** What came back from booking + trying to mint a deposit link. */
+type LinkOutcome =
+  | { kind: "link"; url: string; emailedTo: string | null }
+  | { kind: "recorded"; message?: string }
+  | { kind: "error"; message: string };
+
 function toDateValue(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate(),
@@ -81,7 +87,7 @@ export function BookingForm({
   const [error, setError] = useState<string | null>(null);
   // Deposit-link flow (phone bookings): book + mint a link the groomer can copy.
   const [sendingLink, setSendingLink] = useState(false);
-  const [linkResult, setLinkResult] = useState<{ url: string; emailedTo: string | null } | null>(null);
+  const [linkResult, setLinkResult] = useState<LinkOutcome | null>(null);
 
   // Reflect the latest defaults each time the form opens (slot click, rebook).
   useEffect(() => {
@@ -130,16 +136,12 @@ export function BookingForm({
     if (time && !slots.some((s) => s.available && s.time === time)) setTime("");
   }, [slots, time]);
 
-  // Can this business charge a card deposit (so a link is worth sending)? In the
-  // demo we always show it to showcase the flow; live needs a connected account
-  // + publishable key. The button only appears when the deposit toggle is on.
-  const canSendDepositLink =
-    settings.depositAmount > 0 &&
-    (!configured
-      ? true
-      : Boolean(business.stripeConnectChargesEnabled) &&
-        Boolean(business.stripeConnectAccountId) &&
-        Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY));
+  // Whenever a deposit is being taken, "Send deposit link" is the primary action
+  // (it books AND emails the client their pay-by-card link). We deliberately do
+  // NOT gate on the client-side Connect status — that read can be stale and was
+  // hiding the button. The server decides, and falls back to a recorded deposit
+  // if card charging isn't live yet.
+  const depositLinkPrimary = deposit && settings.depositAmount > 0;
 
   /** Validate the form and build the appointment input, or set an error + null. */
   function collectInput(): Parameters<typeof createAppointment>[0] | null {
@@ -205,10 +207,21 @@ export function BookingForm({
     }
   }
 
+  async function postLink(appointmentId: string): Promise<{ ok?: boolean; error?: string; message?: string; token?: string; emailedTo?: string | null } | null> {
+    const res = await fetch("/api/appointments/deposit-link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ appointmentId }),
+    });
+    return res.json().catch(() => null);
+  }
+
   /**
    * Book the appointment AND mint its deposit link in one step — the exact
-   * moment the groomer is on the phone. Books first, then generates the link
-   * (server re-prices + emails the client if they have an address on file).
+   * moment the groomer is on the phone. Books first, then generates the link;
+   * the server re-prices, marks the appointment, AND emails the client the
+   * "pay your deposit" link when we have their address. Falls back gracefully
+   * to a recorded deposit if the business can't charge cards yet.
    */
   async function sendDepositLink() {
     const input = collectInput();
@@ -222,33 +235,39 @@ export function BookingForm({
         // Demo: show a representative link so the whole flow is visible.
         const url = `${window.location.origin}/pay/demo-${appt.id}`;
         await copyToClipboard(url);
-        setLinkResult({ url, emailedTo: clientEmail });
+        setLinkResult({ kind: "link", url, emailedTo: clientEmail });
         toast.success("Appointment booked · deposit link ready");
         return;
       }
 
       await flushWrites(); // ensure the appointment row exists before minting
-      const res = await fetch("/api/appointments/deposit-link", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ appointmentId: appt.id }),
-      });
-      const d = await res.json().catch(() => null);
-      if (!res.ok || !d?.ok) {
-        toast.error(
-          d?.message ??
-            "Booked — but the deposit link couldn't be created. You can send it from the appointment.",
-        );
-        onClose();
-        return;
+      let d = await postLink(appt.id);
+      // The insert may still be propagating — retry a not-found once.
+      if (d && !d.ok && d.error === "not_found") {
+        await new Promise((r) => setTimeout(r, 700));
+        d = await postLink(appt.id);
       }
-      const url = `${window.location.origin}/pay/${d.token}`;
-      await copyToClipboard(url);
-      setLinkResult({ url, emailedTo: d.emailedTo ?? null });
-      toast.success("Appointment booked · deposit link ready");
+
+      if (d?.ok && d.token) {
+        const url = `${window.location.origin}/pay/${d.token}`;
+        await copyToClipboard(url);
+        setLinkResult({ kind: "link", url, emailedTo: d.emailedTo ?? null });
+        toast.success("Appointment booked · deposit link ready");
+      } else if (d?.error === "not_connected") {
+        // Booked fine, but card charging isn't live — the deposit is recorded.
+        setLinkResult({ kind: "recorded", message: d.message });
+        toast("Appointment booked · deposit recorded");
+      } else {
+        setLinkResult({
+          kind: "error",
+          message: d?.message ?? "The deposit link couldn't be created, but the appointment is booked.",
+        });
+      }
     } catch {
-      toast.error("Couldn't reach the server — the appointment may still have booked.");
-      onClose();
+      setLinkResult({
+        kind: "error",
+        message: "Couldn't reach the server to create the link — the appointment is booked; try sending the link from the appointment.",
+      });
     } finally {
       setSendingLink(false);
     }
@@ -266,12 +285,22 @@ export function BookingForm({
             <Check className="h-4 w-4" />
             Done
           </Button>
+        ) : depositLinkPrimary ? (
+          <>
+            <Button variant="ghost" size="sm" onClick={submit} disabled={saving || sendingLink}>
+              Just book
+            </Button>
+            <Button size="sm" loading={sendingLink} disabled={saving || sendingLink} onClick={sendDepositLink}>
+              {!sendingLink && <Link2 className="h-4 w-4" />}
+              Send deposit link
+            </Button>
+          </>
         ) : (
           <>
             <Button variant="ghost" size="sm" onClick={onClose}>
               Cancel
             </Button>
-            <Button size="sm" loading={saving} disabled={sendingLink} onClick={submit}>
+            <Button size="sm" loading={saving} onClick={submit}>
               {!saving && <Check className="h-4 w-4" />}
               Book {quote ? formatGBP(quote.totalPriceGBP) : ""}
             </Button>
@@ -397,26 +426,12 @@ export function BookingForm({
               free cancellation up to {settings.cancellationNoticeHours}h before.
             </p>
           )}
-          {/* Phone booking? Book + send a secure card link the client pays from
-              their phone — right here, at the moment you're on the call. */}
-          {deposit && canSendDepositLink && (
-            <div className="mt-3 border-t border-DEFAULT pt-3">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="w-full"
-                loading={sendingLink}
-                disabled={sendingLink || saving}
-                onClick={sendDepositLink}
-              >
-                <Link2 className="h-4 w-4" />
-                Send deposit link
-              </Button>
-              <p className="mt-1.5 text-center text-[11px] text-ink-subtle">
-                Books the appointment and creates a link to text the client (also emailed if we have their address).
-              </p>
-            </div>
+          {depositLinkPrimary && (
+            <p className="mt-3 flex items-start gap-1.5 border-t border-DEFAULT pt-3 text-[11px] text-ink-subtle">
+              <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+              Phone booking? Tap <span className="font-medium text-ink-muted">Send deposit link</span> below to book
+              and text/email the client a secure pay-by-card link.
+            </p>
           )}
         </div>
 
@@ -494,22 +509,52 @@ export function BookingForm({
   );
 }
 
-/** The "link ready" panel shown after Book + Send deposit link — copy + status. */
+/** The panel shown after Book + Send deposit link — link to copy, or a clear
+ *  "booked, deposit recorded / link failed" fallback. */
 function DepositLinkReady({
   result,
   amount,
   petName,
   onCopy,
 }: {
-  result: { url: string; emailedTo: string | null };
+  result: LinkOutcome;
   amount: number;
   petName?: string;
   onCopy: (text: string) => Promise<boolean>;
 }) {
   const [copied, setCopied] = useState(true); // auto-copied on generate
 
+  if (result.kind !== "link") {
+    const isError = result.kind === "error";
+    return (
+      <div className="flex flex-col items-center gap-3 pb-2 text-center">
+        <span
+          className={cn(
+            "flex h-12 w-12 items-center justify-center rounded-full",
+            isError ? "bg-warning-soft text-warning-deep" : "bg-success-soft text-success-deep",
+          )}
+        >
+          <Check className="h-6 w-6" />
+        </span>
+        <p className="text-base font-semibold text-ink">
+          {isError ? "Appointment booked" : "Booked — deposit recorded"}
+        </p>
+        <p className="max-w-xs text-sm text-ink-muted">
+          {result.message ??
+            (isError
+              ? "The pay-by-card link couldn't be created — you can send it later from the appointment."
+              : `A ${formatGBP(amount)} deposit is recorded on this booking. Connect Stripe in Settings to send clients a pay-by-card link.`)}
+        </p>
+      </div>
+    );
+  }
+
+  // `result` is narrowed to the "link" variant here, but it's a mutable param
+  // binding so the narrowing doesn't survive into the closure below — pin it.
+  const link = result;
+
   async function copy() {
-    const ok = await onCopy(result.url);
+    const ok = await onCopy(link.url);
     setCopied(ok);
     if (ok) toast.success("Link copied");
     else toast.error("Couldn't copy — long-press the link to copy it.");
@@ -529,7 +574,7 @@ function DepositLinkReady({
       </div>
 
       <div className="rounded-xl border border-DEFAULT bg-surface-sunken p-3">
-        <p className="break-all text-xs text-ink-muted">{result.url}</p>
+        <p className="break-all text-xs text-ink-muted">{link.url}</p>
       </div>
 
       <Button size="md" className="w-full" onClick={copy}>
@@ -537,9 +582,9 @@ function DepositLinkReady({
         {copied ? "Copied — copy again" : "Copy link"}
       </Button>
 
-      {result.emailedTo ? (
+      {link.emailedTo ? (
         <p className="flex items-center justify-center gap-1.5 text-center text-xs text-ink-subtle">
-          <Mail className="h-3.5 w-3.5" /> Also emailed to {result.emailedTo}.
+          <Mail className="h-3.5 w-3.5" /> Also emailed the link to {link.emailedTo}.
         </p>
       ) : (
         <p className="text-center text-xs text-ink-subtle">

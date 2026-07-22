@@ -318,6 +318,26 @@ function SettingsForm({
               Appointment reminders and booking confirmations go out by email automatically —
               included in your plan, with no per-message fees.
             </p>
+
+            <div className="mt-4 border-t border-DEFAULT pt-4">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm text-ink">
+                <span>I&apos;m usually booked up</span>
+                <Select
+                  value={String(s.rebookLeadWeeks)}
+                  onChange={(e) => setSet("rebookLeadWeeks", num(e.target.value))}
+                  className="w-auto"
+                >
+                  {[2, 3, 4, 6, 8].map((w) => (
+                    <option key={w} value={w}>{w} weeks</option>
+                  ))}
+                </Select>
+                <span>ahead.</span>
+              </div>
+              <p className="mt-2 text-sm text-ink-muted">
+                So a dog shows up in <span className="font-medium text-ink">Due for a groom</span> {s.rebookLeadWeeks}{" "}
+                weeks before they&apos;re actually due — giving you time to get them a slot before their coat gets long.
+              </p>
+            </div>
           </Section>
         </SettingsGroup>
       </div>

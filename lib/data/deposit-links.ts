@@ -187,6 +187,13 @@ export async function generateDepositLink(
     isStripeServerConfigured() &&
     hasPublishableKey();
   if (!connectLive) {
+    console.warn("deposit-link not_connected", {
+      appointmentId,
+      chargesEnabled: Boolean(biz.stripe_connect_charges_enabled),
+      hasAccount: Boolean(biz.stripe_connect_account_id),
+      stripeConfigured: isStripeServerConfigured(),
+      hasPublishableKey: hasPublishableKey(),
+    });
     return {
       ok: false,
       error: "not_connected",
