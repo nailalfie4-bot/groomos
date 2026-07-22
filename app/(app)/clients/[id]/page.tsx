@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Save,
   Scissors,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Modal } from "@/components/ui/modal";
 import { StatusBadge } from "@/components/status-badge";
 import { BookingForm } from "@/components/booking-form";
+import { SocialPostSheet } from "@/components/social-post";
 import { useClientsData } from "@/lib/data/use-clients-data";
 import type {
   CoatCondition,
@@ -69,6 +71,7 @@ export default function ClientDetailPage() {
   } = useClientsData();
   const [addingPet, setAddingPet] = useState(false);
   const [bookPetId, setBookPetId] = useState<string | null>(null);
+  const [socialApptId, setSocialApptId] = useState<string | null>(null);
 
   const client = getClient(params.id);
 
@@ -162,6 +165,7 @@ export default function ClientDetailPage() {
               key={pet.id}
               pet={pet}
               onBook={() => setBookPetId(pet.id)}
+              onCreatePost={setSocialApptId}
               history={getHistoryForPet(pet.id)}
               lastGroomed={getLastGroomedAt(pet.id)}
               updatePetNotes={updatePetNotes}
@@ -189,6 +193,10 @@ export default function ClientDetailPage() {
         defaultClientId={client.id}
         defaultPetId={bookPetId ?? undefined}
       />
+      <SocialPostSheet
+        appointmentId={socialApptId}
+        onClose={() => setSocialApptId(null)}
+      />
     </>
   );
 }
@@ -209,6 +217,7 @@ function Chip({ children, className }: { children: React.ReactNode; className?: 
 function PetProfile({
   pet,
   onBook,
+  onCreatePost,
   history,
   lastGroomed,
   updatePetNotes,
@@ -216,6 +225,7 @@ function PetProfile({
 }: {
   pet: Pet;
   onBook: () => void;
+  onCreatePost: (appointmentId: string) => void;
   history: GroomingHistoryEntry[];
   lastGroomed: string | undefined;
   updatePetNotes: (petId: string, notes: string) => Promise<void>;
@@ -357,7 +367,17 @@ function PetProfile({
                       </p>
                     )}
                   </div>
-                  <StatusBadge status={appointment.status} />
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <StatusBadge status={appointment.status} />
+                    {appointment.status === "completed" && (
+                      <button
+                        onClick={() => onCreatePost(appointment.id)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-strong bg-surface px-2.5 py-1.5 text-xs font-medium text-accent-700 transition-colors hover:border-accent hover:bg-accent-50"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" /> Create post
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
