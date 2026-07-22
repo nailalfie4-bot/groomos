@@ -13,6 +13,7 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { SocialPostContent } from "@/components/social-post";
 import { useStore } from "@/lib/mock/store";
 import { addDays, formatDate, formatGBP } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -118,7 +119,7 @@ export function CompleteFlow({
   const pet = appt ? getPet(appt.petId) : undefined;
   const service = appt ? getService(appt.serviceId) : undefined;
 
-  const [step, setStep] = useState<"report" | "rebook">("report");
+  const [step, setStep] = useState<"report" | "done" | "social">("report");
   const [before, setBefore] = useState<string | undefined>();
   const [after, setAfter] = useState<string | undefined>();
   const [summary, setSummary] = useState("");
@@ -145,13 +146,13 @@ export function CompleteFlow({
     };
     attachReport(appt!.id, report);
     toast.success("Complete — card ready to share", { description: `${pet!.name}'s before & after is done` });
-    setStep("rebook");
+    setStep("done");
   }
 
   function completeOnly() {
     setAppointmentStatus(appt!.id, "completed");
     toast.success(`${pet!.name} marked complete`);
-    setStep("rebook");
+    setStep("done");
   }
 
   function rebook(weeks: number) {
@@ -173,11 +174,19 @@ export function CompleteFlow({
     <Modal
       open={appointmentId !== null}
       onClose={close}
-      title={step === "report" ? "Finish up & send a card" : `Rebook ${pet.name}?`}
+      title={
+        step === "report"
+          ? "Finish up & send a card"
+          : step === "social"
+            ? `Share ${pet.name}'s groom`
+            : "Booking complete ✓"
+      }
       description={
         step === "report"
           ? "Add a couple of photos and a friendly note — the owner gets a lovely before & after card."
-          : "Get the next groom in the diary before they leave."
+          : step === "social"
+            ? "Copy a caption, then paste it into Instagram or Facebook."
+            : "Nice work. Share it on social, or get the next groom in the diary."
       }
       footer={
         step === "report" ? (
@@ -190,9 +199,13 @@ export function CompleteFlow({
               Complete &amp; send card
             </Button>
           </>
+        ) : step === "social" ? (
+          <Button variant="ghost" size="sm" onClick={() => setStep("done")}>
+            Back
+          </Button>
         ) : (
           <Button variant="ghost" size="sm" onClick={close}>
-            Not now
+            Done
           </Button>
         )
       }
@@ -220,29 +233,52 @@ export function CompleteFlow({
             />
           </div>
         </div>
+      ) : step === "social" ? (
+        <SocialPostContent appointmentId={appt.id} />
       ) : (
-        <div className="flex flex-col gap-3 pb-2">
-          <div className="grid grid-cols-3 gap-2">
-            {(() => {
-              const base = pet.rebookWeeks ?? settings.defaultRebookWeeks;
-              return [base, base + 2, base + 6];
-            })().map((w) => (
-              <button
-                key={w}
-                onClick={() => rebook(w)}
-                className="flex flex-col items-center gap-1 rounded-xl border border-strong bg-surface px-3 py-4 text-center transition-colors hover:border-accent hover:bg-accent-50"
-              >
-                <CalendarHeart className="h-5 w-5 text-accent" />
-                <span className="text-sm font-semibold text-ink">{w} weeks</span>
-                <span className="text-[11px] text-ink-subtle">
-                  {formatDate(addDays(new Date(appt.start), w * 7).toISOString())}
-                </span>
-              </button>
-            ))}
+        <div className="flex flex-col gap-5 pb-2">
+          {/* Primary next action: turn this groom into a social post */}
+          <button
+            onClick={() => setStep("social")}
+            className="flex w-full items-center gap-3 rounded-2xl border border-accent/30 bg-accent-50 p-4 text-left transition-colors hover:bg-accent-100"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-ink-inverse">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-ink">Create a social post</span>
+              <span className="block text-xs text-ink-muted">
+                Caption + hashtags for {pet.name} in one tap{appt.report ? " · plus a before/after image" : ""}
+              </span>
+            </span>
+            <Share2 className="h-4 w-4 shrink-0 text-accent" />
+          </button>
+
+          {/* Secondary: get the next groom booked before they leave */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-ink">Book {pet.name}&apos;s next groom</p>
+            <div className="grid grid-cols-3 gap-2">
+              {(() => {
+                const base = pet.rebookWeeks ?? settings.defaultRebookWeeks;
+                return [base, base + 2, base + 6];
+              })().map((w) => (
+                <button
+                  key={w}
+                  onClick={() => rebook(w)}
+                  className="flex flex-col items-center gap-1 rounded-xl border border-strong bg-surface px-3 py-4 text-center transition-colors hover:border-accent hover:bg-accent-50"
+                >
+                  <CalendarHeart className="h-5 w-5 text-accent" />
+                  <span className="text-sm font-semibold text-ink">{w} weeks</span>
+                  <span className="text-[11px] text-ink-subtle">
+                    {formatDate(addDays(new Date(appt.start), w * 7).toISOString())}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-ink-subtle">
+              We&apos;ll remind {pet.name}&apos;s owner automatically before the day.
+            </p>
           </div>
-          <p className="text-xs text-ink-subtle">
-            We&apos;ll remind {pet.name}&apos;s owner automatically before the day.
-          </p>
         </div>
       )}
     </Modal>

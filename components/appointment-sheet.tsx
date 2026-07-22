@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BookingForm } from "@/components/booking-form";
 import { CompleteFlow, ReportCard } from "@/components/grooming-report";
+import { SocialPostSheet } from "@/components/social-post";
 import { useStore } from "@/lib/mock/store";
 import type { AppointmentStatus } from "@/lib/types";
 import { findClash } from "@/lib/schedule";
@@ -83,6 +84,7 @@ export function AppointmentSheet({
   const [rebooking, setRebooking] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [viewingCard, setViewingCard] = useState(false);
+  const [showSocial, setShowSocial] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
   const [notes, setNotes] = useState("");
   const [rDate, setRDate] = useState("");
@@ -99,6 +101,7 @@ export function AppointmentSheet({
     setRebooking(false);
     setCompleting(false);
     setViewingCard(false);
+    setShowSocial(false);
     setLinkBusy(false);
   }, [appt?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -560,6 +563,12 @@ export function AppointmentSheet({
                 <Camera className="h-4 w-4" /> Add a before &amp; after card
               </Button>
             ))}
+
+          {appt.status === "completed" && (
+            <Button size="md" className="w-full" onClick={() => setShowSocial(true)}>
+              <Sparkles className="h-4 w-4" /> Create a social post
+            </Button>
+          )}
         </div>
       </Sheet>
 
@@ -587,6 +596,10 @@ export function AppointmentSheet({
       <ReportCard
         appointmentId={viewingCard ? appt.id : null}
         onClose={() => setViewingCard(false)}
+      />
+      <SocialPostSheet
+        appointmentId={showSocial ? appt.id : null}
+        onClose={() => setShowSocial(false)}
       />
     </>
   );
