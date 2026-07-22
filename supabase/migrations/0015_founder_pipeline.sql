@@ -32,7 +32,17 @@ create index if not exists prospects_owner_idx on public.prospects (owner_id);
 create index if not exists prospects_owner_next_action_idx
   on public.prospects (owner_id, next_action_date);
 
--- keep updated_at fresh (reuses the shared trigger fn from 0001)
+-- keep updated_at fresh. Define the trigger fn here too — create-or-replace is
+-- idempotent, so this migration is self-contained and doesn't depend on 0001
+-- having created it.
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 drop trigger if exists trg_prospects_updated_at on public.prospects;
 create trigger trg_prospects_updated_at
   before update on public.prospects
