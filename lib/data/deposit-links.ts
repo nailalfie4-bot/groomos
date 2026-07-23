@@ -16,7 +16,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { rowToSettings } from "@/lib/data/settings";
 import { getStripe, isStripeServerConfigured } from "@/lib/stripe/server";
 import { hasPublishableKey } from "@/lib/stripe/connect";
-import { sendEmail } from "@/lib/email/send";
+import { sendEmail, isEmailConfigured } from "@/lib/email/send";
 import { depositLinkEmail } from "@/lib/email/templates";
 import { DEFAULT_SETTINGS } from "@/lib/pricing";
 
@@ -135,8 +135,32 @@ export async function resolveDepositLinkPublic(token: string): Promise<DepositLi
   };
 }
 
+/**
+ * What happened when we tried to email the CLIENT the deposit link:
+ *  - "sent"           the client received it at `to`
+ *  - "failed"         we had the client's address but the send was rejected
+ *                     (commonly: REMINDERS_FROM isn't on a verified domain yet,
+ *                     so Resend only delivers to your own account email)
+ *  - "no_address"     the client has no email on file — the groomer texts it
+ *  - "not_configured" email isn't switched on yet (no RESEND_API_KEY)
+ */
+export interface DepositEmailResult {
+  status: "sent" | "failed" | "no_address" | "not_configured";
+  /** The client's address we sent to (or would have), when we have one. */
+  to: string | null;
+}
+
 export type GenerateDepositLinkResult =
-  | { ok: true; token: string; url: string; amount: number; expiresAt: string; emailedTo: string | null }
+  | {
+      ok: true;
+      token: string;
+      url: string;
+      amount: number;
+      expiresAt: string;
+      /** The client's address when the email actually sent, else null (kept for back-compat). */
+      emailedTo: string | null;
+      email: DepositEmailResult;
+    }
   | { ok: false; error: "not_found" | "already_paid" | "not_connected" | "no_deposit" | "past"; message: string };
 
 /**
@@ -226,8 +250,11 @@ export async function generateDepositLink(
 
   const url = `${origin.replace(/\/$/, "")}/pay/${token}`;
 
-  // Email the client the link too, if we have their address (best-effort).
-  let emailedTo: string | null = null;
+  // Email the CLIENT the link too (resolved from appointment.client_id — never
+  // the owner), if we have their address. Best-effort: the groomer can always
+  // text the copyable link regardless, so we report exactly what happened and
+  // let the screen be honest about it.
+  let email: DepositEmailResult = { status: "no_address", to: null };
   try {
     const { data: client } = await admin
       .from("clients")
@@ -235,7 +262,12 @@ export async function generateDepositLink(
       .eq("id", a.client_id)
       .maybeSingle();
     const c = client as { first_name?: string; email?: string } | null;
-    if (c?.email) {
+    const to = c?.email?.trim() || null;
+    if (!to) {
+      email = { status: "no_address", to: null };
+    } else if (!isEmailConfigured()) {
+      email = { status: "not_configured", to };
+    } else {
       const { data: svc } = a.service_id
         ? await admin.from("services").select("name").eq("id", a.service_id).maybeSingle()
         : { data: null };
@@ -245,7 +277,7 @@ export async function generateDepositLink(
       });
       const msg = depositLinkEmail({
         businessName: biz.name ?? "Your groomer",
-        firstName: c.first_name ?? "there",
+        firstName: c?.first_name ?? "there",
         petName: (pet as { name?: string } | null)?.name ?? "your dog",
         serviceName: (svc as { name?: string } | null)?.name ?? "Groom",
         whenLabel: when,
@@ -253,14 +285,32 @@ export async function generateDepositLink(
         url,
         logoUrl: biz.logo_url ?? undefined,
       });
-      const res = await sendEmail({ to: c.email, subject: msg.subject, html: msg.html });
-      if (res.ok) emailedTo = c.email;
+      const res = await sendEmail({ to, subject: msg.subject, html: msg.html });
+      email = { status: res.ok ? "sent" : "failed", to };
+      // Breadcrumb (Vercel logs): the exact client address the deposit link went
+      // to, and whether Resend accepted it — so "it emailed the owner" can be
+      // traced to either the client record's address or a delivery rejection.
+      console.info("deposit-link email", {
+        appointmentId,
+        recipient: to,
+        status: email.status,
+        error: res.ok ? undefined : res.error,
+      });
     }
   } catch (err) {
     console.error("deposit link email failed:", err);
+    email = { status: "failed", to: email.to };
   }
 
-  return { ok: true, token, url, amount, expiresAt: a.start_at, emailedTo };
+  return {
+    ok: true,
+    token,
+    url,
+    amount,
+    expiresAt: a.start_at,
+    emailedTo: email.status === "sent" ? email.to : null,
+    email,
+  };
 }
 
 export type ConfirmDepositLinkResult =

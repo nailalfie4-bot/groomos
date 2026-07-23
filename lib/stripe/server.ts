@@ -32,16 +32,61 @@ const PRICE_ENV: Record<PlanId, string> = {
   team: "STRIPE_PRICE_TEAM",
 };
 
-/** The configured Stripe price id for a plan, or undefined if not set. */
+/** The configured Stripe price id for a plan, or undefined if not set/blank. */
 export function priceIdForPlan(plan: PlanId): string | undefined {
-  return process.env[PRICE_ENV[plan]];
+  const raw = process.env[PRICE_ENV[plan]]?.trim();
+  return raw || undefined;
+}
+
+/** The name of the env var a plan's price id is read from (for diagnostics/logs). */
+export function priceEnvVar(plan: PlanId): string {
+  return PRICE_ENV[plan];
+}
+
+/** A masked preview of a price id — enough to recognise it, never the whole value.
+ *  "price_1QabcdefGHIJ" → "price_1Qa…GHIJ". Price ids aren't secret, but masking
+ *  keeps diagnostics/logs tidy and copy-paste-proof. */
+export function maskPriceId(id: string | null | undefined): string | null {
+  const s = (id ?? "").trim();
+  if (!s) return null;
+  return s.length <= 12 ? s : `${s.slice(0, 9)}…${s.slice(-4)}`;
+}
+
+/** Per-plan view of a plan's price-id env var at runtime, for the founder
+ *  /api/stripe/status diagnostic — reveals no secret key. */
+export interface PlanPriceStatus {
+  plan: PlanId;
+  envVar: string;
+  /** The env var is present and non-blank. */
+  set: boolean;
+  /** It looks like a real price id ("price_…") — catches a product id or a typo. */
+  valid: boolean;
+  preview: string | null;
+}
+
+/** Whether each STRIPE_PRICE_* env var is present and well-formed *right now*.
+ *  This is the single source of truth behind the diagnostic: if Starter won't
+ *  open checkout, `starter.set === false` says STRIPE_PRICE_STARTER isn't being
+ *  read at runtime. No full price ids, no keys. */
+export function priceConfigStatus(): PlanPriceStatus[] {
+  return (["starter", "pro", "team"] as PlanId[]).map((plan) => {
+    const envVar = PRICE_ENV[plan];
+    const raw = process.env[envVar]?.trim() ?? "";
+    return {
+      plan,
+      envVar,
+      set: Boolean(raw),
+      valid: raw.startsWith("price_"),
+      preview: maskPriceId(raw),
+    };
+  });
 }
 
 /** Reverse lookup: which plan a Stripe price id belongs to (for webhooks). */
 export function planForPriceId(priceId: string | null | undefined): PlanId | undefined {
   if (!priceId) return undefined;
   for (const plan of ["starter", "pro", "team"] as PlanId[]) {
-    if (process.env[PRICE_ENV[plan]] === priceId) return plan;
+    if (process.env[PRICE_ENV[plan]]?.trim() === priceId) return plan;
   }
   return undefined;
 }

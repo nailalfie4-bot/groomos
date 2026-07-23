@@ -17,9 +17,16 @@ import { COAT_HELP, COAT_LABEL, SIZE_LABEL } from "@/lib/pricing";
 import type { CoatCondition, DogSize } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** Mirror of the server's DepositEmailResult, kept local so this client module
+ *  never pulls in the server-only deposit-links helper. */
+type EmailOutcome = {
+  status: "sent" | "failed" | "no_address" | "not_configured";
+  to: string | null;
+};
+
 /** What came back from booking + trying to mint a deposit link. */
 type LinkOutcome =
-  | { kind: "link"; url: string; emailedTo: string | null }
+  | { kind: "link"; url: string; email: EmailOutcome }
   | { kind: "recorded"; message?: string }
   | { kind: "error"; message: string };
 
@@ -207,7 +214,7 @@ export function BookingForm({
     }
   }
 
-  async function postLink(appointmentId: string): Promise<{ ok?: boolean; error?: string; message?: string; token?: string; emailedTo?: string | null } | null> {
+  async function postLink(appointmentId: string): Promise<{ ok?: boolean; error?: string; message?: string; token?: string; emailedTo?: string | null; email?: EmailOutcome } | null> {
     const res = await fetch("/api/appointments/deposit-link", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -235,7 +242,11 @@ export function BookingForm({
         // Demo: show a representative link so the whole flow is visible.
         const url = `${window.location.origin}/pay/demo-${appt.id}`;
         await copyToClipboard(url);
-        setLinkResult({ kind: "link", url, emailedTo: clientEmail });
+        setLinkResult({
+          kind: "link",
+          url,
+          email: { status: clientEmail ? "sent" : "no_address", to: clientEmail },
+        });
         toast.success("Appointment booked · deposit link ready");
         return;
       }
@@ -251,7 +262,11 @@ export function BookingForm({
       if (d?.ok && d.token) {
         const url = `${window.location.origin}/pay/${d.token}`;
         await copyToClipboard(url);
-        setLinkResult({ kind: "link", url, emailedTo: d.emailedTo ?? null });
+        setLinkResult({
+          kind: "link",
+          url,
+          email: d.email ?? { status: "no_address", to: null },
+        });
         toast.success("Appointment booked · deposit link ready");
       } else if (d?.error === "not_connected") {
         // Booked fine, but card charging isn't live — the deposit is recorded.
@@ -582,9 +597,17 @@ function DepositLinkReady({
         {copied ? "Copied — copy again" : "Copy link"}
       </Button>
 
-      {link.emailedTo ? (
+      {link.email.status === "sent" ? (
         <p className="flex items-center justify-center gap-1.5 text-center text-xs text-ink-subtle">
-          <Mail className="h-3.5 w-3.5" /> Also emailed the link to {link.emailedTo}.
+          <Mail className="h-3.5 w-3.5" /> Emailed to the client at {link.email.to}.
+        </p>
+      ) : link.email.status === "failed" ? (
+        <p className="flex items-center justify-center gap-1.5 text-center text-xs text-warning-deep">
+          <Mail className="h-3.5 w-3.5" /> Couldn&apos;t email the client at {link.email.to} — text them the link above instead.
+        </p>
+      ) : link.email.status === "not_configured" ? (
+        <p className="text-center text-xs text-ink-subtle">
+          Email isn&apos;t switched on yet — text the client the link above.
         </p>
       ) : (
         <p className="text-center text-xs text-ink-subtle">

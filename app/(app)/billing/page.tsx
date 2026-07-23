@@ -49,12 +49,20 @@ export default function BillingPage() {
         window.location.assign(data.url);
         return;
       }
+      if (data.error === "price_not_configured") {
+        // Name the plan so it's obvious *which* one is unconfigured — the others
+        // still work. The founder can confirm the exact env var at /api/stripe/status.
+        toast.error(`${PLANS[plan].name} isn't available for checkout yet.`, {
+          description: "This plan's price isn't set up in Stripe. The other plans still work.",
+        });
+        return;
+      }
+      if (data.error === "billing_not_configured") {
+        toast.error("Payments aren't set up on this account yet.");
+        return;
+      }
       toast.error(
-        data.error === "price_not_configured"
-          ? "This plan isn't set up in Stripe yet."
-          : data.error === "billing_not_configured"
-            ? "Payments aren't set up on this account yet."
-            : data.message || "Couldn't start checkout — please try again.",
+        data.message || "Couldn't start checkout — please try again.",
         data.message ? { description: [data.type, data.code].filter(Boolean).join(" · ") || undefined } : undefined,
       );
     } catch {

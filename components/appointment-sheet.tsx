@@ -194,12 +194,18 @@ export function AppointmentSheet({
       } catch {
         /* clipboard may be blocked — the Copy link button stays available */
       }
+      const emailNote =
+        d.email?.status === "sent"
+          ? `Emailed to the client at ${d.email.to}. Text it too if you like.`
+          : d.email?.status === "failed"
+            ? "Couldn't email the client — text them the link instead."
+            : d.email?.status === "not_configured"
+              ? "Email isn't switched on — text them the link."
+              : copied
+                ? "Paste it into a text to your client."
+                : "Tap Copy link, then paste it into a text.";
       toast.success(copied ? "Deposit link copied" : "Deposit link ready", {
-        description: d.emailedTo
-          ? `Also emailed to ${d.emailedTo}. Paste it into a text too.`
-          : copied
-            ? "Paste it into a text to your client."
-            : "Tap Copy link, then paste it into a text.",
+        description: emailNote,
       });
     } catch {
       toast.error("Couldn't reach the server — please try again.");
