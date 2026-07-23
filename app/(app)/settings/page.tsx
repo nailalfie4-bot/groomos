@@ -25,12 +25,15 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
+import { useIsFounder } from "@/lib/auth/use-founder";
 import { PageHeader } from "@/components/page-header";
 import { BusinessLogo } from "@/components/business-logo";
 import { ChangePassword } from "@/components/account/change-password";
+import { OnboardGroomer } from "@/components/account/onboard-groomer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -78,6 +81,9 @@ function SettingsForm({
 }) {
   const [s, setS] = useState<Settings>(settings);
   const [b, setB] = useState<Business>(business);
+  // Founder-only sections (server-verified). False for every normal account, so
+  // nothing founder-only renders or leaves empty space for them.
+  const isFounder = useIsFounder();
 
   const dirty =
     JSON.stringify(s) !== JSON.stringify(settings) ||
@@ -353,6 +359,19 @@ function SettingsForm({
             <ChangePassword />
           </Section>
         </SettingsGroup>
+
+        {/* ── Onboard (founder only) ─────────────────────────────────────── */}
+        {isFounder && (
+          <SettingsGroup title="Founder">
+            <Section
+              icon={<UserPlus className="h-[18px] w-[18px]" />}
+              title="Onboard a groomer"
+              description="Prepare a groomer's account, then invite them to claim it and set their own password."
+            >
+              <OnboardGroomer />
+            </Section>
+          </SettingsGroup>
+        )}
       </div>
 
       {/* Unsaved changes bar */}
