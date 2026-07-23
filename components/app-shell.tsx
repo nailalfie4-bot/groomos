@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { BusinessLogo } from "@/components/business-logo";
+import { FirstLoginBanner } from "@/components/account/first-login-banner";
 import { PlanBadge } from "@/components/plan-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStore } from "@/lib/mock/store";
@@ -213,6 +214,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main className="md:pl-60">
         <div className="mx-auto max-w-5xl px-4 pb-24 pt-6 sm:px-6 md:pb-12">
+          <FirstLoginBanner />
           {children}
         </div>
       </main>
