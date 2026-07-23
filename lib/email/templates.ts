@@ -139,3 +139,43 @@ export function rebookingReminderEmail(d: {
     html: shell(d.businessName, `${d.petName} is due a groom`, body),
   };
 }
+
+/** Security notice sent to a user after their password is changed. */
+export function passwordChangedEmail(d: {
+  whenLabel: string;
+  contactEmail?: string;
+}): { subject: string; html: string } {
+  const contact = d.contactEmail
+    ? `<a href="mailto:${esc(d.contactEmail)}" style="color:#C9756B;">${esc(d.contactEmail)}</a>`
+    : "us straight away";
+  const body = `
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#8A7470;">Your GroomOS password was just changed (${esc(d.whenLabel)}).</p>
+    <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#8A7470;">If this was you, you can ignore this email — you're all set.</p>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#7A3B36;background:#FBEEEB;border-radius:10px;padding:12px 14px;"><strong>If this wasn't you</strong>, please contact ${contact} so we can secure your account.</p>`;
+  return {
+    subject: "Your GroomOS password was changed",
+    html: shell("GroomOS", "Password changed", body),
+  };
+}
+
+/** Invite sent to a groomer to claim a pre-configured account and set their password. */
+export function inviteEmail(d: {
+  businessName: string;
+  inviteUrl: string;
+  expiresLabel: string;
+  fromName?: string;
+}): { subject: string; html: string } {
+  const cta = `<a href="${d.inviteUrl}" style="display:inline-block;background:#C9756B;color:#FCF6F4;text-decoration:none;font-weight:600;font-size:16px;padding:14px 24px;border-radius:12px;">Set your password &amp; get started &rarr;</a>`;
+  const intro = d.fromName
+    ? `${esc(d.fromName)} has set up a GroomOS account for ${esc(d.businessName)} and invited you to take it over.`
+    : `A GroomOS account has been set up for ${esc(d.businessName)} and you've been invited to take it over.`;
+  const body = `
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#8A7470;">${intro}</p>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#8A7470;">Your services, prices and settings are already in place — just set your password and you're live. <strong>You choose your own password; no one else ever sees it.</strong></p>
+    <div style="text-align:center;margin:0 0 8px;">${cta}</div>
+    <p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:#B3A39E;">This link expires ${esc(d.expiresLabel)} and can only be used once. Or paste it into your browser:<br><a href="${d.inviteUrl}" style="color:#C9756B;word-break:break-all;">${esc(d.inviteUrl)}</a></p>`;
+  return {
+    subject: `You're invited to GroomOS — set up ${d.businessName}`,
+    html: shell("GroomOS", `Welcome to GroomOS`, body),
+  };
+}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthCard } from "@/components/auth-card";
@@ -14,6 +15,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Surface a failed email link (expired / already used) redirected here.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("authError") === "link_invalid") {
+      setError("That link is invalid or has expired. Please request a new one.");
+    }
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,14 +73,21 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <Input
-          label="Password"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+        <div>
+          <Input
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          <div className="mt-1.5 text-right">
+            <Link href="/forgot-password" className="text-xs font-medium text-accent hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+        </div>
         {error && <p className="text-sm text-danger">{error}</p>}
         <Button type="submit" size="lg" loading={loading} className="mt-1 w-full">
           Log in

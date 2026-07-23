@@ -17,6 +17,7 @@ import {
   Gauge,
   Heart,
   ImagePlus,
+  KeyRound,
   Link2,
   Loader2,
   Plus,
@@ -29,6 +30,7 @@ import {
 import { useAuth } from "@/components/auth-provider";
 import { PageHeader } from "@/components/page-header";
 import { BusinessLogo } from "@/components/business-logo";
+import { ChangePassword } from "@/components/account/change-password";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -338,6 +340,17 @@ function SettingsForm({
                 weeks before they&apos;re actually due — giving you time to get them a slot before their coat gets long.
               </p>
             </div>
+          </Section>
+        </SettingsGroup>
+
+        {/* ── Account ────────────────────────────────────────────────────── */}
+        <SettingsGroup title="Account">
+          <Section
+            icon={<KeyRound className="h-[18px] w-[18px]" />}
+            title="Change password"
+            description="Update the password you use to sign in. We'll email you a confirmation."
+          >
+            <ChangePassword />
           </Section>
         </SettingsGroup>
       </div>
