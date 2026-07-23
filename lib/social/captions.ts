@@ -46,6 +46,13 @@ function tidy(captions: string[]): string[] {
   return captions.map((s) => s.replace(/\.\.+/g, ".").replace(/ {2,}/g, " ").trim());
 }
 
+/** "a" or "an" before a word, by its first letter — good enough for service
+ *  names ("full groom" → a, "express groom" → an). Uses the first word so
+ *  multi-word names ("teeth cleaning") get the right article. */
+function aOrAn(word: string): string {
+  return /^[aeiou]/i.test(word.trim()) ? "an" : "a";
+}
+
 /**
  * Three caption variations for a tone. They intentionally differ in shape — a
  * greeting, a transformation line, and a punchy one — so a groomer posting
@@ -63,23 +70,26 @@ export function buildCaptions(input: SocialPostInput, tone: SocialTone): string[
   const withBreed = breed ? ` the ${breed}` : "";
   const parenBreed = breed ? ` (${breed})` : "";
 
+  // Service names always read lowercase mid-sentence, with the right article.
+  const aService = `${aOrAn(serviceLower)} ${serviceLower}`; // "a full groom" / "an express groom"
+
   switch (tone) {
     case "cute":
       return tidy([
-        `Meet ${name}${withBreed} 🐾 fresh from a ${service} and feeling absolutely fabulous. ${bookLine}`,
-        `${name} came in for a ${service} today and left looking like a whole new pup 🥹🐶 ${bookLine}`,
-        `Someone's feeling extra fluffy today ✨ ${name} after ${breed ? `their ${service}` : `a ${service}`} with ${biz}. Booking link in bio 🔗`,
+        `Meet ${name}${withBreed} 🐾 fresh from ${aService} and feeling absolutely fabulous. ${bookLine}`,
+        `${name} came in for ${aService} today and left looking like a whole new pup 🥹🐶 ${bookLine}`,
+        `Someone's feeling extra fluffy today ✨ ${name} after ${breed ? `their ${serviceLower}` : aService} with ${biz}. Booking link in bio 🔗`,
       ]);
     case "professional":
       return tidy([
-        `${name}${parenBreed} — ${service} complete. Thank you for trusting ${biz} with your dog's care. ${bookLine}`,
-        `Freshly groomed: ${name} after ${serviceLower} today ✂️ We'd love to welcome your dog too. ${bookLine}`,
+        `${name}${parenBreed} — ${serviceLower} complete. Thank you for trusting ${biz} with your dog's care. ${bookLine}`,
+        `Freshly groomed: ${name} after ${aService} today ✂️ We'd love to welcome your dog too. ${bookLine}`,
         `Another happy pup at ${biz} 🐾 ${name}'s ${serviceLower} all done. Book your appointment — link in bio.`,
       ]);
     case "playful":
       return tidy([
-        `New fur, who dis? 😎 ${name}${withBreed} strutting out after a ${service}. ${bookTurn}`,
-        `${name} said "make me gorgeous" and honestly? We delivered ✂️🐶 ${service} ✅ ${bookLine}`,
+        `New fur, who dis? 😎 ${name}${withBreed} strutting out after ${aService}. ${bookTurn}`,
+        `${name} said "make me gorgeous" and honestly? We delivered ✂️🐶 ${serviceLower} ✅ ${bookLine}`,
         `Warning: dangerously floofy levels detected 🚨 ${name} post-${serviceLower} at ${biz}. Booking link in bio 🔗`,
       ]);
   }
