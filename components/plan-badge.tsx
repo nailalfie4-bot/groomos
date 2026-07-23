@@ -1,7 +1,7 @@
 "use client";
 
 import { PLANS, type PlanId } from "@/lib/stripe/config";
-import { isSubscribed, isTrialExpired, trialDaysLeft } from "@/lib/trial";
+import { isInternalPlan, isSubscribed, isTrialExpired, trialDaysLeft } from "@/lib/trial";
 import { cn } from "@/lib/utils";
 import type { Business } from "@/lib/types";
 
@@ -18,7 +18,10 @@ export function PlanBadge({ business, className }: { business: Business; classNa
   let label: string;
   let tone: "plan" | "trial" | "ended";
 
-  if (subscribed && business.plan) {
+  if (isInternalPlan(business.plan)) {
+    label = "Owner";
+    tone = "plan";
+  } else if (subscribed && business.plan) {
     label = PLANS[business.plan as PlanId]?.name ?? "Active";
     tone = "plan";
   } else if (!isTrialExpired(business.trialEndsAt)) {

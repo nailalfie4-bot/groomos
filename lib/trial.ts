@@ -8,6 +8,17 @@
  */
 const ACTIVE_STATUSES = ["active", "trialing", "past_due"];
 
+/**
+ * Internal / owner accounts: permanent, unrestricted access that never trial-
+ * expires. This plan value is NOT a Stripe plan and there is no UI that can set
+ * it — it can only be written directly in the database (e.g. the founder's own
+ * account), so a customer can never grant it to themselves.
+ */
+const INTERNAL_PLANS = ["internal", "owner"];
+export function isInternalPlan(plan?: string | null): boolean {
+  return !!plan && INTERNAL_PLANS.includes(plan);
+}
+
 /** True when the business has a usable paid subscription. */
 export function isSubscribed(status?: string | null, plan?: string | null): boolean {
   return !!plan && !!status && ACTIVE_STATUSES.includes(status);
@@ -33,6 +44,7 @@ export function isAppLocked(opts: {
   plan?: string | null;
   trialEndsAt?: string | null;
 }): boolean {
+  if (isInternalPlan(opts.plan)) return false; // internal/owner never locks
   return (
     !isSubscribed(opts.subscriptionStatus, opts.plan) && isTrialExpired(opts.trialEndsAt)
   );
@@ -50,6 +62,7 @@ export function canUseGroomers(opts: {
   configured: boolean;
 }): boolean {
   if (!opts.configured) return true; // demo
+  if (isInternalPlan(opts.plan)) return true; // internal/owner: everything on
   if (isSubscribed(opts.subscriptionStatus, opts.plan)) {
     return opts.plan === "pro" || opts.plan === "team";
   }
