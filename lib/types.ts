@@ -170,6 +170,13 @@ export interface Service {
   /** True for add-on extras (teeth clean, nail trim…), kept separate from main services. */
   isAddon?: boolean;
   /**
+   * Whether clients can book this service on its own (as a main booking).
+   * Omitted (null) → the historical default: bookable alone iff it's NOT an
+   * add-on. Set explicitly to let an add-on/minor service be booked standalone
+   * too (a service can be both an add-on AND bookable on its own).
+   */
+  bookableAlone?: boolean;
+  /**
    * How this service sets its deposit. Omitted / 'default' → fall back to the
    * business-level deposit setting (the historical behaviour). 'none' → no
    * deposit. 'fixed' → a flat £ amount. 'percent' → a % of the service price.

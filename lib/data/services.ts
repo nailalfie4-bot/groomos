@@ -26,6 +26,8 @@ interface ServiceRow {
   price_gbp: number | string;
   active: boolean;
   is_addon: boolean | null;
+  /** Can be booked on its own (0018). null → default: alone iff not an add-on. */
+  bookable_alone: boolean | null;
   /** Per-service deposit rule (0017). Absent on rows read before the migration. */
   deposit_type: string | null;
   deposit_value: number | string | null;
@@ -42,6 +44,9 @@ export function rowToService(r: ServiceRow): Service {
     priceGBP: typeof r.price_gbp === "string" ? Number(r.price_gbp) : r.price_gbp,
     active: r.active,
     isAddon: Boolean(r.is_addon),
+    // null (pre-migration or never set) → undefined, so isBookableAlone() applies
+    // the historical default (alone iff not an add-on).
+    bookableAlone: r.bookable_alone ?? undefined,
     // Defaults keep pre-migration rows (deposit_type absent) falling back to the
     // business deposit exactly as before.
     depositType: (r.deposit_type as Service["depositType"]) ?? "default",
@@ -109,6 +114,7 @@ export async function insertService(
       price_gbp: input.priceGBP,
       active: true,
       is_addon: input.isAddon ?? false,
+      bookable_alone: input.bookableAlone ?? null,
       deposit_type: input.depositType ?? "default",
       deposit_value: input.depositValue ?? null,
     })
@@ -129,6 +135,7 @@ export async function updateService(
   if (patch.durationMin !== undefined) dbPatch.duration_min = patch.durationMin;
   if (patch.priceGBP !== undefined) dbPatch.price_gbp = patch.priceGBP;
   if (patch.isAddon !== undefined) dbPatch.is_addon = patch.isAddon;
+  if (patch.bookableAlone !== undefined) dbPatch.bookable_alone = patch.bookableAlone;
   if (patch.depositType !== undefined) {
     dbPatch.deposit_type = patch.depositType;
     // Keep the stored value coherent with the type: only 'fixed'/'percent' use

@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { resolveBookingPage } from "@/lib/data/public-booking";
 import { isAdminConfigured } from "@/lib/supabase/admin";
 import { getStripe, isStripeServerConfigured } from "@/lib/stripe/server";
-import { resolveServiceDeposit } from "@/lib/pricing";
+import { resolveServiceDeposit, isBookableAlone } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     // This business can't take card deposits — the client should just book directly.
     return NextResponse.json({ ok: false, error: "not_chargeable" }, { status: 400 });
   }
-  const service = data.services.find((s) => s.id === serviceId && s.active);
+  const service = data.services.find((s) => s.id === serviceId && s.active && isBookableAlone(s));
   if (!service) {
     return NextResponse.json({ ok: false, error: "invalid_service" }, { status: 400 });
   }

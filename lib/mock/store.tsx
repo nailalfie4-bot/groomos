@@ -122,6 +122,8 @@ export interface NewServiceInput {
   durationMin: number;
   priceGBP: number;
   isAddon?: boolean;
+  /** Whether the service can be booked on its own; omitted → default (alone iff not an add-on). */
+  bookableAlone?: boolean;
   /** Per-service deposit rule; omitted → 'default' (falls back to the business setting). */
   depositType?: ServiceDepositType;
   /** £ amount for 'fixed', percentage for 'percent'. */

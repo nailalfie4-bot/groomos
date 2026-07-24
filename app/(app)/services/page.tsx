@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Clock, Pencil, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { CalendarCheck, Clock, Pencil, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Toggle } from "@/components/ui/toggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DogEmpty } from "@/components/illustrations";
@@ -15,7 +16,7 @@ import { Modal } from "@/components/ui/modal";
 import { useServices } from "@/lib/data/use-services";
 import { useStore, type NewServiceInput } from "@/lib/mock/store";
 import type { Service, ServiceDepositType, Settings } from "@/lib/types";
-import { resolveServiceDeposit } from "@/lib/pricing";
+import { resolveServiceDeposit, isBookableAlone } from "@/lib/pricing";
 import { formatGBP } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -242,6 +243,12 @@ function ServiceCard({
           {depositSummary(s, settings)}
         </p>
       )}
+      {addon && isBookableAlone(s) && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-ink-subtle">
+          <CalendarCheck className="h-3.5 w-3.5 text-accent/80" />
+          Also bookable on its own
+        </p>
+      )}
     </div>
   );
 }
@@ -290,14 +297,16 @@ function ServiceEditorInner({
   const [description, setDescription] = useState(service?.description ?? "");
   const [duration, setDuration] = useState(String(service?.durationMin ?? (isAddon ? 0 : 60)));
   const [price, setPrice] = useState(String(service?.priceGBP ?? (isAddon ? 10 : 30)));
+  // Default: main services book alone; add-ons don't — until the groomer opts in.
+  const [bookableAlone, setBookableAlone] = useState(service?.bookableAlone ?? !isAddon);
   const [depositType, setDepositType] = useState<ServiceDepositType>(service?.depositType ?? "default");
   const [depositValue, setDepositValue] = useState(
     service?.depositValue != null ? String(service.depositValue) : "",
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Deposits are a property of the main service (not the add-on extras).
-  const showDeposit = !isAddon;
+  // A deposit is relevant for anything a client can book on its own.
+  const showDeposit = bookableAlone;
   const usesValue = depositType === "fixed" || depositType === "percent";
   const previewAmount = resolveServiceDeposit(
     { depositType, depositValue: Number(depositValue) || 0, priceGBP: Number(price) || 0 },
@@ -319,8 +328,11 @@ function ServiceEditorInner({
     if (!name.trim()) next.name = "Required";
     const dur = Number(duration);
     const pr = Number(price);
-    // Add-ons may add 0 extra time; main services need a real duration.
-    if (!Number.isFinite(dur) || dur < 0 || (!isAddon && dur <= 0)) next.duration = isAddon ? "0 or more" : "Must be > 0";
+    // An add-on used only as an extra may add 0 time; anything bookable on its
+    // own needs a real duration to occupy a slot.
+    const needsDuration = !isAddon || bookableAlone;
+    if (!Number.isFinite(dur) || dur < 0 || (needsDuration && dur <= 0))
+      next.duration = needsDuration ? "Must be > 0" : "0 or more";
     if (!Number.isFinite(pr) || pr < 0) next.price = "Invalid price";
     if (showDeposit && usesValue) {
       const dv = Number(depositValue);
@@ -336,6 +348,7 @@ function ServiceEditorInner({
       durationMin: Math.round(dur),
       priceGBP: Math.round(pr * 100) / 100,
       isAddon,
+      bookableAlone,
       ...(showDeposit
         ? {
             depositType,
@@ -396,6 +409,23 @@ function ServiceEditorInner({
             onChange={(e) => setPrice(e.target.value)}
             error={errors.price}
           />
+        </div>
+
+        <div className="rounded-xl border border-DEFAULT p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+              <CalendarCheck className="h-4 w-4 text-accent" />
+              Bookable on its own
+            </span>
+            <Toggle checked={bookableAlone} onChange={setBookableAlone} label="Bookable on its own" />
+          </div>
+          <p className="mt-2 text-xs text-ink-muted">
+            {bookableAlone
+              ? "Clients can book this by itself on your online booking page."
+              : isAddon
+                ? "Only offered as an add-on to another groom."
+                : "Won't show on your online booking page."}
+          </p>
         </div>
 
         {showDeposit && (

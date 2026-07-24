@@ -12,7 +12,7 @@ import { rowToBusiness } from "@/lib/data/business";
 import { rowToService } from "@/lib/data/services";
 import { rowToSettings } from "@/lib/data/settings";
 import { rowToAppointment, isClashError } from "@/lib/data/appointments";
-import { computeQuote, DEFAULT_SETTINGS, resolveServiceDeposit } from "@/lib/pricing";
+import { computeQuote, DEFAULT_SETTINGS, resolveServiceDeposit, isBookableAlone } from "@/lib/pricing";
 import { findClash, SLOT_STEP_MIN } from "@/lib/schedule";
 import { sendEmail } from "@/lib/email/send";
 import { bookingConfirmationEmail } from "@/lib/email/templates";
@@ -246,6 +246,11 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   if (svcErr) throw svcErr;
   if (!svc) return { ok: false, error: "invalid_service", message: "That service isn't available." };
   const service = rowToService(svc as never);
+  // The main service must be one that can be booked on its own (a plain add-on
+  // can only be an extra) — re-checked here so a crafted request can't bypass it.
+  if (!isBookableAlone(service)) {
+    return { ok: false, error: "invalid_service", message: "That service can't be booked on its own." };
+  }
 
   const { data: setting } = await admin
     .from("settings").select("*").eq("business_id", businessId).maybeSingle();
@@ -259,7 +264,9 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   //    here (never trusting the client) and snapshotted onto the appointment so
   //    later edits to the add-on don't rewrite a booked price. Their price and
   //    extra time fold into the appointment total + the slot's duration. ──────
-  const addonIds = Array.from(new Set((input.addonIds ?? []).filter((id) => typeof id === "string" && id)));
+  const addonIds = Array.from(
+    new Set((input.addonIds ?? []).filter((id) => typeof id === "string" && id && id !== service.id)),
+  );
   let addonsSnapshot: { name: string; price: number }[] | null = null;
   let addonsTotal = 0;
   let addonsMinutes = 0;

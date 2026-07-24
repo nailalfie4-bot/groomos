@@ -85,6 +85,16 @@ export function resolveServiceDeposit(
   }
 }
 
+/**
+ * Whether a service can be booked on its own (as a main booking). An explicit
+ * `bookableAlone` wins; when it's unset the historical rule applies — a service
+ * is bookable alone iff it isn't an add-on. So every existing service keeps its
+ * current behaviour, and add-ons can opt into standalone booking.
+ */
+export function isBookableAlone(service: Pick<Service, "isAddon" | "bookableAlone">): boolean {
+  return service.bookableAlone ?? !service.isAddon;
+}
+
 export const SIZE_LABEL: Record<DogSize, string> = {
   small: "Small",
   medium: "Medium",
