@@ -42,6 +42,7 @@ import type {
   GroomingReport,
   Pet,
   Service,
+  ServiceDepositType,
   Settings,
 } from "@/lib/types";
 import { toast } from "sonner";
@@ -67,6 +68,7 @@ import {
   insertAppointment,
   setAppointmentStatusRow,
   updateAppointmentNotesRow,
+  updateAppointmentDepositRow,
   rescheduleAppointmentRow,
   attachReportRow,
   markReminderSentRow,
@@ -120,6 +122,10 @@ export interface NewServiceInput {
   durationMin: number;
   priceGBP: number;
   isAddon?: boolean;
+  /** Per-service deposit rule; omitted → 'default' (falls back to the business setting). */
+  depositType?: ServiceDepositType;
+  /** £ amount for 'fixed', percentage for 'percent'. */
+  depositValue?: number;
 }
 export interface NewAppointmentInput {
   petId: string;
@@ -201,6 +207,11 @@ interface StoreContextValue extends StoreState {
       >
     >,
   ) => void;
+  /**
+   * Set the per-booking deposit amount (£) and persist it. 0 removes the deposit
+   * for this booking. Used to amend an individual booking's deposit.
+   */
+  setAppointmentDeposit: (id: string, amount: number) => void;
   /** Reschedule an appointment to a new ISO start (calendar drag). */
   rescheduleAppointment: (id: string, start: string) => void;
   /** Attach a before/after report to a completed appointment. */
@@ -785,6 +796,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const setAppointmentDeposit = useCallback(
+    (id: string, amount: number) => {
+      const clean = Math.max(0, Math.round(amount * 100) / 100);
+      setState((s) => ({
+        ...s,
+        appointments: s.appointments.map((a) => (a.id === id ? { ...a, deposit: clean } : a)),
+      }));
+      if (live) persist(() => updateAppointmentDepositRow(id, clean), ["appointments"]);
+    },
+    [live, persist],
+  );
+
   const value = useMemo<StoreContextValue>(
     () => ({
       ...state,
@@ -814,6 +837,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAppointmentStatus,
       updateAppointmentNotes,
       patchAppointmentDeposit,
+      setAppointmentDeposit,
       rescheduleAppointment,
       attachReport,
       markReminderSent,
@@ -849,6 +873,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAppointmentStatus,
       updateAppointmentNotes,
       patchAppointmentDeposit,
+      setAppointmentDeposit,
       rescheduleAppointment,
       attachReport,
       markReminderSent,

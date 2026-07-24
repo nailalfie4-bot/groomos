@@ -13,7 +13,7 @@ import { useStore } from "@/lib/mock/store";
 import { useAuth } from "@/components/auth-provider";
 import { formatGBP } from "@/lib/format";
 import { daySlots, findClash } from "@/lib/schedule";
-import { COAT_HELP, COAT_LABEL, SIZE_LABEL } from "@/lib/pricing";
+import { COAT_HELP, COAT_LABEL, SIZE_LABEL, resolveServiceDeposit } from "@/lib/pricing";
 import type { CoatCondition, DogSize } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -88,7 +88,11 @@ export function BookingForm({
     defaultStart ? toTimeValue(initialDate) : "",
   );
   const [notes, setNotes] = useState("");
-  const [deposit, setDeposit] = useState(settings.depositEnabled);
+  // Deposit is pre-filled from the selected service (its own rule, or the
+  // business default) and editable per booking — the groomer can change the
+  // amount or switch it off entirely for this one booking.
+  const [depositOn, setDepositOn] = useState(false);
+  const [depositStr, setDepositStr] = useState("");
   const [groomerId, setGroomerId] = useState(groomers[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +109,6 @@ export function BookingForm({
     if (defaultClientId) setClientId(defaultClientId);
     setPetId(defaultPetId ?? "");
     setNotes("");
-    setDeposit(settings.depositEnabled);
     setGroomerId(groomers[0]?.id ?? "");
     setError(null);
     setSendingLink(false);
@@ -128,6 +131,28 @@ export function BookingForm({
     [quoteFor, serviceId, size, coat, pet?.name],
   );
 
+  // The deposit this service suggests (its own rule, or the business default).
+  const selectedService = useMemo(
+    () => activeServices.find((s) => s.id === serviceId),
+    [activeServices, serviceId],
+  );
+  const suggestedDeposit = useMemo(
+    () => (selectedService ? resolveServiceDeposit(selectedService, settings) : 0),
+    [selectedService, settings],
+  );
+  // Pre-fill the deposit from the service whenever the form opens or the service
+  // changes; the groomer's edits then stick until they pick a different service.
+  useEffect(() => {
+    if (!open) return;
+    setDepositOn(suggestedDeposit > 0);
+    setDepositStr(suggestedDeposit > 0 ? String(suggestedDeposit) : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, serviceId]);
+
+  const depositNum = depositOn
+    ? Math.max(0, Math.round((Number(depositStr) || 0) * 100) / 100)
+    : 0;
+
   // The day's start times, with taken / past / too-late ones flagged. The
   // groom's true length (incl. matting/size) drives what can fit.
   const groomMinutes = quote?.totalDurationMin ?? 60;
@@ -148,7 +173,7 @@ export function BookingForm({
   // NOT gate on the client-side Connect status — that read can be stale and was
   // hiding the button. The server decides, and falls back to a recorded deposit
   // if card charging isn't live yet.
-  const depositLinkPrimary = deposit && settings.depositAmount > 0;
+  const depositLinkPrimary = depositNum > 0;
 
   /** Validate the form and build the appointment input, or set an error + null. */
   function collectInput(): Parameters<typeof createAppointment>[0] | null {
@@ -181,7 +206,9 @@ export function BookingForm({
       size,
       notes,
       groomerId: groomerId || undefined,
-      deposit: deposit && settings.depositAmount > 0 ? settings.depositAmount : undefined,
+      // Explicit per-booking deposit (0 = removed for this booking), so the
+      // appointment carries the true amount rather than falling back later.
+      deposit: depositNum,
     };
   }
 
@@ -235,7 +262,7 @@ export function BookingForm({
     if (!input) return;
     setSendingLink(true);
     try {
-      const appt = createAppointment({ ...input, deposit: settings.depositAmount });
+      const appt = createAppointment(input);
       const clientEmail = getClient(clientId)?.email || null;
 
       if (!configured) {
@@ -326,7 +353,7 @@ export function BookingForm({
       {linkResult ? (
         <DepositLinkReady
           result={linkResult}
-          amount={settings.depositAmount}
+          amount={depositNum || settings.depositAmount}
           petName={pet?.name}
           onCopy={copyToClipboard}
         />
@@ -426,27 +453,44 @@ export function BookingForm({
           />
         )}
 
-        {/* Deposit & no-show protection */}
+        {/* Deposit & no-show protection — pre-filled from the service, editable here */}
         <div className="rounded-xl border border-DEFAULT p-3">
           <div className="flex items-center justify-between gap-3">
             <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
               <ShieldCheck className="h-4 w-4 text-accent" />
-              Take a {formatGBP(settings.depositAmount)} deposit
+              Deposit
             </span>
-            <Toggle checked={deposit} onChange={setDeposit} label="Require a deposit" />
+            <Toggle checked={depositOn} onChange={setDepositOn} label="Take a deposit" />
           </div>
-          {deposit && (
-            <p className="mt-2 text-xs text-ink-muted">
-              Applied to the {quote ? formatGBP(quote.totalPriceGBP) : "groom"} · kept if they no-show ·
-              free cancellation up to {settings.cancellationNoticeHours}h before.
-            </p>
-          )}
-          {depositLinkPrimary && (
-            <p className="mt-3 flex items-start gap-1.5 border-t border-DEFAULT pt-3 text-[11px] text-ink-subtle">
-              <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
-              Phone booking? Tap <span className="font-medium text-ink-muted">Send deposit link</span> below to book
-              and text/email the client a secure pay-by-card link.
-            </p>
+          {depositOn ? (
+            <div className="mt-3 flex flex-col gap-2">
+              <Input
+                label="Deposit amount (£)"
+                type="number"
+                min={0}
+                step={1}
+                value={depositStr}
+                onChange={(e) => setDepositStr(e.target.value)}
+                hint={
+                  selectedService
+                    ? `Suggested ${formatGBP(suggestedDeposit)} for ${selectedService.name} — change it for this booking if you like.`
+                    : undefined
+                }
+              />
+              <p className="text-xs text-ink-muted">
+                Applied to the {quote ? formatGBP(quote.totalPriceGBP) : "groom"} · kept if they no-show ·
+                free cancellation up to {settings.cancellationNoticeHours}h before.
+              </p>
+              {depositLinkPrimary && (
+                <p className="flex items-start gap-1.5 border-t border-DEFAULT pt-2.5 text-[11px] text-ink-subtle">
+                  <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+                  Phone booking? Tap <span className="font-medium text-ink-muted">Send deposit link</span> below to
+                  book and email the client a secure pay-by-card link for this {formatGBP(depositNum)} deposit.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-ink-muted">No deposit taken for this booking.</p>
           )}
         </div>
 

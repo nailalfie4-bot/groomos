@@ -169,7 +169,18 @@ export interface Service {
   active: boolean;
   /** True for add-on extras (teeth clean, nail trim…), kept separate from main services. */
   isAddon?: boolean;
+  /**
+   * How this service sets its deposit. Omitted / 'default' → fall back to the
+   * business-level deposit setting (the historical behaviour). 'none' → no
+   * deposit. 'fixed' → a flat £ amount. 'percent' → a % of the service price.
+   */
+  depositType?: ServiceDepositType;
+  /** For 'fixed' the £ amount; for 'percent' the percentage (e.g. 50 = 50%). */
+  depositValue?: number;
 }
+
+/** How a service sets its deposit ('default' = fall back to the business setting). */
+export type ServiceDepositType = "default" | "none" | "fixed" | "percent";
 
 export type AppointmentStatus =
   | "pending"

@@ -26,6 +26,9 @@ interface ServiceRow {
   price_gbp: number | string;
   active: boolean;
   is_addon: boolean | null;
+  /** Per-service deposit rule (0017). Absent on rows read before the migration. */
+  deposit_type: string | null;
+  deposit_value: number | string | null;
 }
 
 /** Map a DB row to the app's `Service` shape (camelCase, numeric price). */
@@ -39,6 +42,15 @@ export function rowToService(r: ServiceRow): Service {
     priceGBP: typeof r.price_gbp === "string" ? Number(r.price_gbp) : r.price_gbp,
     active: r.active,
     isAddon: Boolean(r.is_addon),
+    // Defaults keep pre-migration rows (deposit_type absent) falling back to the
+    // business deposit exactly as before.
+    depositType: (r.deposit_type as Service["depositType"]) ?? "default",
+    depositValue:
+      r.deposit_value == null
+        ? undefined
+        : typeof r.deposit_value === "string"
+          ? Number(r.deposit_value)
+          : r.deposit_value,
   };
 }
 
@@ -97,6 +109,8 @@ export async function insertService(
       price_gbp: input.priceGBP,
       active: true,
       is_addon: input.isAddon ?? false,
+      deposit_type: input.depositType ?? "default",
+      deposit_value: input.depositValue ?? null,
     })
     .select()
     .single();
@@ -115,6 +129,17 @@ export async function updateService(
   if (patch.durationMin !== undefined) dbPatch.duration_min = patch.durationMin;
   if (patch.priceGBP !== undefined) dbPatch.price_gbp = patch.priceGBP;
   if (patch.isAddon !== undefined) dbPatch.is_addon = patch.isAddon;
+  if (patch.depositType !== undefined) {
+    dbPatch.deposit_type = patch.depositType;
+    // Keep the stored value coherent with the type: only 'fixed'/'percent' use
+    // it, so switching to 'default'/'none' clears any lingering amount.
+    dbPatch.deposit_value =
+      patch.depositType === "fixed" || patch.depositType === "percent"
+        ? patch.depositValue ?? null
+        : null;
+  } else if (patch.depositValue !== undefined) {
+    dbPatch.deposit_value = patch.depositValue ?? null;
+  }
   if (Object.keys(dbPatch).length === 0) return;
 
   const supabase = createSupabaseBrowserClient();

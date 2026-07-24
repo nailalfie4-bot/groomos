@@ -76,6 +76,7 @@ export function AppointmentSheet({
     setAppointmentStatus,
     updateAppointmentNotes,
     patchAppointmentDeposit,
+    setAppointmentDeposit,
     assignAppointmentGroomer,
     rescheduleAppointment,
   } = useStore();
@@ -90,6 +91,8 @@ export function AppointmentSheet({
   const [rDate, setRDate] = useState("");
   const [rTime, setRTime] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
+  const [editingDeposit, setEditingDeposit] = useState(false);
+  const [depositDraft, setDepositDraft] = useState("");
 
   useEffect(() => {
     if (!appt) return;
@@ -103,6 +106,7 @@ export function AppointmentSheet({
     setViewingCard(false);
     setShowSocial(false);
     setLinkBusy(false);
+    setEditingDeposit(false);
   }, [appt?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If a deposit link was sent, check whether the client has since paid it so
@@ -138,23 +142,37 @@ export function AppointmentSheet({
         : `${formatGBP(appt.deposit)} held`
     : null;
 
-  // ── Deposit payment link (for phone bookings) ─────────────────────────────
-  // Only offered when the groomer can actually take a card (Stripe connected +
-  // charges live) and a deposit amount is set. The client pays on /pay/<token>.
-  const depositAmount = appt.deposit && appt.deposit > 0 ? appt.deposit : settings.depositAmount;
-  const canChargeDeposits =
+  // ── Deposit (amount + pay-by-card link for phone bookings) ────────────────
+  // The per-booking amount wins; an unset deposit (older bookings) falls back to
+  // the business default. An explicit 0 means "no deposit on this booking".
+  const depositAmount = appt.deposit != null ? appt.deposit : settings.depositAmount;
+  const stripeReady =
     Boolean(business.stripeConnectChargesEnabled) &&
     Boolean(business.stripeConnectAccountId) &&
-    Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) &&
-    depositAmount > 0;
+    Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
   const depStatus = appt.depositStatus ?? "none";
   const isUpcoming = appt.status === "pending" || appt.status === "confirmed";
   const payUrl =
     appt.depositLinkToken && typeof window !== "undefined"
       ? `${window.location.origin}/pay/${appt.depositLinkToken}`
       : "";
+  // Show the card whenever the groomer can charge and the booking is live, so the
+  // amount can be set/changed/removed even when it's currently £0.
   const showDepositCard =
-    canChargeDeposits && (depStatus === "paid" || depStatus === "link_sent" || isUpcoming);
+    stripeReady && (depStatus === "paid" || depStatus === "link_sent" || isUpcoming);
+  // Amount is only editable before a link is sent / paid.
+  const depositEditable = depStatus === "none" || depStatus === "recorded";
+
+  function startEditDeposit() {
+    setDepositDraft(depositAmount > 0 ? String(depositAmount) : "");
+    setEditingDeposit(true);
+  }
+  function saveDeposit() {
+    const next = Math.max(0, Math.round((Number(depositDraft) || 0) * 100) / 100);
+    setAppointmentDeposit(appt!.id, next);
+    setEditingDeposit(false);
+    toast.success(next > 0 ? `Deposit set to ${formatGBP(next)}` : "Deposit removed for this booking");
+  }
 
   async function copyPayLink(url: string) {
     if (!url) return;
@@ -383,16 +401,48 @@ export function AppointmentSheet({
                     </Button>
                   </div>
                 </div>
-              ) : (
+              ) : editingDeposit ? (
+                <div className="flex flex-col gap-3">
+                  <Input
+                    label="Deposit amount (£)"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={depositDraft}
+                    onChange={(e) => setDepositDraft(e.target.value)}
+                    hint="Set to 0 to take no deposit for this booking."
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={saveDeposit}>
+                      <Save className="h-4 w-4" /> Save amount
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingDeposit(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : depositAmount > 0 ? (
                 <div className="flex flex-col gap-3">
                   <p className="text-sm text-ink-muted">
                     {depStatus === "recorded"
                       ? `A ${formatGBP(depositAmount)} deposit was agreed but not charged. Send a link so they can pay it by card.`
                       : `Send a secure link so the client can pay their ${formatGBP(depositAmount)} deposit by card — it goes straight into your Stripe account.`}
                   </p>
-                  <div>
+                  <div className="flex flex-wrap gap-2">
                     <Button size="sm" onClick={sendDepositLink} loading={linkBusy} disabled={linkBusy}>
                       <Link2 className="h-4 w-4" /> Send a deposit link
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={startEditDeposit}>
+                      <PoundSterling className="h-4 w-4" /> Change amount
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-ink-muted">No deposit on this booking.</p>
+                  <div>
+                    <Button size="sm" variant="secondary" onClick={startEditDeposit}>
+                      <PoundSterling className="h-4 w-4" /> Add a deposit
                     </Button>
                   </div>
                 </div>

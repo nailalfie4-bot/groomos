@@ -228,10 +228,13 @@ export async function generateDepositLink(
   const { data: setting } = await admin
     .from("settings").select("*").eq("business_id", businessId).maybeSingle();
   const settings = setting ? rowToSettings(setting as never) : { ...DEFAULT_SETTINGS };
-  const existingDeposit = num(a.deposit);
-  const amount = existingDeposit > 0 ? existingDeposit : settings.depositAmount;
+  // The per-booking amount is authoritative — a per-service deposit or a manual
+  // override is snapshotted onto the appointment, and an explicit 0 means "no
+  // deposit on this booking". Only an unset deposit (older bookings) falls back
+  // to the business default.
+  const amount = a.deposit != null ? num(a.deposit) : settings.depositAmount;
   if (!amount || amount <= 0) {
-    return { ok: false, error: "no_deposit", message: "Set a deposit amount in Settings first." };
+    return { ok: false, error: "no_deposit", message: "This booking has no deposit set." };
   }
 
   // Reuse an outstanding token so re-copying gives the same link.

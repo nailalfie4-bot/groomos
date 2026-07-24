@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { resolveBookingPage } from "@/lib/data/public-booking";
 import { isAdminConfigured } from "@/lib/supabase/admin";
 import { getStripe, isStripeServerConfigured } from "@/lib/stripe/server";
+import { resolveServiceDeposit } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,16 +36,19 @@ export async function POST(request: Request) {
   if (!data) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  if (data.deposit.mode !== "charge" || !data.deposit.connectedAccountId) {
-    // No card deposit for this business — the client should just book directly.
+  if (!data.deposit.canCharge || !data.deposit.connectedAccountId) {
+    // This business can't take card deposits — the client should just book directly.
     return NextResponse.json({ ok: false, error: "not_chargeable" }, { status: 400 });
   }
   const service = data.services.find((s) => s.id === serviceId && s.active);
   if (!service) {
     return NextResponse.json({ ok: false, error: "invalid_service" }, { status: 400 });
   }
-  const amountPence = Math.round(data.deposit.amount * 100);
+  // Amount is this service's deposit (its own rule, or the business default).
+  const amount = resolveServiceDeposit(service, data.settings);
+  const amountPence = Math.round(amount * 100);
   if (amountPence <= 0) {
+    // This particular service takes no deposit — book directly, no card step.
     return NextResponse.json({ ok: false, error: "not_chargeable" }, { status: 400 });
   }
 
@@ -71,7 +75,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       clientSecret: intent.client_secret,
-      amount: data.deposit.amount,
+      amount,
       publishableKey: data.deposit.publishableKey,
       connectedAccountId: data.deposit.connectedAccountId,
     });
