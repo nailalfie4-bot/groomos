@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { StoreProvider } from "@/lib/mock/store";
 import { AuthProvider } from "@/components/auth-provider";
 import { SWRegister } from "@/components/sw-register";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -30,7 +31,6 @@ const caveat = Caveat({
   weight: ["500", "600", "700"],
 });
 
-const SITE_URL = "https://groomos.vercel.app";
 const OG_TITLE = "Stop no-shows costing you — booking + deposits for UK dog groomers";
 const OG_DESCRIPTION =
   "One no-show costs you £45. GroomOS costs £29. Give clients an online booking page with upfront card deposits and automatic reminders — so no-shows either don't happen, or don't cost you.";

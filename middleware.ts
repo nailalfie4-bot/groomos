@@ -1,11 +1,20 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { SITE_URL, LEGACY_HOST } from "@/lib/site";
 
 /**
- * Refreshes the Supabase session and protects the app routes. When Supabase
- * isn't configured (the public demo), updateSession is a no-op.
+ * 1) Permanently (301) send the legacy Vercel host to the primary domain,
+ *    preserving path + query, so existing booking links never 404. Preview
+ *    deployments (their own *.vercel.app hosts) are untouched.
+ * 2) Refresh the Supabase session and protect the app routes. When Supabase
+ *    isn't configured (the public demo), updateSession is a no-op.
  */
 export async function middleware(request: NextRequest) {
+  const host = request.headers.get("host");
+  if (host === LEGACY_HOST) {
+    const target = new URL(request.nextUrl.pathname + request.nextUrl.search, SITE_URL);
+    return NextResponse.redirect(target, 301);
+  }
   return await updateSession(request);
 }
 

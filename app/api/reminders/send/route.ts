@@ -11,11 +11,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isEmailConfigured, sendEmail } from "@/lib/email/send";
 import { rebookingReminderEmail } from "@/lib/email/templates";
+import { SITE_URL } from "@/lib/site";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const SITE_URL = "https://groomos.vercel.app";
 
 export async function POST(request: Request) {
   const {
