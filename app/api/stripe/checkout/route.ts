@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getStripe, isStripeServerConfigured, priceIdForPlan } from "@/lib/stripe/server";
+import { getStripe, isStripeServerConfigured, priceIdForPlan, priceEnvVar, maskPriceId } from "@/lib/stripe/server";
 import type { PlanId } from "@/lib/stripe/config";
 
 export const runtime = "nodejs";
@@ -30,8 +30,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_plan" }, { status: 400 });
   }
   const priceId = priceIdForPlan(plan);
+  // Server-side breadcrumb (Vercel function logs): exactly which env var each
+  // plan resolves from and whether it produced a price id at runtime. This is
+  // how a "Starter won't open checkout" report gets traced to a missing/blank
+  // STRIPE_PRICE_STARTER — every plan takes this identical path, there is no
+  // tier-specific branching below.
+  console.info("stripe checkout requested", {
+    plan,
+    envVar: priceEnvVar(plan),
+    priceIdResolved: Boolean(priceId),
+    priceIdPreview: maskPriceId(priceId),
+  });
   if (!priceId) {
-    return NextResponse.json({ error: "price_not_configured" }, { status: 503 });
+    return NextResponse.json(
+      { error: "price_not_configured", plan, envVar: priceEnvVar(plan) },
+      { status: 503 },
+    );
   }
 
   // Authenticate the caller and resolve their business.

@@ -134,6 +134,13 @@ export async function updateAppointmentNotesRow(id: string, notes: string): Prom
   if (error) throw error;
 }
 
+/** Set (or clear) the per-booking deposit amount. `null` removes the deposit. */
+export async function updateAppointmentDepositRow(id: string, deposit: number | null): Promise<void> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("appointments").update({ deposit }).eq("id", id);
+  if (error) throw error;
+}
+
 /** Move an appointment to a new start (calendar drag). May clash (23P01). */
 export async function rescheduleAppointmentRow(id: string, startISO: string): Promise<void> {
   const supabase = createSupabaseBrowserClient();

@@ -12,7 +12,7 @@ import { rowToBusiness } from "@/lib/data/business";
 import { rowToService } from "@/lib/data/services";
 import { rowToSettings } from "@/lib/data/settings";
 import { rowToAppointment, isClashError } from "@/lib/data/appointments";
-import { computeQuote, DEFAULT_SETTINGS } from "@/lib/pricing";
+import { computeQuote, DEFAULT_SETTINGS, resolveServiceDeposit, isBookableAlone } from "@/lib/pricing";
 import { findClash, SLOT_STEP_MIN } from "@/lib/schedule";
 import { sendEmail } from "@/lib/email/send";
 import { bookingConfirmationEmail } from "@/lib/email/templates";
@@ -33,13 +33,18 @@ function utcSlotInstant(dateStr: string, minutesFromMidnight: number): string {
 
 /** Client-safe deposit configuration for one business's booking page. */
 export interface DepositConfig {
-  /** 'charge' → card-charge at booking · 'recorded' → agreed, pay on the day · 'off'. */
+  /** Business-default mode: 'charge' · 'recorded' · 'off'. The client recomputes
+   *  the *effective* mode per service (a per-service amount can still be charged
+   *  even when the business default is £0). */
   mode: DepositMode;
-  /** Deposit amount in GBP (0 when off). */
+  /** Business-default deposit amount in GBP (0 when off). */
   amount: number;
-  /** Connected account id — present only in 'charge' mode (client inits Stripe with it). */
+  /** Whether card charging is possible at all (Stripe connected + configured),
+   *  independent of the amount — the client needs this to charge per-service deposits. */
+  canCharge: boolean;
+  /** Connected account id — present whenever charging is possible (client inits Stripe with it). */
   connectedAccountId?: string;
-  /** Publishable key — present only in 'charge' mode (client mounts the card element). */
+  /** Publishable key — present whenever charging is possible (client mounts the card element). */
   publishableKey?: string;
 }
 
@@ -56,6 +61,11 @@ function resolveDeposit(
   settings: Settings,
   biz: { stripe_connect_account_id?: string | null; stripe_connect_charges_enabled?: boolean | null },
 ): DepositConfig {
+  const canCharge =
+    Boolean(biz.stripe_connect_charges_enabled) &&
+    Boolean(biz.stripe_connect_account_id) &&
+    isStripeServerConfigured() &&
+    hasPublishableKey();
   const amount = settings.depositEnabled ? settings.depositAmount : 0;
   const mode = depositModeFor({
     depositEnabled: settings.depositEnabled,
@@ -63,11 +73,15 @@ function resolveDeposit(
     chargesEnabled: Boolean(biz.stripe_connect_charges_enabled),
     stripeConfigured: isStripeServerConfigured() && hasPublishableKey(),
   });
+  // Send the connect details whenever charging is POSSIBLE (not only when the
+  // business default is chargeable), so the client can card-charge a per-service
+  // deposit even where the business-wide default is £0/off.
   return {
     mode,
     amount,
-    connectedAccountId: mode === "charge" ? biz.stripe_connect_account_id ?? undefined : undefined,
-    publishableKey: mode === "charge" ? process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY : undefined,
+    canCharge,
+    connectedAccountId: canCharge ? biz.stripe_connect_account_id ?? undefined : undefined,
+    publishableKey: canCharge ? process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY : undefined,
   };
 }
 
@@ -232,6 +246,11 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   if (svcErr) throw svcErr;
   if (!svc) return { ok: false, error: "invalid_service", message: "That service isn't available." };
   const service = rowToService(svc as never);
+  // The main service must be one that can be booked on its own (a plain add-on
+  // can only be an extra) — re-checked here so a crafted request can't bypass it.
+  if (!isBookableAlone(service)) {
+    return { ok: false, error: "invalid_service", message: "That service can't be booked on its own." };
+  }
 
   const { data: setting } = await admin
     .from("settings").select("*").eq("business_id", businessId).maybeSingle();
@@ -245,7 +264,9 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   //    here (never trusting the client) and snapshotted onto the appointment so
   //    later edits to the add-on don't rewrite a booked price. Their price and
   //    extra time fold into the appointment total + the slot's duration. ──────
-  const addonIds = Array.from(new Set((input.addonIds ?? []).filter((id) => typeof id === "string" && id)));
+  const addonIds = Array.from(
+    new Set((input.addonIds ?? []).filter((id) => typeof id === "string" && id && id !== service.id)),
+  );
   let addonsSnapshot: { name: string; price: number }[] | null = null;
   let addonsTotal = 0;
   let addonsMinutes = 0;
@@ -312,13 +333,15 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   // ── Deposit: decide charge vs recorded, and (charge mode) verify the card
   //    was actually taken BEFORE we create any rows. Failed/absent payment in
   //    charge mode = no confirmed booking. ──────────────────────────────────
-  const depositMode = depositModeFor({
-    depositEnabled: settings.depositEnabled,
-    depositAmount: settings.depositAmount,
-    chargesEnabled: Boolean((biz as { stripe_connect_charges_enabled?: boolean | null }).stripe_connect_charges_enabled),
-    stripeConfigured: isStripeServerConfigured() && hasPublishableKey(),
-  });
-  const depositDue = depositMode === "off" ? 0 : settings.depositAmount;
+  // The deposit is per-SERVICE (its own rule, or the business default). Whether
+  // it can be card-charged is a business-level capability (Stripe connected).
+  const canCharge =
+    Boolean((biz as { stripe_connect_charges_enabled?: boolean | null }).stripe_connect_charges_enabled) &&
+    Boolean(connectedAccountId) &&
+    isStripeServerConfigured() &&
+    hasPublishableKey();
+  const depositDue = resolveServiceDeposit(service, settings);
+  const depositMode: DepositMode = depositDue <= 0 ? "off" : canCharge ? "charge" : "recorded";
   const paymentIntentId = input.paymentIntentId?.trim();
 
   if (depositMode === "charge") {
@@ -449,7 +472,9 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       coat_condition: input.coat,
       duration_min: totalDurationMin,
       addons: addonsSnapshot,
-      deposit: depositDue > 0 ? depositDue : null,
+      // Snapshot the exact per-service deposit (0 = this service takes none), so
+      // the staff console + any pay link later use the true amount.
+      deposit: depositDue,
       deposit_status: depositMode === "charge" ? "paid" : depositMode === "recorded" ? "recorded" : "none",
       deposit_payment_intent_id: depositMode === "charge" ? paymentIntentId : null,
       declarations: declarationsSnapshot,

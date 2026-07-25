@@ -35,7 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatGBP } from "@/lib/format";
-import { computeQuote, SIZE_LABEL } from "@/lib/pricing";
+import { computeQuote, SIZE_LABEL, resolveServiceDeposit, isBookableAlone } from "@/lib/pricing";
 import type { Business, CoatCondition, DeclarationScale, DogSize, Service, Settings } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +49,8 @@ import { cn } from "@/lib/utils";
 export type PublicDepositConfig = {
   mode: "charge" | "recorded" | "off";
   amount: number;
+  /** Whether card charging is possible at all (independent of the amount). */
+  canCharge?: boolean;
   connectedAccountId?: string;
   publishableKey?: string;
 };
@@ -201,7 +203,9 @@ export function PublicBooking({
   fetchSlots?: (date: string, minutes: number) => Promise<string[]>;
   submitBooking?: (input: PublicBookingSubmit) => Promise<PublicBookingResult>;
 }) {
-  const mainServices = useMemo(() => services.filter((s) => s.active && !s.isAddon), [services]);
+  // The standalone picker: main services + any add-on the groomer marked
+  // "bookable on its own". Add-ons stay available as extras too.
+  const mainServices = useMemo(() => services.filter((s) => s.active && isBookableAlone(s)), [services]);
   const addOns = useMemo(() => services.filter((s) => s.active && s.isAddon), [services]);
   const slug = business.slug ?? "";
   const days = useMemo(() => nextDays(14), []);
@@ -237,18 +241,29 @@ export function PublicBooking({
   // Coat is assessed by the groomer in person; the customer estimate assumes a
   // brushed coat. Size only changes the quote for giant breeds.
   const quote = service ? computeQuote(service, size, "smooth", settings, petName.trim() || "your dog") : null;
-  const selectedAddons = addOns.filter((a) => addonIds.includes(a.id));
+  // A service can't be an add-on to itself — exclude the chosen main service
+  // (relevant now that a service can be both bookable-alone and an add-on).
+  const availableAddons = useMemo(() => addOns.filter((a) => a.id !== serviceId), [addOns, serviceId]);
+  const selectedAddons = availableAddons.filter((a) => addonIds.includes(a.id));
   const addonsTotal = selectedAddons.reduce((sum, a) => sum + a.priceGBP, 0);
   const addonsMinutes = selectedAddons.reduce((sum, a) => sum + a.durationMin, 0);
   const groomMinutes = (quote?.totalDurationMin ?? service?.durationMin ?? 60) + addonsMinutes;
   const estTotal = (quote?.totalPriceGBP ?? service?.priceGBP ?? 0) + addonsTotal;
-  // Deposit behaviour comes from the server (settings + connected account). When
-  // omitted (older callers), fall back to a recorded deposit from settings.
-  const depositCfg: PublicDepositConfig = deposit ?? {
+  // The business's charging capability comes from the server (Stripe connected).
+  // When omitted (older callers), assume no card charging.
+  const depositBiz: PublicDepositConfig = deposit ?? {
     mode: settings.depositEnabled && settings.depositAmount > 0 ? "recorded" : "off",
     amount: settings.depositEnabled ? settings.depositAmount : 0,
+    canCharge: false,
   };
-  const depositDue = depositCfg.mode === "off" ? 0 : depositCfg.amount;
+  // The amount is per-SERVICE (its own rule, or the business default); the
+  // effective mode follows from whether this business can card-charge at all.
+  const serviceDeposit = service ? resolveServiceDeposit(service, settings) : 0;
+  const canCharge = depositBiz.canCharge ?? depositBiz.mode === "charge";
+  const depositMode: PublicDepositConfig["mode"] =
+    serviceDeposit <= 0 ? "off" : canCharge ? "charge" : "recorded";
+  const depositCfg: PublicDepositConfig = { ...depositBiz, mode: depositMode, amount: serviceDeposit };
+  const depositDue = depositMode === "off" ? 0 : serviceDeposit;
 
   // Declarations + T&Cs the groomer configured. The "checks" step only exists
   // when there's something to agree to; step numbering is derived from this.
@@ -550,13 +565,13 @@ export function PublicBooking({
                   ))}
 
                   {/* Add extras? — only when the groomer has add-ons */}
-                  {addOns.length > 0 && service && (
+                  {availableAddons.length > 0 && service && (
                     <div className="mt-1 flex flex-col gap-4">
                       <div className="border-t border-DEFAULT pt-4">
                         <p className="text-sm font-medium text-ink">Add extras?</p>
                         <p className="mt-0.5 text-xs text-ink-muted">Optional — tap any you&apos;d like added to the groom.</p>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {addOns.map((a) => {
+                          {availableAddons.map((a) => {
                             const on = addonIds.includes(a.id);
                             return (
                               <button

@@ -34,9 +34,10 @@ const services: Service[] = [
   { id: "svc-full", businessId: "demo", name: "Full Groom", description: "Wash, dry, full clip & style", durationMin: 90, priceGBP: 45, active: true },
   { id: "svc-bath", businessId: "demo", name: "Bath & Tidy", description: "Wash, blow-dry, nails & a tidy up", durationMin: 60, priceGBP: 30, active: true },
   { id: "svc-puppy", businessId: "demo", name: "Puppy's First Groom", description: "A gentle intro for pups under 6 months", durationMin: 45, priceGBP: 25, active: true },
-  // Add-ons — extras the client can tack onto any groom.
-  { id: "add-teeth", businessId: "demo", name: "Teeth cleaning", description: "", durationMin: 10, priceGBP: 8, active: true, isAddon: true },
-  { id: "add-nails", businessId: "demo", name: "Nail trim", description: "", durationMin: 0, priceGBP: 6, active: true, isAddon: true },
+  // Add-ons — extras the client can tack onto any groom. "Nail trim" and "Teeth
+  // cleaning" are also bookable on their own (standalone minor services).
+  { id: "add-teeth", businessId: "demo", name: "Teeth cleaning", description: "A quick freshen-up.", durationMin: 10, priceGBP: 8, active: true, isAddon: true, bookableAlone: true },
+  { id: "add-nails", businessId: "demo", name: "Nail trim", description: "In and out — nails only.", durationMin: 15, priceGBP: 6, active: true, isAddon: true, bookableAlone: true },
   { id: "add-deshed", businessId: "demo", name: "De-shed treatment", description: "", durationMin: 20, priceGBP: 12, active: true, isAddon: true },
 ];
 

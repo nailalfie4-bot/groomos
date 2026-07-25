@@ -62,6 +62,9 @@ const services: Service[] = [
     durationMin: 90,
     priceGBP: 45,
     active: true,
+    // Shows the percentage option: 50% of £45 = a £22.50 deposit.
+    depositType: "percent",
+    depositValue: 50,
   },
   {
     id: "svc_2",
@@ -80,6 +83,8 @@ const services: Service[] = [
     durationMin: 45,
     priceGBP: 25,
     active: true,
+    // A friendly no-deposit first visit — shows the "no deposit" option.
+    depositType: "none",
   },
   {
     id: "svc_4",
@@ -98,6 +103,29 @@ const services: Service[] = [
     durationMin: 75,
     priceGBP: 40,
     active: true,
+  },
+  // Add-ons (extras). "Nail Trim" is also bookable on its own — a quick
+  // standalone visit — while "Teeth Clean" is an add-on only.
+  {
+    id: "svc_6",
+    businessId: business.id,
+    name: "Nail Trim",
+    description: "Quick nail trim and file — in and out.",
+    durationMin: 15,
+    priceGBP: 10,
+    active: true,
+    isAddon: true,
+    bookableAlone: true,
+  },
+  {
+    id: "svc_7",
+    businessId: business.id,
+    name: "Teeth Clean",
+    description: "A freshen-up added to any groom.",
+    durationMin: 10,
+    priceGBP: 8,
+    active: true,
+    isAddon: true,
   },
 ];
 

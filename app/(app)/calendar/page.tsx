@@ -336,18 +336,29 @@ export default function CalendarPage() {
                     )}
                     <div className="flex h-full flex-col justify-center">
                       {compact ? (
-                        // Short groom (≤45 min): one tidy line so nothing clips.
-                        <p className="flex items-center gap-1.5 truncate text-xs font-semibold leading-tight text-ink">
+                        // Short groom: one line, but dog + service + time all stay
+                        // on it — the service truncates first if space is tight,
+                        // it never just disappears.
+                        <p className="flex items-center gap-1.5 text-xs font-semibold leading-tight text-ink">
                           {done ? (
                             <Check className="h-3 w-3 shrink-0 text-ink-subtle" />
                           ) : (
                             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", m.edge)} />
                           )}
-                          <span className="truncate">{pet?.name}</span>
-                          <span className="tabular-nums shrink-0 font-normal text-ink-muted">
+                          <span className="min-w-0 shrink truncate">{pet?.name}</span>
+                          {svc?.name && (
+                            <span className="min-w-0 flex-1 truncate font-normal text-ink-muted">{svc.name}</span>
+                          )}
+                          {special && <Heart className="h-3 w-3 shrink-0 text-accent" />}
+                          <span
+                            className={cn(
+                              "tabular-nums ml-auto shrink-0 pl-0.5 font-normal text-ink-muted",
+                              // Clear the top-right groomer dot so the time stays legible.
+                              groomers.length > 0 && a.groomerId && "pr-3.5",
+                            )}
+                          >
                             {formatTime(a.start)}
                           </span>
-                          {special && <Heart className="h-3 w-3 shrink-0 text-accent" />}
                         </p>
                       ) : (
                         <>
@@ -412,6 +423,7 @@ export default function CalendarPage() {
                     ) : (
                       list.map((a) => {
                         const m = MARKER[a.status];
+                        const svc = services.find((x) => x.id === a.serviceId);
                         return (
                           <button
                             key={a.id}
@@ -428,6 +440,11 @@ export default function CalendarPage() {
                             <span className="block truncate text-[13px] font-semibold leading-tight text-ink">
                               {getPet(a.petId)?.name}
                             </span>
+                            {svc?.name && (
+                              <span className="mt-0.5 block truncate text-[10px] leading-tight text-ink-muted">
+                                {svc.name}
+                              </span>
+                            )}
                           </button>
                         );
                       })

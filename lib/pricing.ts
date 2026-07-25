@@ -56,6 +56,45 @@ export const DEFAULT_SETTINGS: Settings = {
   },
 };
 
+/**
+ * The deposit due for a service, in GBP. The service's own rule wins; 'default'
+ * (or an unset type — every pre-existing service) falls back to the business
+ * deposit setting. Returns 0 for no deposit. Pure, so both booking paths (public
+ * client + staff console) and the settings preview all agree on one number.
+ *
+ *   'none'    → 0
+ *   'fixed'   → the flat £ amount
+ *   'percent' → that % of the service's base price
+ *   'default' → the business deposit amount (0 when the business deposit is off)
+ */
+export function resolveServiceDeposit(
+  service: Pick<Service, "depositType" | "depositValue" | "priceGBP">,
+  settings: Pick<Settings, "depositEnabled" | "depositAmount">,
+): number {
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  switch (service.depositType ?? "default") {
+    case "none":
+      return 0;
+    case "fixed":
+      return Math.max(0, round2(service.depositValue ?? 0));
+    case "percent":
+      return Math.max(0, round2(((service.depositValue ?? 0) / 100) * service.priceGBP));
+    case "default":
+    default:
+      return settings.depositEnabled ? Math.max(0, round2(settings.depositAmount)) : 0;
+  }
+}
+
+/**
+ * Whether a service can be booked on its own (as a main booking). An explicit
+ * `bookableAlone` wins; when it's unset the historical rule applies — a service
+ * is bookable alone iff it isn't an add-on. So every existing service keeps its
+ * current behaviour, and add-ons can opt into standalone booking.
+ */
+export function isBookableAlone(service: Pick<Service, "isAddon" | "bookableAlone">): boolean {
+  return service.bookableAlone ?? !service.isAddon;
+}
+
 export const SIZE_LABEL: Record<DogSize, string> = {
   small: "Small",
   medium: "Medium",
