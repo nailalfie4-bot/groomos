@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Copy, Loader2, Mail, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -59,6 +59,23 @@ export function OnboardGroomer() {
   ]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The most recent invite's link + email outcome, so the founder can always
+  // copy the link and send it manually — even when the email fails.
+  const [lastInvite, setLastInvite] = useState<
+    { url: string; email: string; emailed: boolean; emailSkipped: boolean; emailError: string | null } | null
+  >(null);
+  const [copied, setCopied] = useState(false);
+
+  async function copyLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success("Invite link copied");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy — select the link and copy it manually.");
+    }
+  }
 
   const loadInvites = useCallback(async () => {
     if (!live) return;
@@ -136,11 +153,10 @@ export function OnboardGroomer() {
         setSending(false);
         return;
       }
-      toast.success(`Invite sent to ${email}`, {
-        description: data.emailSkipped
-          ? "Account created — but email isn't switched on, so the link wasn't sent."
-          : "They'll get an email to set their own password.",
-      });
+      const emailed = !!data.emailed;
+      setLastInvite({ url: data.url ?? "", email, emailed, emailSkipped: !!data.emailSkipped, emailError: data.emailError ?? null });
+      if (emailed) toast.success(`Invite emailed to ${email}`);
+      else toast.error(data.emailSkipped ? "Email isn't switched on — copy the link below." : "Email didn't send — copy the link below.");
       setBusinessName("");
       setEmail("");
       setTerms("");
@@ -169,7 +185,10 @@ export function OnboardGroomer() {
         toast.error(data.message ?? "Couldn't resend the invite.");
         return;
       }
-      toast.success(`Fresh invite sent to ${inv.email}`);
+      const emailed = !!data.emailed;
+      setLastInvite({ url: data.url ?? "", email: inv.email, emailed, emailSkipped: !!data.emailSkipped, emailError: data.emailError ?? null });
+      if (emailed) toast.success(`Fresh invite emailed to ${inv.email}`);
+      else toast.error(data.emailSkipped ? "Email isn't switched on — copy the link below." : "Email didn't send — copy the link below.");
       await loadInvites();
     } finally {
       setBusyResend(null);
@@ -290,6 +309,53 @@ export function OnboardGroomer() {
           </Button>
         </div>
       </form>
+
+      {/* Most recent invite link — always copyable, so a failed email never
+          blocks onboarding. */}
+      {lastInvite && lastInvite.url && (
+        <div
+          className={cn(
+            "rounded-xl border p-4",
+            lastInvite.emailed ? "border-success-deep/30 bg-success-soft/40" : "border-warning-deep/40 bg-warning-soft/50",
+          )}
+        >
+          <div className="flex items-start gap-2">
+            {lastInvite.emailed ? (
+              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-success-deep" />
+            ) : (
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-deep" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink">
+                {lastInvite.emailed
+                  ? `Invite emailed to ${lastInvite.email}`
+                  : "Account created — but the email didn't send"}
+              </p>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                {lastInvite.emailed
+                  ? "The single-use link is below too — copy it if you'd rather send it yourself."
+                  : lastInvite.emailSkipped
+                    ? "Email isn't switched on (no RESEND_API_KEY). Copy this single-use link and send it to the customer:"
+                    : "Copy this single-use link and send it to the customer yourself:"}
+              </p>
+              {!lastInvite.emailed && lastInvite.emailError && (
+                <p className="mt-1 break-all text-[11px] text-warning-deep">Reason: {lastInvite.emailError}</p>
+              )}
+              <div className="mt-2 flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded-lg border border-DEFAULT bg-surface px-2.5 py-2 text-xs text-ink">
+                  {lastInvite.url}
+                </code>
+                <Button type="button" size="sm" variant="secondary" onClick={() => copyLink(lastInvite.url)}>
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} Copy
+                </Button>
+              </div>
+              <p className="mt-1.5 text-[11px] text-ink-subtle">
+                Single-use · the customer sets their own password when they open it.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Invite status */}
       <div className="border-t border-DEFAULT pt-4">
