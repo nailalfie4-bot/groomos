@@ -34,6 +34,7 @@ import { PageHeader } from "@/components/page-header";
 import { BusinessLogo } from "@/components/business-logo";
 import { ChangePassword } from "@/components/account/change-password";
 import { OnboardGroomer } from "@/components/account/onboard-groomer";
+import { ClearRecords } from "@/components/account/clear-records";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -369,6 +370,13 @@ function SettingsForm({
               description="Prepare a groomer's account, then invite them to claim it and set their own password."
             >
               <OnboardGroomer />
+            </Section>
+            <Section
+              icon={<Trash2 className="h-[18px] w-[18px]" />}
+              title="Clear account records"
+              description="Danger zone — permanently delete an account's clients, pets, appointments, services and groomers (keeps the account and its settings). Founder-only; needs a typed confirmation."
+            >
+              <ClearRecords />
             </Section>
           </SettingsGroup>
         )}
