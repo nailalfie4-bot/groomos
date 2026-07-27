@@ -39,6 +39,11 @@ export async function GET(request: NextRequest) {
   }
 
   if (failed) {
+    // An expired/used onboarding invite (invite or magic link, or one headed to
+    // /welcome) gets a friendly self-service page instead of a login error.
+    if (type === "invite" || type === "magiclink" || next === "/welcome") {
+      return NextResponse.redirect(new URL("/invite-expired", url.origin));
+    }
     const dest = new URL("/login", url.origin);
     dest.searchParams.set("authError", "link_invalid");
     return NextResponse.redirect(dest);

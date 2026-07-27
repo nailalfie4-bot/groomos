@@ -148,16 +148,22 @@ async function handleCreate(
     .single();
   if (invErr) console.error("onboarding invite record insert failed:", invErr);
 
-  // 4) Send the branded invite email.
+  // 4) Send the branded invite email (best-effort). The account + invite already
+  //    exist above, so a send failure never loses the invite — we return the link
+  //    and the exact Resend error so the founder can send it manually.
   const url = buildInviteUrl(origin, tokenHash, "invite");
   const msg = inviteEmail({ businessName, inviteUrl: url, expiresLabel: expiryLabel(expiresAt) });
   const emailed = await sendEmail({ to: email, subject: msg.subject, html: msg.html });
+  if (!emailed.ok && !emailed.skipped) console.error("onboarding invite email failed:", emailed.error);
 
   return NextResponse.json({
     ok: true,
     id: (inviteRow as { id?: string } | null)?.id ?? null,
+    email,
+    url,
     emailed: emailed.ok,
     emailSkipped: emailed.skipped ?? false,
+    emailError: emailed.ok ? null : emailed.error ?? null,
   });
 }
 
@@ -207,6 +213,14 @@ async function handleResend(
   const url = buildInviteUrl(origin, tokenHash, "magiclink");
   const msg = inviteEmail({ businessName: invite.business_name, inviteUrl: url, expiresLabel: expiryLabel(expiresAt) });
   const emailed = await sendEmail({ to: invite.email, subject: msg.subject, html: msg.html });
+  if (!emailed.ok && !emailed.skipped) console.error("onboarding invite resend email failed:", emailed.error);
 
-  return NextResponse.json({ ok: true, emailed: emailed.ok, emailSkipped: emailed.skipped ?? false });
+  return NextResponse.json({
+    ok: true,
+    email: invite.email,
+    url,
+    emailed: emailed.ok,
+    emailSkipped: emailed.skipped ?? false,
+    emailError: emailed.ok ? null : emailed.error ?? null,
+  });
 }
