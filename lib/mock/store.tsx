@@ -267,9 +267,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // "Live" = real Supabase data for the signed-in tenant. Otherwise the demo.
   const live = configured && !!businessId;
 
-  // Deterministic initial state (same on server + first client render). On mount
-  // configured mode clears this seed and loads real data; demo keeps it.
-  const [state, setState] = useState<StoreState>(() => createSeed());
+  // Deterministic initial state (same on server + first client render). A real
+  // (configured) account starts EMPTY — never the demo seed — so a customer never
+  // sees fake dogs, not even for a frame while their data loads. The public demo
+  // (unconfigured) uses the rich seed.
+  const [state, setState] = useState<StoreState>(() => (configured ? createEmptySeed() : createSeed()));
   const [hydrated, setHydrated] = useState(false);
   const didLoad = useRef(false);
   const loadedBiz = useRef<string | null>(null);

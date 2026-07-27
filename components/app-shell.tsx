@@ -116,13 +116,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <ExternalLink className="h-4 w-4" />
             Public booking
           </Link>
-          <button
-            onClick={resetDemo}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors duration-fast hover:bg-surface-sunken hover:text-ink"
-          >
-            <RotateCcw className="h-4 w-4" />
-            Reset demo data
-          </button>
+          {/* Demo-only — never shown to a real (configured) customer account. */}
+          {!configured && (
+            <button
+              onClick={resetDemo}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors duration-fast hover:bg-surface-sunken hover:text-ink"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset demo data
+            </button>
+          )}
           <button
             onClick={() => signOutAction()}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors duration-fast hover:bg-surface-sunken hover:text-ink"
@@ -190,16 +193,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <ExternalLink className="h-4 w-4" />
               Public booking page
             </Link>
-            <button
-              onClick={() => {
-                resetDemo();
-                setMenuOpen(false);
-              }}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-muted"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Reset demo data
-            </button>
+            {!configured && (
+              <button
+                onClick={() => {
+                  resetDemo();
+                  setMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-muted"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Reset demo data
+              </button>
+            )}
             <button
               onClick={() => signOutAction()}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-ink-muted"
