@@ -27,15 +27,17 @@ import { cn } from "@/lib/utils";
 const BAR_TONE = ["bg-danger", "bg-warning", "bg-accent", "bg-success"] as const;
 
 type Phase =
-  | { kind: "checking" }
   | { kind: "form"; businessName?: string; email?: string } // ready to set a password
   | { kind: "claimed" } // already set up → log in
   | { kind: "invalid" }; // expired / unknown → request a fresh link
 
 export default function WelcomePage() {
   const configured = isSupabaseConfigured();
-  // Demo (no Supabase) just shows the form so the UI is viewable.
-  const [phase, setPhase] = useState<Phase>(configured ? { kind: "checking" } : { kind: "form" });
+  // Default to the form for EVERYONE (it's an invite-claim page), so it renders
+  // straight from the static HTML — no spinner, no session needed, resilient to
+  // a slow/locked-down mobile in-app browser. The effect below only downgrades
+  // to "claimed"/"expired"/"invalid" when we can confirm that.
+  const [phase, setPhase] = useState<Phase>({ kind: "form" });
   // Our durable invite token from the URL (new links). Empty for the legacy path.
   const [token, setToken] = useState<string | null>(null);
   const [email, setEmail] = useState<string | undefined>();
@@ -50,7 +52,12 @@ export default function WelcomePage() {
     setToken(t);
 
     if (t) {
-      // New flow: verify the token WITHOUT consuming it.
+      // New flow. Show the password form IMMEDIATELY — never wait on a network
+      // round-trip and never require a session, so a slow or locked-down mobile
+      // in-app browser (Instagram/Facebook) can't leave her stuck on a spinner.
+      // The claim on submit is the real authority; verify below only refines the
+      // message (e.g. "already set up") when it succeeds.
+      setPhase({ kind: "form" });
       fetch(`/api/onboarding/verify?token=${encodeURIComponent(t)}`)
         .then((r) => r.json())
         .then((d) => {
@@ -59,11 +66,15 @@ export default function WelcomePage() {
             setPhase({ kind: "form", businessName: d.businessName, email: d.email });
           } else if (d?.reason === "claimed") {
             setPhase({ kind: "claimed" });
-          } else {
+          } else if (d?.reason === "expired") {
             setPhase({ kind: "invalid" });
           }
+          // not_found or a failed/blocked fetch: keep the form up and let the
+          // claim decide — better than blocking a valid invite on a flaky read.
         })
-        .catch(() => setPhase({ kind: "invalid" }));
+        .catch(() => {
+          /* keep the form up; claim is authoritative */
+        });
       return;
     }
 
@@ -157,9 +168,7 @@ export default function WelcomePage() {
       altLabel="Log in"
       altHref="/login"
     >
-      {phase.kind === "checking" ? (
-        <p className="text-sm text-ink-muted">Checking your invite…</p>
-      ) : phase.kind === "claimed" ? (
+      {phase.kind === "claimed" ? (
         <div className="flex flex-col gap-3">
           <p className="rounded-xl border border-DEFAULT bg-surface-sunken p-4 text-sm text-ink-muted">
             This account is already set up. Log in with the password you chose.
