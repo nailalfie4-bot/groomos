@@ -151,6 +151,8 @@ export default function WelcomePage() {
         await fetch("/api/onboarding/accept", { method: "POST" }).catch(() => {});
       }
 
+      // Record this first login for the founder's customer-health metrics.
+      void fetch("/api/account/login-ping", { method: "POST", keepalive: true }).catch(() => {});
       toast.success("You're all set — welcome to GroomOS! 🐾");
       window.location.assign("/dashboard");
     } catch {

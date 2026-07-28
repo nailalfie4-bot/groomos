@@ -47,6 +47,10 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
+    // Record the login for the founder's customer-health metrics. Best-effort +
+    // keepalive so it survives the navigation below; never blocks the login.
+    void fetch("/api/account/login-ping", { method: "POST", keepalive: true }).catch(() => {});
+
     // Full navigation so the server (middleware + layouts) picks up the session.
     // Only honour same-origin paths (no open redirects).
     const raw = new URLSearchParams(window.location.search).get("redirectedFrom");

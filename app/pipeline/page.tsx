@@ -5,7 +5,8 @@
  * A self-contained, mobile-first, four-tab app: Today, Pipeline, Plays, Numbers.
  */
 import { useState } from "react";
-import { BarChart3, BookOpen, Loader2, Users, Zap } from "lucide-react";
+import Link from "next/link";
+import { Activity, BarChart3, BookOpen, Loader2, Users, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePipeline, todayISO } from "@/lib/pipeline/use-pipeline";
 import type { Prospect } from "@/lib/pipeline/types";
@@ -47,14 +48,23 @@ export default function PipelinePage() {
             <h1 className="text-lg font-semibold tracking-tight text-ink">Pipeline</h1>
             <p className="text-xs text-ink-muted">Founder outreach CRM · internal</p>
           </div>
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-[11px] font-medium",
-              api.live ? "bg-success-soft text-success-deep" : "bg-surface-sunken text-ink-muted",
-            )}
-          >
-            {api.live ? "Synced" : "Demo"}
-          </span>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/pipeline/customers"
+              className="inline-flex items-center gap-1.5 rounded-full border border-strong bg-surface px-2.5 py-1 text-[11px] font-medium text-ink-muted transition-colors hover:border-accent hover:text-ink"
+            >
+              <Activity className="h-3.5 w-3.5" />
+              Customers
+            </Link>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                api.live ? "bg-success-soft text-success-deep" : "bg-surface-sunken text-ink-muted",
+              )}
+            >
+              {api.live ? "Synced" : "Demo"}
+            </span>
+          </div>
         </div>
       </header>
 

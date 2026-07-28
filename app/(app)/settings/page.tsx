@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
+  Activity,
   ArrowRight,
   Bell,
   Building2,
@@ -364,6 +365,19 @@ function SettingsForm({
         {/* ── Onboard (founder only) ─────────────────────────────────────── */}
         {isFounder && (
           <SettingsGroup title="Founder">
+            <Section
+              icon={<Activity className="h-[18px] w-[18px]" />}
+              title="Customer health"
+              description="See how each customer is using GroomOS — activity, trial countdowns and who needs help. Read-only, aggregate counts only."
+            >
+              <Link
+                href="/pipeline/customers"
+                className="flex items-center justify-between gap-3 rounded-xl border border-DEFAULT bg-surface-sunken p-4 transition-colors hover:border-accent"
+              >
+                <span className="text-sm text-ink">Open the customer dashboard</span>
+                <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle" />
+              </Link>
+            </Section>
             <Section
               icon={<UserPlus className="h-[18px] w-[18px]" />}
               title="Onboard a groomer"
