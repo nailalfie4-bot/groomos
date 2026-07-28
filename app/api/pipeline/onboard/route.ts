@@ -1,16 +1,22 @@
 /**
  * POST /api/pipeline/onboard — founder-only. Two actions (by body.action):
  *
- *  create (default): create a groomer's account in advance and email them a
- *    single-use invite link to claim it. Uses the service-role admin client:
- *    generateLink({type:'invite'}) creates the auth user (the 0002 signup
- *    trigger then makes the business + settings + owner row from business_name),
- *    then we configure that business (area, services, deposit, T&Cs) and email a
- *    branded invite via Resend. The founder never sets or sees a password.
+ *  create (default): create a groomer's account in advance and email them an
+ *    invite link to claim it. Uses the service-role admin client: createUser()
+ *    makes the auth user (the 0002 signup trigger then makes the business +
+ *    settings + owner row from business_name), we configure that business (area,
+ *    services, deposit, T&Cs), mint OUR OWN durable invite token, and email a
+ *    branded /welcome?invite=… link via Resend. The founder never sets a password.
  *
- *  resend: reissue a fresh single-use link (7-day window) for an existing,
- *    unclaimed invite via a magic link — the groomer still sets their own
- *    password on /welcome.
+ *  resend: re-email the invite for an existing, unclaimed invite. It REUSES the
+ *    same token (regenerating never burns a link the customer already holds) and
+ *    extends the window. The groomer still sets their own password on /welcome.
+ *
+ * Why our own token and not a Supabase magic link: magic-link tokens are
+ * single-use and were consumed by the GET on /auth/callback — so a messaging
+ * app's link-preview crawler fetching the URL spent the token before the human
+ * clicked. Our token is only READ on /welcome (never consumed) and stays valid
+ * until the password is actually set. See migration 0020 + /api/onboarding/*.
  */
 import { NextResponse } from "next/server";
 import { getFounder } from "@/lib/auth/founder";
@@ -18,21 +24,16 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseAdminClient, isAdminConfigured } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/send";
 import { inviteEmail } from "@/lib/email/templates";
+import { mintInviteToken, inviteUrlFor } from "@/lib/onboarding/invite-token";
 import type { OnboardInput } from "@/lib/onboarding/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EXPIRY_DAYS = 7;
-
-function buildInviteUrl(origin: string, tokenHash: string, type: string): string {
-  const u = new URL("/auth/callback", origin);
-  u.searchParams.set("token_hash", tokenHash);
-  u.searchParams.set("type", type);
-  u.searchParams.set("next", "/welcome");
-  return u.toString();
-}
+// Our token isn't consumed by a fetch, so a generous window is safe and takes
+// the time pressure off the customer.
+const EXPIRY_DAYS = 30;
 
 function expiryLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long" });
@@ -88,24 +89,21 @@ async function handleCreate(
     );
   }
 
-  // 1) Create the invited user + get the single-use invite token. The signup
-  //    trigger creates the business + settings + owner row from business_name.
-  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-    type: "invite",
+  // 1) Create the invited user. The signup trigger creates the business +
+  //    settings + owner row from business_name. Email stays unconfirmed until
+  //    they claim the invite (we confirm it when they set their password).
+  const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email,
-    options: {
-      data: { business_name: businessName, must_change_password: false },
-      redirectTo: `${origin}/auth/callback?next=/welcome`,
-    },
+    email_confirm: false,
+    user_metadata: { business_name: businessName, must_change_password: false },
   });
-  const tokenHash = linkData?.properties?.hashed_token;
-  if (linkErr || !linkData?.user || !tokenHash) {
-    const msg = /already|exists|registered/i.test(linkErr?.message ?? "")
+  if (createErr || !created?.user) {
+    const msg = /already|exists|registered|duplicate/i.test(createErr?.message ?? "")
       ? "That email already has an account."
-      : linkErr?.message ?? "Couldn't create the invite.";
+      : createErr?.message ?? "Couldn't create the invite.";
     return NextResponse.json({ ok: false, error: "invite_failed", message: msg }, { status: 400 });
   }
-  const userId = linkData.user.id;
+  const userId = created.user.id;
 
   // 2) Configure the business the trigger just created.
   const { data: profile } = await admin.from("users").select("business_id").eq("id", userId).maybeSingle();
@@ -131,8 +129,9 @@ async function handleCreate(
       .eq("business_id", businessId);
   }
 
-  // 3) Track the invite (owned by the founder).
+  // 3) Track the invite (owned by the founder), carrying our durable token.
   const expiresAt = new Date(Date.now() + EXPIRY_DAYS * 86_400_000).toISOString();
+  const inviteToken = mintInviteToken();
   const { data: inviteRow, error: invErr } = await admin
     .from("onboarding_invites")
     .insert({
@@ -141,17 +140,28 @@ async function handleCreate(
       business_name: businessName,
       business_id: businessId,
       invited_user_id: userId,
+      invite_token: inviteToken,
       status: "sent",
       expires_at: expiresAt,
     })
     .select("id")
     .single();
-  if (invErr) console.error("onboarding invite record insert failed:", invErr);
+  if (invErr) {
+    // Without the invite row we have no token to claim against — fail rather
+    // than emailing a dead link. Roll back the just-created user so retrying the
+    // same email works (this also surfaces a not-yet-run 0020 migration loudly).
+    console.error("onboarding invite record insert failed:", invErr);
+    await admin.auth.admin.deleteUser(userId).catch(() => {});
+    return NextResponse.json(
+      { ok: false, error: "invite_failed", message: "Couldn't record the invite — please try again." },
+      { status: 500 },
+    );
+  }
 
   // 4) Send the branded invite email (best-effort). The account + invite already
   //    exist above, so a send failure never loses the invite — we return the link
   //    and the exact Resend error so the founder can send it manually.
-  const url = buildInviteUrl(origin, tokenHash, "invite");
+  const url = inviteUrlFor(origin, inviteToken);
   const msg = inviteEmail({ businessName, inviteUrl: url, expiresLabel: expiryLabel(expiresAt) });
   const emailed = await sendEmail({ to: email, subject: msg.subject, html: msg.html });
   if (!emailed.ok && !emailed.skipped) console.error("onboarding invite email failed:", emailed.error);
@@ -176,11 +186,13 @@ async function handleResend(
   if (!inviteId) return NextResponse.json({ ok: false, error: "bad_request" }, { status: 400 });
   const { data: inv } = await admin
     .from("onboarding_invites")
-    .select("id, email, business_name, status")
+    .select("id, email, business_name, status, invite_token")
     .eq("id", inviteId)
     .eq("owner_id", founderId)
     .maybeSingle();
-  const invite = inv as { id: string; email: string; business_name: string; status: string } | null;
+  const invite = inv as
+    | { id: string; email: string; business_name: string; status: string; invite_token: string | null }
+    | null;
   if (!invite) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   if (invite.status === "accepted") {
     return NextResponse.json(
@@ -189,28 +201,28 @@ async function handleResend(
     );
   }
 
-  // The user already exists, so use a magic link (invite would error). They
-  // still land on /welcome and set their own password.
-  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email: invite.email,
-    options: { redirectTo: `${origin}/auth/callback?next=/welcome` },
-  });
-  const tokenHash = linkData?.properties?.hashed_token;
-  if (linkErr || !tokenHash) {
+  // REUSE the same token so any link the customer already has keeps working —
+  // regenerating must never burn a live invite. Only mint one for legacy invites
+  // created before durable tokens existed.
+  const inviteToken = invite.invite_token ?? mintInviteToken();
+  const expiresAt = new Date(Date.now() + EXPIRY_DAYS * 86_400_000).toISOString();
+  const { error: updErr } = await admin
+    .from("onboarding_invites")
+    .update({
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      expires_at: expiresAt,
+      invite_token: inviteToken,
+    })
+    .eq("id", inviteId);
+  if (updErr) {
     return NextResponse.json(
-      { ok: false, error: "invite_failed", message: linkErr?.message ?? "Couldn't regenerate the link." },
-      { status: 400 },
+      { ok: false, error: "invite_failed", message: "Couldn't refresh the invite — please try again." },
+      { status: 500 },
     );
   }
 
-  const expiresAt = new Date(Date.now() + EXPIRY_DAYS * 86_400_000).toISOString();
-  await admin
-    .from("onboarding_invites")
-    .update({ status: "sent", sent_at: new Date().toISOString(), expires_at: expiresAt })
-    .eq("id", inviteId);
-
-  const url = buildInviteUrl(origin, tokenHash, "magiclink");
+  const url = inviteUrlFor(origin, inviteToken);
   const msg = inviteEmail({ businessName: invite.business_name, inviteUrl: url, expiresLabel: expiryLabel(expiresAt) });
   const emailed = await sendEmail({ to: invite.email, subject: msg.subject, html: msg.html });
   if (!emailed.ok && !emailed.skipped) console.error("onboarding invite resend email failed:", emailed.error);

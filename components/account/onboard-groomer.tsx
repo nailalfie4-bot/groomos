@@ -333,10 +333,10 @@ export function OnboardGroomer() {
               </p>
               <p className="mt-0.5 text-xs text-ink-muted">
                 {lastInvite.emailed
-                  ? "The single-use link is below too — copy it if you'd rather send it yourself."
+                  ? "The link is below too — copy it if you'd rather send it yourself."
                   : lastInvite.emailSkipped
-                    ? "Email isn't switched on (no RESEND_API_KEY). Copy this single-use link and send it to the customer:"
-                    : "Copy this single-use link and send it to the customer yourself:"}
+                    ? "Email isn't switched on (no RESEND_API_KEY). Copy this link and send it to the customer:"
+                    : "Copy this link and send it to the customer yourself:"}
               </p>
               {!lastInvite.emailed && lastInvite.emailError && (
                 <p className="mt-1 break-all text-[11px] text-warning-deep">Reason: {lastInvite.emailError}</p>
@@ -350,7 +350,8 @@ export function OnboardGroomer() {
                 </Button>
               </div>
               <p className="mt-1.5 text-[11px] text-ink-subtle">
-                Single-use · the customer sets their own password when they open it.
+                Safe to send in WhatsApp or Instagram — the link stays valid until the customer sets
+                their own password, and re-sending keeps the same link working.
               </p>
             </div>
           </div>

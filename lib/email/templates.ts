@@ -173,7 +173,7 @@ export function inviteEmail(d: {
     <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#8A7470;">${intro}</p>
     <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#8A7470;">Your services, prices and settings are already in place — just set your password and you're live. <strong>You choose your own password; no one else ever sees it.</strong></p>
     <div style="text-align:center;margin:0 0 8px;">${cta}</div>
-    <p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:#B3A39E;">This link expires ${esc(d.expiresLabel)} and can only be used once. Or paste it into your browser:<br><a href="${d.inviteUrl}" style="color:#C9756B;word-break:break-all;">${esc(d.inviteUrl)}</a></p>`;
+    <p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:#B3A39E;">This link stays valid until you set your password (up to ${esc(d.expiresLabel)}), so it's safe to open whenever suits you. Or paste it into your browser:<br><a href="${d.inviteUrl}" style="color:#C9756B;word-break:break-all;">${esc(d.inviteUrl)}</a></p>`;
   return {
     subject: `You're invited to GroomOS — set up ${d.businessName}`,
     html: shell("GroomOS", `Welcome to GroomOS`, body),

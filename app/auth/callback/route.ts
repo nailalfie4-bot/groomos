@@ -1,11 +1,14 @@
 /**
- * Auth callback — the single landing point for email auth links.
+ * Auth callback — landing point for Supabase email auth links.
  *
  * Handles two mechanisms and sets the session cookie for both:
  *  - PKCE `code`  → password reset (user-initiated resetPasswordForEmail).
- *  - `token_hash` + `type` → the founder invite (admin-generated link we email
- *    via Resend), verified with verifyOtp so no browser-side code verifier is
- *    needed.
+ *  - `token_hash` + `type` → verified with verifyOtp (no browser-side code
+ *    verifier needed). NOTE: this consumes the single-use token on GET, so it's
+ *    no longer used for onboarding invites — those now use our own durable token
+ *    (/welcome?invite=…, see /api/onboarding/*) that a link-preview crawler
+ *    can't consume. This branch remains only for password reset and any legacy
+ *    invite links already in the wild.
  * Then it redirects to a safe same-origin `next` path.
  */
 import { NextResponse, type NextRequest } from "next/server";
