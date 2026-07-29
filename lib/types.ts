@@ -113,6 +113,20 @@ export interface Pet {
   rebookWeeks?: number;
 }
 
+/**
+ * Editable WhatsApp message templates (one per kind), with {placeholders} the
+ * app fills per booking: {business} {client} {dog} {date} {time} {service}
+ * {deposit_link}. Powers the one-tap "Send WhatsApp reminder" wa.me links.
+ */
+export interface WhatsappTemplates {
+  /** Appointment reminder (before an upcoming groom). */
+  reminder: string;
+  /** Deposit request — includes the {deposit_link} payment link. */
+  deposit: string;
+  /** Rebooking nudge — for dogs due a groom. */
+  rebook: string;
+}
+
 /** A yes/no client declaration the groomer can toggle on/off and reword. */
 export interface Declaration {
   id: string;
@@ -179,6 +193,8 @@ export interface Settings {
   mattingScale: DeclarationScale;
   /** Temperament scale the client self-declares at booking. */
   temperamentScale: DeclarationScale;
+  /** Editable WhatsApp message templates for the one-tap reminder links. */
+  whatsappTemplates: WhatsappTemplates;
 }
 
 /** A delightful before/after report card the owner receives after a groom. */

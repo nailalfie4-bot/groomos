@@ -13,6 +13,7 @@ import type {
   Service,
   Settings,
 } from "@/lib/types";
+import { DEFAULT_WHATSAPP_TEMPLATES } from "@/lib/whatsapp";
 
 export const DEFAULT_SETTINGS: Settings = {
   bufferMin: 15,
@@ -55,6 +56,7 @@ export const DEFAULT_SETTINGS: Settings = {
       { id: "unsafe", label: "Has bitten or can't be safely handled", description: "May need a muzzle or vet support", accepted: true },
     ],
   },
+  whatsappTemplates: DEFAULT_WHATSAPP_TEMPLATES,
 };
 
 /**

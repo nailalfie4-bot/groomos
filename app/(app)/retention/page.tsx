@@ -18,16 +18,18 @@ import { PetAvatar } from "@/components/pet-avatar";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { BookingForm } from "@/components/booking-form";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { useStore } from "@/lib/mock/store";
 import { useAuth } from "@/components/auth-provider";
 import { useDemoLoad } from "@/lib/use-demo-load";
 import type { DueForGroom } from "@/lib/mock/store";
 import { addDays, atHour, formatGBP } from "@/lib/format";
+import { phoneStatus, renderTemplate } from "@/lib/whatsapp";
 
 export default function RetentionPage() {
   const loading = useDemoLoad();
   const { configured } = useAuth();
-  const { getDueForGroom, business, markReminderSent } = useStore();
+  const { getDueForGroom, business, settings, markReminderSent } = useStore();
   const due = getDueForGroom();
   const [reminder, setReminder] = useState<DueForGroom | null>(null);
   const [rebook, setRebook] = useState<DueForGroom | null>(null);
@@ -142,7 +144,7 @@ export default function RetentionPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 pl-[52px] sm:pl-0">
+                  <div className="flex flex-wrap items-center gap-2 pl-[52px] sm:pl-0">
                     {sent.has(d.pet.id) ? (
                       <Badge tone="success" dot>Reminder sent</Badge>
                     ) : (
@@ -151,6 +153,17 @@ export default function RetentionPage() {
                         Nudge
                       </Button>
                     )}
+                    <WhatsAppButton
+                      phone={phoneStatus(d.client.phone)}
+                      message={renderTemplate(settings.whatsappTemplates.rebook, {
+                        business: business.name,
+                        client: d.client.firstName,
+                        dog: d.pet.name,
+                      })}
+                      label="WhatsApp"
+                      tone="soft"
+                      size="sm"
+                    />
                     <Button size="sm" onClick={() => setRebook(d)}>
                       <CalendarPlus className="h-4 w-4" />
                       Rebook

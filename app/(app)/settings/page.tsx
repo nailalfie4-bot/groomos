@@ -23,7 +23,9 @@ import {
   KeyRound,
   Link2,
   Loader2,
+  MessageCircle,
   Plus,
+  RotateCcw,
   Scissors,
   ShieldCheck,
   Sparkles,
@@ -51,8 +53,9 @@ import { resizeImageToSquare } from "@/lib/image";
 import { canUseGroomers } from "@/lib/trial";
 import { computeQuote } from "@/lib/pricing";
 import { formatGBP } from "@/lib/format";
+import { DEFAULT_WHATSAPP_TEMPLATES, renderTemplate, WHATSAPP_PLACEHOLDERS } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
-import type { Business, Declaration, DeclarationScale, Settings } from "@/lib/types";
+import type { Business, Declaration, DeclarationScale, Settings, WhatsappTemplates } from "@/lib/types";
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 06:00–21:00
 const hhmm = (h: number) => `${String(h).padStart(2, "0")}:00`;
@@ -378,6 +381,17 @@ function SettingsForm({
               </p>
             </div>
           </Section>
+
+          <Section
+            icon={<MessageCircle className="h-[18px] w-[18px]" />}
+            title="WhatsApp messages"
+            description="The wording for your one-tap WhatsApp reminders. Tapping a WhatsApp button opens the app with the message ready — you always press send yourself; nothing goes automatically."
+          >
+            <WhatsappTemplatesEditor
+              value={s.whatsappTemplates}
+              onChange={(v) => setSet("whatsappTemplates", v)}
+            />
+          </Section>
         </SettingsGroup>
 
         {/* ── Account ────────────────────────────────────────────────────── */}
@@ -671,6 +685,108 @@ function ScaleEditor({
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Sample data used to preview WhatsApp templates as the groomer edits them. */
+const WA_SAMPLE = {
+  business: "Paws & Co.",
+  client: "Sarah",
+  dog: "Bella",
+  date: "Tue 5 Aug",
+  time: "2:30 pm",
+  service: "Full Groom",
+  deposit_link: "https://groomos.co.uk/pay/ab12cd",
+};
+
+/** Editor for the three WhatsApp templates, with placeholders + a live preview. */
+function WhatsappTemplatesEditor({
+  value,
+  onChange,
+}: {
+  value: WhatsappTemplates;
+  onChange: (v: WhatsappTemplates) => void;
+}) {
+  const set = (key: keyof WhatsappTemplates, text: string) => onChange({ ...value, [key]: text });
+  return (
+    <div className="flex flex-col gap-4">
+      <TemplateField
+        label="Appointment reminder"
+        hint="Sent before an upcoming groom."
+        value={value.reminder}
+        defaultText={DEFAULT_WHATSAPP_TEMPLATES.reminder}
+        onChange={(t) => set("reminder", t)}
+      />
+      <TemplateField
+        label="Deposit request"
+        hint="Include {deposit_link} — the secure payment link is dropped in for you."
+        value={value.deposit}
+        defaultText={DEFAULT_WHATSAPP_TEMPLATES.deposit}
+        onChange={(t) => set("deposit", t)}
+      />
+      <TemplateField
+        label="Rebooking nudge"
+        hint="For dogs due a groom (the “Due for a groom” list)."
+        value={value.rebook}
+        defaultText={DEFAULT_WHATSAPP_TEMPLATES.rebook}
+        onChange={(t) => set("rebook", t)}
+      />
+      <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-surface-sunken p-3">
+        <span className="text-xs font-medium text-ink-muted">Placeholders you can use:</span>
+        {WHATSAPP_PLACEHOLDERS.map((p) => (
+          <code
+            key={p}
+            className="rounded border border-DEFAULT bg-surface px-1.5 py-0.5 text-[11px] text-ink-muted"
+          >{`{${p}}`}</code>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TemplateField({
+  label,
+  hint,
+  value,
+  defaultText,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  defaultText: string;
+  onChange: (t: string) => void;
+}) {
+  const preview = renderTemplate(value.trim() ? value : defaultText, WA_SAMPLE);
+  const isDefault = !value.trim() || value.trim() === defaultText.trim();
+  return (
+    <div className="rounded-xl border border-DEFAULT bg-surface-sunken p-4">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-ink">{label}</p>
+        {!isDefault && (
+          <button
+            type="button"
+            onClick={() => onChange(defaultText)}
+            className="inline-flex items-center gap-1 text-xs font-medium text-accent transition-colors hover:text-accent-600"
+          >
+            <RotateCcw className="h-3 w-3" /> Reset
+          </button>
+        )}
+      </div>
+      <Textarea
+        rows={3}
+        value={value}
+        placeholder={defaultText}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <p className="mt-1.5 text-xs text-ink-subtle">{hint}</p>
+      <div className="mt-2 rounded-lg border border-success/20 bg-success-soft/40 p-2.5">
+        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-success-deep">
+          Preview
+        </p>
+        <p className="whitespace-pre-wrap text-sm text-ink">{preview}</p>
       </div>
     </div>
   );

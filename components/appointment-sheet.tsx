@@ -13,6 +13,7 @@ import {
   Copy,
   Heart,
   Link2,
+  MessageCircle,
   PoundSterling,
   RefreshCw,
   Repeat,
@@ -33,11 +34,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { BookingForm } from "@/components/booking-form";
 import { CompleteFlow, ReportCard } from "@/components/grooming-report";
 import { SocialPostSheet } from "@/components/social-post";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { useStore } from "@/lib/mock/store";
 import type { AppointmentStatus } from "@/lib/types";
 import { findClash } from "@/lib/schedule";
+import { phoneStatus, renderTemplate } from "@/lib/whatsapp";
 import { STATUS_LABEL, STATUS_STYLE } from "@/lib/appointment-ui";
-import { addDays, atHour, formatGBP, formatTime } from "@/lib/format";
+import { addDays, atHour, formatDate, formatGBP, formatTime } from "@/lib/format";
 import { SIZE_LABEL, COAT_LABEL } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
@@ -162,6 +165,19 @@ export function AppointmentSheet({
     stripeReady && (depStatus === "paid" || depStatus === "link_sent" || isUpcoming);
   // Amount is only editable before a link is sent / paid.
   const depositEditable = depStatus === "none" || depStatus === "recorded";
+
+  // ── WhatsApp reminder / deposit request (one-tap wa.me deep link) ──────────
+  const waPhone = phoneStatus(client?.phone);
+  const waVars = {
+    business: business.name,
+    client: client?.firstName ?? "there",
+    dog: pet?.name ?? "your dog",
+    date: formatDate(appt.start),
+    time: formatTime(appt.start),
+    service: service?.name ?? "groom",
+  };
+  const reminderMsg = renderTemplate(settings.whatsappTemplates.reminder, waVars);
+  const depositMsg = renderTemplate(settings.whatsappTemplates.deposit, { ...waVars, deposit_link: payUrl });
 
   function startEditDeposit() {
     setDepositDraft(depositAmount > 0 ? String(depositAmount) : "");
@@ -446,6 +462,33 @@ export function AppointmentSheet({
                     </Button>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* WhatsApp reminder / deposit request — opens WhatsApp, groomer taps send */}
+          {isUpcoming && (
+            <div className="rounded-xl border border-DEFAULT bg-surface-sunken p-4">
+              <p className="mb-2.5 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-ink-subtle">
+                <MessageCircle className="h-3.5 w-3.5" /> Message on WhatsApp
+              </p>
+              {waPhone.ok ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <WhatsAppButton phone={waPhone} message={reminderMsg} label="Reminder" size="sm" />
+                    {payUrl && (
+                      <WhatsAppButton phone={waPhone} message={depositMsg} label="Deposit request" tone="soft" size="sm" />
+                    )}
+                  </div>
+                  <p className="mt-2 text-[11px] text-ink-subtle">
+                    Opens WhatsApp with the message ready — you tap send. Nothing goes automatically.
+                    {!payUrl && " Send a deposit link above to message it here."}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-ink-muted">
+                  {waPhone.reason}. Add the client&apos;s mobile number to message them on WhatsApp.
+                </p>
               )}
             </div>
           )}

@@ -5,7 +5,8 @@
  */
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { DEFAULT_SETTINGS } from "@/lib/pricing";
-import type { Declaration, DeclarationScale, Settings } from "@/lib/types";
+import { resolveTemplates } from "@/lib/whatsapp";
+import type { Declaration, DeclarationScale, Settings, WhatsappTemplates } from "@/lib/types";
 
 interface SettingsRow {
   business_id: string;
@@ -27,6 +28,7 @@ interface SettingsRow {
   terms_text: string | null;
   matting_scale: DeclarationScale | null;
   temperament_scale: DeclarationScale | null;
+  whatsapp_templates: Partial<WhatsappTemplates> | null;
 }
 
 const validScale = (s: DeclarationScale | null | undefined): s is DeclarationScale =>
@@ -54,6 +56,8 @@ export function rowToSettings(r: SettingsRow): Settings {
     termsText: r.terms_text ?? "",
     mattingScale: validScale(r.matting_scale) ? r.matting_scale : DEFAULT_SETTINGS.mattingScale,
     temperamentScale: validScale(r.temperament_scale) ? r.temperament_scale : DEFAULT_SETTINGS.temperamentScale,
+    // null / partial → filled from defaults so the buttons always have wording.
+    whatsappTemplates: resolveTemplates(r.whatsapp_templates),
   };
 }
 
@@ -93,6 +97,7 @@ export async function updateSettingsRow(
     termsText: "terms_text",
     mattingScale: "matting_scale",
     temperamentScale: "temperament_scale",
+    whatsappTemplates: "whatsapp_templates",
   };
   const dbPatch: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(patch)) {
