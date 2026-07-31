@@ -52,7 +52,11 @@ export async function POST(request: Request) {
     const result = await createPublicBooking(input);
     if (!result.ok) {
       const status =
-        result.error === "not_found" ? 404 : result.error === "slot_taken" ? 409 : 400;
+        result.error === "not_found"
+          ? 404
+          : result.error === "slot_taken" || result.error === "unavailable"
+            ? 409
+            : 400;
       return NextResponse.json(result, { status });
     }
     return NextResponse.json(result);

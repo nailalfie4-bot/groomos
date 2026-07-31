@@ -23,6 +23,7 @@ interface BusinessRow {
   trial_ends_at?: string | null;
   stripe_connect_account_id?: string | null;
   stripe_connect_charges_enabled?: boolean | null;
+  closed_weekdays?: number[] | null;
 }
 
 export function rowToBusiness(r: BusinessRow): Business {
@@ -44,6 +45,7 @@ export function rowToBusiness(r: BusinessRow): Business {
     trialEndsAt: r.trial_ends_at ?? undefined,
     stripeConnectAccountId: r.stripe_connect_account_id ?? undefined,
     stripeConnectChargesEnabled: r.stripe_connect_charges_enabled ?? undefined,
+    closedWeekdays: Array.isArray(r.closed_weekdays) ? r.closed_weekdays : [],
   };
 }
 
@@ -73,6 +75,7 @@ export async function updateBusinessRow(
   if (patch.city !== undefined) dbPatch.city = patch.city;
   if (patch.postcode !== undefined) dbPatch.postcode = patch.postcode;
   if (patch.phone !== undefined) dbPatch.phone = patch.phone;
+  if (patch.closedWeekdays !== undefined) dbPatch.closed_weekdays = patch.closedWeekdays;
   if (Object.keys(dbPatch).length === 0) return;
 
   const supabase = createSupabaseBrowserClient();

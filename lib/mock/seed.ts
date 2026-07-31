@@ -21,6 +21,7 @@ import type {
   Pet,
   Service,
   Settings,
+  TimeOff,
 } from "@/lib/types";
 import { atHour, addDays, startOfWeek } from "@/lib/format";
 import { computeQuote, DEFAULT_SETTINGS } from "@/lib/pricing";
@@ -33,6 +34,7 @@ export interface SeedData {
   appointments: Appointment[];
   settings: Settings;
   groomers: Groomer[];
+  timeOff: TimeOff[];
 }
 
 /** Two demo groomers so the calendar filter + assignment have something to show. */
@@ -51,6 +53,7 @@ const business: Business = {
   city: "Bristol",
   postcode: "BS1 4QA",
   phone: "0117 496 0042",
+  closedWeekdays: [0], // demo: closed Sundays
 };
 
 const services: Service[] = [
@@ -246,6 +249,26 @@ function buildAppointments(): Appointment[] {
   return out;
 }
 
+/** A demo holiday next week so the calendar shows a time-off block out of the box. */
+function buildTimeOff(): TimeOff[] {
+  const d = addDays(new Date(), 7);
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  const end = addDays(start, 2);
+  end.setHours(23, 59, 59, 999);
+  return [
+    {
+      id: "off_demo_1",
+      businessId: business.id,
+      groomerId: null,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      allDay: true,
+      label: "Holiday",
+    },
+  ];
+}
+
 export function createSeed(): SeedData {
   return {
     business,
@@ -255,6 +278,7 @@ export function createSeed(): SeedData {
     appointments: buildAppointments(),
     settings: { ...DEFAULT_SETTINGS },
     groomers,
+    timeOff: buildTimeOff(),
   };
 }
 
@@ -276,6 +300,7 @@ export function createEmptySeed(): SeedData {
       city: "",
       postcode: "",
       phone: "",
+      closedWeekdays: [],
     },
     clients: [],
     pets: [],
@@ -283,5 +308,6 @@ export function createEmptySeed(): SeedData {
     appointments: [],
     settings: { ...DEFAULT_SETTINGS },
     groomers: [],
+    timeOff: [],
   };
 }

@@ -1,16 +1,19 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, Heart, Plus } from "lucide-react";
+import { CalendarOff, CalendarPlus, Check, ChevronLeft, ChevronRight, Heart, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookingForm } from "@/components/booking-form";
 import { AppointmentSheet } from "@/components/appointment-sheet";
+import { TimeOffSheet } from "@/components/time-off-sheet";
 import { useStore } from "@/lib/mock/store";
 import { useDemoLoad } from "@/lib/use-demo-load";
 import { findClash } from "@/lib/schedule";
-import type { Appointment, AppointmentStatus } from "@/lib/types";
+import { isWeekdayClosed, rangesOverlap } from "@/lib/availability";
+import type { Appointment, AppointmentStatus, TimeOff } from "@/lib/types";
 import {
   addDays,
   atHour,
@@ -20,6 +23,32 @@ import {
   startOfWeek,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+/** Local YYYY-MM-DD for a Date (how the calendar reasons about a day). */
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** " · Name" suffix for a groomer-specific block, "" for business-wide. */
+function groomerSuffix(t: TimeOff, getGroomer: (id: string) => { name: string } | undefined): string {
+  if (!t.groomerId) return "";
+  const g = getGroomer(t.groomerId);
+  return g ? ` · ${g.name}` : "";
+}
+
+/** Time-off blocks that touch `day`, filtered to the active groomer view. */
+function timeOffForDay(timeOff: TimeOff[], day: Date, groomerFilter: string): TimeOff[] {
+  const dayStart = new Date(day);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(day);
+  dayEnd.setHours(23, 59, 59, 999);
+  const ds = dayStart.getTime();
+  const de = dayEnd.getTime();
+  return timeOff.filter((t) => {
+    if (groomerFilter !== "all" && t.groomerId && t.groomerId !== groomerFilter) return false;
+    return rangesOverlap(new Date(t.start).getTime(), new Date(t.end).getTime(), ds, de);
+  });
+}
 
 type View = "day" | "week";
 
@@ -84,6 +113,7 @@ export default function CalendarPage() {
     business,
     settings,
     groomers,
+    timeOff,
     getPet,
     getGroomer,
     services,
@@ -95,7 +125,19 @@ export default function CalendarPage() {
   const [booking, setBooking] = useState<string | null>(null);
   const [openAppt, setOpenAppt] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  // Time-off editor: create (null editing) or edit an existing block.
+  const [timeOffOpen, setTimeOffOpen] = useState(false);
+  const [editingTimeOff, setEditingTimeOff] = useState<TimeOff | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+
+  function openNewTimeOff() {
+    setEditingTimeOff(null);
+    setTimeOffOpen(true);
+  }
+  function openEditTimeOff(t: TimeOff) {
+    setEditingTimeOff(t);
+    setTimeOffOpen(true);
+  }
 
   const hours = useMemo(() => {
     const out: number[] = [];
@@ -114,6 +156,17 @@ export default function CalendarPage() {
     [appointments, cursor, groomerFilter], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const cols = useMemo(() => packColumns(dayAppts), [dayAppts]);
+
+  // ── Time off on the viewed day ─────────────────────────────────────────────
+  const dayOff = useMemo(
+    () => timeOffForDay(timeOff, cursor, groomerFilter),
+    [timeOff, cursor, groomerFilter],
+  );
+  const dayClosedWeekday = isWeekdayClosed(localDateStr(cursor), business.closedWeekdays);
+  const allDayOff = dayOff.filter((t) => t.allDay);
+  const timedOff = dayOff.filter((t) => !t.allDay);
+  // The whole board reads as closed when it's a regular day off or an all-day block.
+  const fullyClosed = dayClosedWeekday || allDayOff.length > 0;
 
   const dayTotal = dayAppts
     .filter((a) => a.status !== "no-show")
@@ -183,10 +236,16 @@ export default function CalendarPage() {
             </p>
           )}
         </div>
-        <Button size="md" onClick={() => setBooking(atHour(cursor, business.openHour))} className="shrink-0">
-          <CalendarPlus className="h-4 w-4" />
-          New
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="secondary" size="md" onClick={openNewTimeOff}>
+            <CalendarOff className="h-4 w-4" />
+            Time off
+          </Button>
+          <Button size="md" onClick={() => setBooking(atHour(cursor, business.openHour))}>
+            <CalendarPlus className="h-4 w-4" />
+            New
+          </Button>
+        </div>
       </header>
 
       {/* Controls */}
@@ -234,6 +293,46 @@ export default function CalendarPage() {
         </div>
       )}
 
+      {/* Time-off / closed-day banner (day view) — the block is editable here */}
+      {view === "day" && !loading && (fullyClosed || timedOff.length > 0) && (
+        <div className="mb-3 flex flex-col gap-2">
+          {dayClosedWeekday && (
+            <div className="flex items-center gap-2 rounded-xl border border-DEFAULT bg-surface-sunken px-3.5 py-2.5 text-sm text-ink-muted">
+              <CalendarOff className="h-4 w-4 shrink-0 text-ink-subtle" />
+              <span>Closed today — one of your regular days off.</span>
+              <Link href="/settings" className="ml-auto text-xs font-medium text-accent hover:underline">Change</Link>
+            </div>
+          )}
+          {allDayOff.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => openEditTimeOff(t)}
+              className="flex items-center gap-2 rounded-xl border border-warning-deep/25 bg-warning-soft/50 px-3.5 py-2.5 text-left text-sm text-warning-deep"
+            >
+              <CalendarOff className="h-4 w-4 shrink-0" />
+              <span className="font-medium">
+                {t.label || "Time off"} — closed all day{groomerSuffix(t, getGroomer)}
+              </span>
+              <span className="ml-auto text-xs underline">Edit</span>
+            </button>
+          ))}
+          {timedOff.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => openEditTimeOff(t)}
+              className="flex items-center gap-2 rounded-xl border border-DEFAULT bg-surface-sunken px-3.5 py-2.5 text-left text-sm text-ink-muted"
+            >
+              <CalendarOff className="h-4 w-4 shrink-0 text-ink-subtle" />
+              <span>
+                {t.label || "Time off"} · {formatTime(t.start)}–{formatTime(t.end)}
+                {groomerSuffix(t, getGroomer)}
+              </span>
+              <span className="ml-auto text-xs font-medium text-accent">Edit</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <BoardFrame>
           <div className="space-y-3 p-4">
@@ -265,20 +364,64 @@ export default function CalendarPage() {
               className="relative flex-1 border-l border-DEFAULT"
               style={{ height: hours.length * HOUR_PX }}
             >
-              {/* Hour rows — clean even lines, tap an empty one to book */}
+              {/* Whole-day closed → hatched grey wash (behind bookings, which stay visible + tappable) */}
+              {fullyClosed && (
+                <div
+                  className="pointer-events-none absolute inset-0 z-0 bg-surface-sunken/70"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(45deg, rgba(74,45,40,0.07) 0, rgba(74,45,40,0.07) 6px, transparent 6px, transparent 12px)",
+                  }}
+                />
+              )}
+
+              {/* Hour rows — clean even lines, tap an empty one to book (unless closed) */}
               {hours.map((h, i) => (
                 <button
                   key={h}
-                  onClick={() => setBooking(atHour(cursor, h))}
-                  aria-label={`Book ${h}:00`}
+                  onClick={() => { if (!fullyClosed) setBooking(atHour(cursor, h)); }}
+                  disabled={fullyClosed}
+                  aria-label={fullyClosed ? "Closed" : `Book ${h}:00`}
                   style={{ top: i * HOUR_PX, height: HOUR_PX }}
-                  className="group absolute inset-x-0 border-t border-border-strong/35 text-left first:border-t-0 hover:bg-accent-50/40"
+                  className={cn(
+                    "group absolute inset-x-0 border-t border-border-strong/35 text-left first:border-t-0",
+                    fullyClosed ? "cursor-default" : "hover:bg-accent-50/40",
+                  )}
                 >
-                  <span className="ml-2 mt-1.5 inline-flex items-center gap-1 rounded-md bg-surface px-1.5 py-0.5 text-[11px] text-ink-subtle opacity-0 shadow-xs transition-opacity group-hover:opacity-100">
-                    <Plus className="h-3 w-3" /> Book
-                  </span>
+                  {!fullyClosed && (
+                    <span className="ml-2 mt-1.5 inline-flex items-center gap-1 rounded-md bg-surface px-1.5 py-0.5 text-[11px] text-ink-subtle opacity-0 shadow-xs transition-opacity group-hover:opacity-100">
+                      <Plus className="h-3 w-3" /> Book
+                    </span>
+                  )}
                 </button>
               ))}
+
+              {/* Timed time-off → hatched grey band on the timeline (tap to edit) */}
+              {!fullyClosed &&
+                timedOff.map((t) => {
+                  const top = (minutesFromOpen(t.start) / 60) * HOUR_PX;
+                  const mins = (new Date(t.end).getTime() - new Date(t.start).getTime()) / 60_000;
+                  const height = Math.max((mins / 60) * HOUR_PX, MIN_PX);
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => openEditTimeOff(t)}
+                      style={{ top: top + 1, height: height - 2 }}
+                      className="absolute inset-x-1 z-[5] flex items-center gap-1.5 overflow-hidden rounded-lg border border-border-strong/40 px-2 text-left text-[11px] font-medium text-ink-muted"
+                      title={`${t.label || "Time off"} — tap to edit`}
+                    >
+                      <span
+                        className="pointer-events-none absolute inset-0 bg-surface-sunken/80"
+                        style={{
+                          backgroundImage:
+                            "repeating-linear-gradient(45deg, rgba(74,45,40,0.09) 0, rgba(74,45,40,0.09) 5px, transparent 5px, transparent 10px)",
+                        }}
+                      />
+                      <CalendarOff className="relative h-3 w-3 shrink-0" />
+                      <span className="relative truncate">{t.label || "Time off"}</span>
+                    </button>
+                  );
+                })}
 
               {/* Now line */}
               {isToday && nowMins >= 0 && nowMins <= dayLen && (
@@ -392,12 +535,19 @@ export default function CalendarPage() {
                 .filter((a) => isSameDay(a.start, day) && a.status !== "cancelled" && matchesGroomer(a))
                 .sort((a, b) => (a.start < b.start ? -1 : 1));
               const today = isSameDay(day, new Date());
+              const off = timeOffForDay(timeOff, day, groomerFilter);
+              const allDayBlock = off.find((t) => t.allDay);
+              const dayClosed = isWeekdayClosed(localDateStr(day), business.closedWeekdays) || !!allDayBlock;
               return (
                 <div
                   key={day.toISOString()}
                   className={cn(
                     "flex min-h-[120px] flex-col rounded-xl border p-2",
-                    today ? "border-accent/40 bg-accent-50/50" : "border-DEFAULT/70 bg-canvas/40",
+                    dayClosed
+                      ? "border-DEFAULT/70 bg-surface-sunken/60"
+                      : today
+                        ? "border-accent/40 bg-accent-50/50"
+                        : "border-DEFAULT/70 bg-canvas/40",
                   )}
                 >
                   <div className="mb-1.5 flex items-center justify-between">
@@ -409,14 +559,30 @@ export default function CalendarPage() {
                         {day.getDate()}
                       </span>
                     </div>
-                    <button
-                      onClick={() => setBooking(atHour(day, business.openHour))}
-                      aria-label="Add appointment"
-                      className="flex h-5 w-5 items-center justify-center rounded text-ink-subtle hover:bg-surface hover:text-ink"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
+                    {dayClosed ? (
+                      <button
+                        onClick={() => allDayBlock && openEditTimeOff(allDayBlock)}
+                        aria-label={allDayBlock ? "Edit time off" : "Closed"}
+                        title={allDayBlock ? `${allDayBlock.label || "Time off"} — tap to edit` : "Regular day off"}
+                        className="flex h-5 w-5 items-center justify-center rounded text-ink-subtle hover:bg-surface hover:text-ink"
+                      >
+                        <CalendarOff className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setBooking(atHour(day, business.openHour))}
+                        aria-label="Add appointment"
+                        className="flex h-5 w-5 items-center justify-center rounded text-ink-subtle hover:bg-surface hover:text-ink"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
+                  {dayClosed && (
+                    <span className="mb-1 inline-flex w-fit items-center gap-1 rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">
+                      {allDayBlock?.label || "Closed"}
+                    </span>
+                  )}
                   <div className="flex flex-col gap-1.5">
                     {list.length === 0 ? (
                       <span className="px-1 py-1 text-[11px] text-ink-subtle">—</span>
@@ -476,6 +642,12 @@ export default function CalendarPage() {
         defaultStart={booking ?? undefined}
       />
       <AppointmentSheet appointmentId={openAppt} onClose={() => setOpenAppt(null)} />
+      <TimeOffSheet
+        open={timeOffOpen}
+        onClose={() => setTimeOffOpen(false)}
+        editing={editingTimeOff}
+        defaultDate={localDateStr(cursor)}
+      />
     </>
   );
 }

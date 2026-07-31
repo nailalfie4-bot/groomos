@@ -44,6 +44,7 @@ import type {
   Service,
   ServiceDepositType,
   Settings,
+  TimeOff,
 } from "@/lib/types";
 import { toast } from "sonner";
 import { createSeed, createEmptySeed } from "@/lib/mock/seed";
@@ -84,6 +85,13 @@ import {
   setAppointmentGroomerRow,
   type NewGroomerInput,
 } from "@/lib/data/groomers";
+import {
+  fetchTimeOff,
+  insertTimeOff,
+  updateTimeOffRow,
+  deleteTimeOffRow,
+  type TimeOffInput,
+} from "@/lib/data/time-off";
 
 /** Which collections a rollback should re-pull from the database. */
 type Collection =
@@ -93,7 +101,8 @@ type Collection =
   | "appointments"
   | "settings"
   | "business"
-  | "groomers";
+  | "groomers"
+  | "timeOff";
 
 // Bumped when seed/shape changes (v8: per-pet rebook weeks + groomers).
 const STORAGE_KEY = "groomos.demo.v8";
@@ -155,6 +164,7 @@ interface StoreState {
   appointments: Appointment[];
   settings: Settings;
   groomers: Groomer[];
+  timeOff: TimeOff[];
 }
 
 interface StoreContextValue extends StoreState {
@@ -235,6 +245,10 @@ interface StoreContextValue extends StoreState {
   deleteGroomer: (id: string) => void;
   /** Assign (or clear, with null) which groomer an appointment belongs to. */
   assignAppointmentGroomer: (appointmentId: string, groomerId: string | null) => void;
+  // Time off (holiday / closed blocks)
+  addTimeOff: (input: TimeOffInput) => TimeOff;
+  updateTimeOff: (id: string, patch: Partial<TimeOffInput>) => void;
+  deleteTimeOff: (id: string) => void;
 }
 
 /** A pet that's overdue for a groom, with retention context. */
@@ -313,8 +327,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       fetchSettings(businessId),
       fetchBusiness(businessId),
       fetchGroomers(businessId),
+      fetchTimeOff(businessId),
     ])
-      .then(([clients, pets, services, appointments, settings, business, groomers]) => {
+      .then(([clients, pets, services, appointments, settings, business, groomers, timeOff]) => {
         if (!active) return;
         setState((s) => ({
           clients,
@@ -324,6 +339,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           settings,
           business: business ?? s.business,
           groomers,
+          timeOff,
         }));
         setHydrated(true);
       })
@@ -362,6 +378,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             const b = await fetchBusiness(businessId);
             if (b) patch.business = b;
           } else if (k === "groomers") patch.groomers = await fetchGroomers(businessId);
+          else if (k === "timeOff") patch.timeOff = await fetchTimeOff(businessId);
         }),
       );
       setState((s) => ({ ...s, ...patch }));
@@ -652,6 +669,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [live, persist],
   );
 
+  // ── Time off (holiday / closed blocks) ─────────────────────────────────────
+  const addTimeOff = useCallback(
+    (input: TimeOffInput): TimeOff => {
+      const block: TimeOff = {
+        id: newId("off"),
+        businessId: businessId ?? "biz_1",
+        groomerId: input.groomerId ?? null,
+        start: input.start,
+        end: input.end,
+        allDay: input.allDay,
+        label: input.label?.trim() || undefined,
+      };
+      setState((s) => ({ ...s, timeOff: [...s.timeOff, block] }));
+      if (live && businessId) {
+        persist(() => insertTimeOff(businessId, input, block.id), ["timeOff"]);
+      }
+      return block;
+    },
+    [live, businessId, newId, persist],
+  );
+
+  const updateTimeOff = useCallback(
+    (id: string, patch: Partial<TimeOffInput>) => {
+      setState((s) => ({
+        ...s,
+        timeOff: s.timeOff.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                ...(patch.groomerId !== undefined ? { groomerId: patch.groomerId ?? null } : {}),
+                ...(patch.start !== undefined ? { start: patch.start } : {}),
+                ...(patch.end !== undefined ? { end: patch.end } : {}),
+                ...(patch.allDay !== undefined ? { allDay: patch.allDay } : {}),
+                ...(patch.label !== undefined ? { label: patch.label?.trim() || undefined } : {}),
+              }
+            : t,
+        ),
+      }));
+      if (live) persist(() => updateTimeOffRow(id, patch), ["timeOff"]);
+    },
+    [live, persist],
+  );
+
+  const deleteTimeOff = useCallback(
+    (id: string) => {
+      setState((s) => ({ ...s, timeOff: s.timeOff.filter((t) => t.id !== id) }));
+      if (live) persist(() => deleteTimeOffRow(id), ["timeOff"]);
+    },
+    [live, persist],
+  );
+
   const deleteService = useCallback(
     (id: string) => {
       setState((s) => ({ ...s, services: s.services.filter((sv) => sv.id !== id) }));
@@ -837,6 +905,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateGroomer,
       deleteGroomer,
       assignAppointmentGroomer,
+      addTimeOff,
+      updateTimeOff,
+      deleteTimeOff,
       createAppointment,
       setAppointmentStatus,
       updateAppointmentNotes,
@@ -873,6 +944,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateGroomer,
       deleteGroomer,
       assignAppointmentGroomer,
+      addTimeOff,
+      updateTimeOff,
+      deleteTimeOff,
       createAppointment,
       setAppointmentStatus,
       updateAppointmentNotes,

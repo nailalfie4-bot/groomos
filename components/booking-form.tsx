@@ -13,6 +13,7 @@ import { useStore } from "@/lib/mock/store";
 import { useAuth } from "@/components/auth-provider";
 import { formatGBP } from "@/lib/format";
 import { daySlots, findClash } from "@/lib/schedule";
+import { publicBlockingTimeOff } from "@/lib/availability";
 import { COAT_HELP, COAT_LABEL, SIZE_LABEL, resolveServiceDeposit } from "@/lib/pricing";
 import type { CoatCondition, DogSize } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -65,6 +66,7 @@ export function BookingForm({
     settings,
     business,
     groomers,
+    timeOff,
     createAppointment,
     getPetsForClient,
     getClient,
@@ -157,9 +159,15 @@ export function BookingForm({
   // groom's true length (incl. matting/size) drives what can fit.
   const groomMinutes = quote?.totalDurationMin ?? 60;
   const selectedDay = useMemo(() => new Date(`${date}T00:00:00`), [date]);
+  // Business-wide blocks always apply; groomer-specific ones only when solo.
+  const applicableTimeOff = useMemo(
+    () => publicBlockingTimeOff(timeOff, groomers.length),
+    [timeOff, groomers.length],
+  );
   const slots = useMemo(
-    () => daySlots(appointments, settings, business, selectedDay, groomMinutes),
-    [appointments, settings, business, selectedDay, groomMinutes],
+    () =>
+      daySlots(appointments, settings, business, selectedDay, groomMinutes, new Date(), undefined, applicableTimeOff),
+    [appointments, settings, business, selectedDay, groomMinutes, applicableTimeOff],
   );
   const hasFree = slots.some((s) => s.available);
 

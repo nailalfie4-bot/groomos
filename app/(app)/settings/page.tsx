@@ -9,6 +9,7 @@ import {
   Bell,
   Building2,
   CalendarClock,
+  CalendarOff,
   Check,
   ClipboardList,
   Clock,
@@ -216,6 +217,14 @@ function SettingsForm({
                 ))}
               </Select>
             </div>
+          </Section>
+
+          <Section
+            icon={<CalendarOff className="h-[18px] w-[18px]" />}
+            title="Regular closed days"
+            description="Days you're always closed (e.g. Sundays and Mondays). Clients can't book these online, and they show as closed on your calendar. For one-off holidays, use “Time off” on the calendar."
+          >
+            <ClosedDaysPicker value={b.closedWeekdays} onChange={(v) => setBiz("closedWeekdays", v)} />
           </Section>
 
           <Section
@@ -924,6 +933,58 @@ function FeeRow({
         <Input label="Extra charge (£)" type="number" min={0} step={1} value={String(fee)} onChange={(e) => onFee(num(e.target.value))} />
         <Input label="Extra time (min)" type="number" min={0} step={5} value={String(mins)} onChange={(e) => onMins(num(e.target.value))} />
       </div>
+    </div>
+  );
+}
+
+/** Weekday chips (Mon-first, UK) for the regular closed-days picker. */
+const WEEKDAYS: { i: number; label: string; full: string }[] = [
+  { i: 1, label: "Mon", full: "Mondays" },
+  { i: 2, label: "Tue", full: "Tuesdays" },
+  { i: 3, label: "Wed", full: "Wednesdays" },
+  { i: 4, label: "Thu", full: "Thursdays" },
+  { i: 5, label: "Fri", full: "Fridays" },
+  { i: 6, label: "Sat", full: "Saturdays" },
+  { i: 0, label: "Sun", full: "Sundays" },
+];
+
+function ClosedDaysPicker({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
+  const set = new Set(value);
+  const toggle = (i: number) => {
+    const next = new Set(set);
+    if (next.has(i)) next.delete(i);
+    else next.add(i);
+    onChange([...next].sort((a, b) => a - b));
+  };
+  const closedList = WEEKDAYS.filter((w) => set.has(w.i)).map((w) => w.full);
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {WEEKDAYS.map(({ i, label }) => {
+          const closed = set.has(i);
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => toggle(i)}
+              aria-pressed={closed}
+              className={cn(
+                "min-w-[52px] rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                closed
+                  ? "border-accent bg-accent-50 text-accent-700"
+                  : "border-strong bg-surface text-ink-muted hover:text-ink",
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2.5 text-xs text-ink-subtle">
+        {closedList.length
+          ? `Closed ${closedList.join(", ")} — no online bookings on ${closedList.length === 1 ? "that day" : "those days"}.`
+          : "Open every day. Tap a day to mark it a regular closed day."}
+      </p>
     </div>
   );
 }

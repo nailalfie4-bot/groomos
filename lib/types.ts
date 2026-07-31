@@ -38,6 +38,33 @@ export interface Business {
   city: string;
   postcode: string;
   phone: string;
+  /**
+   * Weekdays the business is regularly closed (0 = Sunday … 6 = Saturday).
+   * Empty = open every day. Applied to public availability + booking the same
+   * way a one-off time-off block is, so no slot on a closed day can be booked.
+   */
+  closedWeekdays: number[];
+}
+
+/**
+ * A block of time the business (or one groomer) is unavailable — a holiday, a
+ * day off, training, etc. Treated as unavailable by the public booking page so
+ * no slot inside it can be booked. Existing bookings inside a block are kept
+ * (never deleted) and stay visible on the calendar.
+ */
+export interface TimeOff {
+  id: ID;
+  businessId: ID;
+  /** The groomer this applies to, or undefined/null = the whole business. */
+  groomerId?: ID | null;
+  /** ISO datetime the block starts. For all-day blocks, the day's UTC 00:00. */
+  start: string;
+  /** ISO datetime the block ends (exclusive-ish). All-day → end day's UTC 23:59. */
+  end: string;
+  /** A full day / range of days rather than specific hours. */
+  allDay: boolean;
+  /** Optional label — "Holiday", "Training", "Personal"… */
+  label?: string;
 }
 
 export interface Client {

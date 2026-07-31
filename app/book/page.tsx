@@ -28,6 +28,7 @@ const business: Business = {
   city: "Manchester",
   postcode: "M20 2AB",
   phone: "",
+  closedWeekdays: [],
 };
 
 const services: Service[] = [

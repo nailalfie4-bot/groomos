@@ -4,7 +4,13 @@
  * configured cleanup buffer; two appointments clash if those windows overlap.
  */
 
-import type { Appointment, Business, Settings } from "@/lib/types";
+import type { Appointment, Business, Settings, TimeOff } from "@/lib/types";
+import { isWeekdayClosed, slotHitsTimeOff } from "@/lib/availability";
+
+/** Local YYYY-MM-DD for a Date (matches how the calendar reasons about a day). */
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 /** Statuses that actually occupy a slot (cancelled/no-show free it up). */
 const BLOCKING: Appointment["status"][] = ["pending", "confirmed", "completed"];
@@ -80,8 +86,8 @@ export interface DaySlot {
   time: string;
   /** True when a groom of `durationMin` can start here without clashing. */
   available: boolean;
-  /** Why it's unavailable (for a11y/tooltip): taken, in the past, or too late. */
-  reason?: "taken" | "past" | "tooLate";
+  /** Why it's unavailable (for a11y/tooltip). */
+  reason?: "taken" | "past" | "tooLate" | "closed" | "off";
 }
 
 /**
@@ -94,15 +100,18 @@ export interface DaySlot {
 export function daySlots(
   appointments: Appointment[],
   settings: Settings,
-  business: Pick<Business, "openHour" | "closeHour">,
+  business: Pick<Business, "openHour" | "closeHour" | "closedWeekdays">,
   day: Date,
   durationMin: number,
   now: Date = new Date(),
   excludeId?: string,
+  timeOff: TimeOff[] = [],
 ): DaySlot[] {
   const openMin = business.openHour * 60;
   const closeMin = business.closeHour * 60;
   const nowMs = now.getTime();
+  // Whole-day closed (regular day off) → every slot is closed.
+  const dayClosed = isWeekdayClosed(localDateStr(day), business.closedWeekdays);
   const out: DaySlot[] = [];
   for (let m = openMin; m < closeMin; m += SLOT_STEP_MIN) {
     const start = new Date(day);
@@ -111,10 +120,13 @@ export function daySlots(
       m % 60,
     ).padStart(2, "0")}`;
     let reason: DaySlot["reason"];
-    if (start.getTime() <= nowMs) reason = "past";
+    if (dayClosed) reason = "closed";
+    else if (start.getTime() <= nowMs) reason = "past";
     else if (m + durationMin > closeMin) reason = "tooLate";
     else if (findClash(appointments, settings, start.toISOString(), durationMin, excludeId))
       reason = "taken";
+    else if (slotHitsTimeOff(start.getTime(), start.getTime() + durationMin * 60_000, timeOff))
+      reason = "off";
     out.push({ time, available: !reason, reason });
   }
   return out;

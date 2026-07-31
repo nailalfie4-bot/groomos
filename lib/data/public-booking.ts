@@ -12,8 +12,10 @@ import { rowToBusiness } from "@/lib/data/business";
 import { rowToService } from "@/lib/data/services";
 import { rowToSettings } from "@/lib/data/settings";
 import { rowToAppointment, isClashError } from "@/lib/data/appointments";
+import { rowToTimeOff, type TimeOffRow } from "@/lib/data/time-off";
 import { computeQuote, DEFAULT_SETTINGS, resolveServiceDeposit, isBookableAlone } from "@/lib/pricing";
 import { findClash, SLOT_STEP_MIN } from "@/lib/schedule";
+import { isWeekdayClosed, publicBlockingTimeOff, slotHitsTimeOff } from "@/lib/availability";
 import { sendEmail } from "@/lib/email/send";
 import { bookingConfirmationEmail } from "@/lib/email/templates";
 import { getStripe, isStripeServerConfigured } from "@/lib/stripe/server";
@@ -131,24 +133,29 @@ export async function publicAvailableSlots(
   const admin = createSupabaseAdminClient();
   const { data: biz, error } = await admin
     .from("businesses")
-    .select("id, open_hour, close_hour")
+    .select("id, open_hour, close_hour, closed_weekdays")
     .eq("slug", slug.trim().toLowerCase())
     .maybeSingle();
   if (error) throw error;
   if (!biz) return null;
   const businessId = (biz as { id: string }).id;
+  const closedWeekdays = (biz as { closed_weekdays?: number[] | null }).closed_weekdays ?? [];
 
-  const [{ data: setting }, { data: appts }] = await Promise.all([
-    admin.from("settings").select("*").eq("business_id", businessId).maybeSingle(),
-    admin
-      .from("appointments")
-      .select("*")
-      .eq("business_id", businessId)
-      .neq("status", "cancelled"),
-  ]);
+  // A regular closed weekday → nothing bookable that day. (Cheap early exit.)
+  if (isWeekdayClosed(dateStr, closedWeekdays)) return [];
+
+  const [{ data: setting }, { data: appts }, { data: offRows }, { count: groomerCount }] =
+    await Promise.all([
+      admin.from("settings").select("*").eq("business_id", businessId).maybeSingle(),
+      admin.from("appointments").select("*").eq("business_id", businessId).neq("status", "cancelled"),
+      admin.from("time_off").select("*").eq("business_id", businessId),
+      admin.from("groomers").select("id", { count: "exact", head: true }).eq("business_id", businessId),
+    ]);
 
   const settings = setting ? rowToSettings(setting as never) : defaultishSettings();
   const appointments = ((appts as unknown[]) ?? []).map((r) => rowToAppointment(r as never));
+  const timeOff = ((offRows as TimeOffRow[] | null) ?? []).map(rowToTimeOff);
+  const blocks = publicBlockingTimeOff(timeOff, groomerCount ?? 0);
   const openMin = (biz as { open_hour: number }).open_hour * 60;
   const closeMin = (biz as { close_hour: number }).close_hour * 60;
   const nowMs = Date.now();
@@ -156,10 +163,12 @@ export async function publicAvailableSlots(
   const out: string[] = [];
   for (let m = openMin; m + durationMin <= closeMin; m += SLOT_STEP_MIN) {
     const startIso = utcSlotInstant(dateStr, m);
-    if (new Date(startIso).getTime() <= nowMs) continue; // never offer a past slot
-    if (!findClash(appointments, settings, startIso, durationMin)) {
-      out.push(startIso.slice(11, 16)); // "HH:MM"
-    }
+    const startMs = new Date(startIso).getTime();
+    if (startMs <= nowMs) continue; // never offer a past slot
+    if (findClash(appointments, settings, startIso, durationMin)) continue;
+    // Time off closes the slot the same as an existing booking would.
+    if (slotHitsTimeOff(startMs, startMs + durationMin * 60_000, blocks)) continue;
+    out.push(startIso.slice(11, 16)); // "HH:MM"
   }
   return out;
 }
@@ -192,7 +201,11 @@ export interface PublicBookingInput {
 
 export type CreateBookingResult =
   | { ok: true; appointmentId: string; depositDue: number; depositPaid: boolean; when: string }
-  | { ok: false; error: "not_found" | "invalid_service" | "slot_taken" | "invalid_input" | "payment_required"; message: string };
+  | {
+      ok: false;
+      error: "not_found" | "invalid_service" | "slot_taken" | "invalid_input" | "payment_required" | "unavailable";
+      message: string;
+    };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -225,7 +238,7 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   const { data: biz, error: bizErr } = await admin
     .from("businesses")
     .select(
-      "id, name, logo_url, open_hour, close_hour, address_line, city, postcode, stripe_connect_account_id, stripe_connect_charges_enabled",
+      "id, name, logo_url, open_hour, close_hour, closed_weekdays, address_line, city, postcode, stripe_connect_account_id, stripe_connect_charges_enabled",
     )
     .eq("slug", input.slug.trim().toLowerCase())
     .maybeSingle();
@@ -297,6 +310,33 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   const startMin = start.getUTCHours() * 60 + start.getUTCMinutes();
   if (startMin < openMin || startMin + totalDurationMin > closeMin) {
     return { ok: false, error: "invalid_input", message: "That time is outside opening hours." };
+  }
+
+  // ── Time off / regular closed days — the server-authoritative guard ────────
+  // Runs BEFORE any deposit is charged, so a blocked slot never takes money. A
+  // crafted request that skips the availability UI is rejected here too.
+  {
+    const dateStr = start.toISOString().slice(0, 10); // UTC date, matching the slots
+    const closedWeekdays = (biz as { closed_weekdays?: number[] | null }).closed_weekdays ?? [];
+    const [{ data: offRows }, { count: groomerCount }] = await Promise.all([
+      admin.from("time_off").select("*").eq("business_id", businessId),
+      admin.from("groomers").select("id", { count: "exact", head: true }).eq("business_id", businessId),
+    ]);
+    const blocks = publicBlockingTimeOff(
+      ((offRows as TimeOffRow[] | null) ?? []).map(rowToTimeOff),
+      groomerCount ?? 0,
+    );
+    const startMs = start.getTime();
+    if (
+      isWeekdayClosed(dateStr, closedWeekdays) ||
+      slotHitsTimeOff(startMs, startMs + totalDurationMin * 60_000, blocks)
+    ) {
+      return {
+        ok: false,
+        error: "unavailable",
+        message: "Sorry, the groomer isn't available then — please pick another time.",
+      };
+    }
   }
 
   // ── Declarations + T&Cs: every enabled declaration must be agreed, and if the
