@@ -17,7 +17,11 @@ import { computeQuote, DEFAULT_SETTINGS, resolveServiceDeposit, isBookableAlone 
 import { findClash, SLOT_STEP_MIN } from "@/lib/schedule";
 import { isWeekdayClosed, publicBlockingTimeOff, slotHitsTimeOff } from "@/lib/availability";
 import { sendEmail } from "@/lib/email/send";
-import { bookingConfirmationEmail } from "@/lib/email/templates";
+import { bookingConfirmationEmail, newBookingGroomerEmail } from "@/lib/email/templates";
+
+// Canonical site URL for links in emails. Uses NEXT_PUBLIC_SITE_URL when set
+// (e.g. the custom domain), else the Vercel default — matching the reminders route.
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://groomos.vercel.app").replace(/\/$/, "");
 import { getStripe, isStripeServerConfigured } from "@/lib/stripe/server";
 import { depositModeFor, hasPublishableKey, type DepositMode } from "@/lib/stripe/connect";
 import type { Business, CoatCondition, DogSize, Service, Settings } from "@/lib/types";
@@ -505,7 +509,8 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
       pet_id: petId,
       service_id: service.id,
       start_at: start.toISOString(),
-      status: "pending",
+      // Manual confirm is the default; a business can opt into auto-confirm.
+      status: settings.autoConfirmBookings ? "confirmed" : "pending",
       source: "online",
       notes: "",
       price_gbp: totalPriceGBP,
@@ -563,6 +568,47 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
     await sendEmail({ to: email, subject: msg.subject, html: msg.html });
   } catch (err) {
     console.error("booking confirmation email failed:", err);
+  }
+
+  // Alert the GROOMER too — best-effort. Resolve the account owner's email and
+  // tell them a booking's come in, whether it needs confirming, and — crucially
+  // — whether a deposit has already been charged (money taken before they act).
+  try {
+    const { data: owner } = await admin
+      .from("users")
+      .select("email")
+      .eq("business_id", businessId)
+      .order("role", { ascending: true }) // 'owner' sorts before 'staff'
+      .limit(1)
+      .maybeSingle();
+    const to = (owner as { email?: string } | null)?.email?.trim();
+    if (to) {
+      const whenLabel = start.toLocaleString("en-GB", {
+        weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC",
+      });
+      const depositLabel =
+        depositDue <= 0
+          ? "No deposit"
+          : depositMode === "charge"
+            ? `£${depositDue} paid by card`
+            : `£${depositDue} to collect on the day`;
+      const msg = newBookingGroomerEmail({
+        businessName: (biz as { name?: string }).name ?? "your business",
+        petName,
+        serviceName: service.name,
+        whenLabel,
+        clientName: [firstName, lastName].filter(Boolean).join(" ") || firstName,
+        clientPhone: phone,
+        addons: addonsSnapshot?.map((a) => a.name),
+        depositLabel,
+        depositPaid: depositMode === "charge",
+        needsConfirming: !settings.autoConfirmBookings,
+        manageUrl: `${SITE_URL}/appointments`,
+      });
+      await sendEmail({ to, subject: msg.subject, html: msg.html });
+    }
+  } catch (err) {
+    console.error("groomer booking notification failed:", err);
   }
 
   return {

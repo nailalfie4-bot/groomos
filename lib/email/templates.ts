@@ -90,6 +90,62 @@ export function bookingConfirmationEmail(d: GroomEmailData): { subject: string; 
   };
 }
 
+/**
+ * Alert TO THE GROOMER when a client books online. Leads with what they need to
+ * decide — is it awaiting confirmation, and has a deposit already been taken —
+ * plus the client's number so they can get in touch.
+ */
+export function newBookingGroomerEmail(d: {
+  businessName: string;
+  petName: string;
+  serviceName: string;
+  whenLabel: string;
+  clientName: string;
+  clientPhone: string;
+  addons?: string[];
+  /** Short deposit summary, e.g. "£10 paid by card" / "£10 to collect" / "No deposit". */
+  depositLabel: string;
+  /** True when a card deposit was actually charged (money already taken). */
+  depositPaid: boolean;
+  /** True when the booking is 'pending' and needs the groomer to confirm. */
+  needsConfirming: boolean;
+  manageUrl: string;
+}): { subject: string; html: string } {
+  const rows = [
+    detailRow("Groom", d.serviceName),
+    d.addons && d.addons.length ? detailRow("Extras", d.addons.join(", ")) : "",
+    detailRow("When", d.whenLabel),
+    detailRow("Dog", d.petName),
+    detailRow("Client", d.clientName),
+    detailRow("Phone", d.clientPhone || "—"),
+    detailRow("Deposit", d.depositLabel),
+  ].join("");
+
+  const statusBox = d.needsConfirming
+    ? `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#7A3B36;background:#FBEEEB;border-radius:10px;padding:12px 14px;"><strong>Awaiting your confirmation.</strong> This booking is pending until you confirm it — open GroomOS to confirm or cancel.</p>`
+    : `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#3E6B4C;background:#E8F0E9;border-radius:10px;padding:12px 14px;"><strong>Confirmed automatically</strong> and added to your calendar.</p>`;
+
+  // Deposits are the thing not to miss: money may already be taken while the
+  // booking is still only pending.
+  const depositBox = d.depositPaid
+    ? `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#3E6B4C;background:#E8F0E9;border-radius:10px;padding:12px 14px;">💳 <strong>${esc(d.depositLabel)}</strong> — this money has already been taken and is in your Stripe account${d.needsConfirming ? ", even though the booking is still pending. If you cancel, remember to refund it." : "."}</p>`
+    : "";
+
+  const cta = `<a href="${d.manageUrl}" style="display:inline-block;background:#C9756B;color:#FCF6F4;text-decoration:none;font-weight:600;font-size:16px;padding:14px 24px;border-radius:12px;">Open GroomOS &rarr;</a>`;
+
+  const body = `
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#8A7470;">${esc(d.clientName)} just booked ${esc(d.petName)} in online.</p>
+    <table role="presentation" width="100%" style="border-collapse:collapse;border-top:1px solid #F1DEDA;border-bottom:1px solid #F1DEDA;margin:4px 0 16px;">${rows}</table>
+    ${statusBox}
+    ${depositBox}
+    <div style="text-align:center;margin:8px 0 0;">${cta}</div>`;
+
+  return {
+    subject: `${d.needsConfirming ? "New booking to confirm" : "New booking"}: ${d.petName} · ${d.whenLabel}`,
+    html: shell("GroomOS", `New online booking — ${d.petName}`, body),
+  };
+}
+
 /** Deposit payment link sent to a phone-booked client to secure their slot. */
 export function depositLinkEmail(d: {
   businessName: string;

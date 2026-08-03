@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MotionConfig } from "framer-motion";
 import Link from "next/link";
@@ -56,9 +56,18 @@ function isActive(pathname: string, href: string): boolean {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { business, resetDemo } = useStore();
+  const { business, resetDemo, appointments } = useStore();
   const { user, loading, configured } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Online bookings awaiting confirmation (today + future) — badged so a new
+  // request can't be missed. Manual bookings are created confirmed.
+  const pendingCount = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return appointments.filter(
+      (a) => a.status === "pending" && new Date(a.start).getTime() >= start.getTime(),
+    ).length;
+  }, [appointments]);
   // Real per-business booking page when we have a slug; the demo page otherwise.
   const bookingHref = business.slug ? `/book/${business.slug}` : "/book";
 
@@ -104,6 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Icon className="h-4 w-4" />
               {label}
+              {href === "/appointments" && pendingCount > 0 && <NavCount n={pendingCount} />}
             </Link>
           ))}
         </nav>
@@ -182,6 +192,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Icon className="h-4 w-4" />
                 {label}
+                {href === "/appointments" && pendingCount > 0 && <NavCount n={pendingCount} />}
               </Link>
             ))}
             <Link
@@ -252,5 +263,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
     </div>
     </MotionConfig>
+  );
+}
+
+/** Small count badge on a nav item (e.g. bookings awaiting confirmation). */
+function NavCount({ n }: { n: number }) {
+  return (
+    <span
+      aria-label={`${n} to confirm`}
+      className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-warning-soft px-1.5 text-[11px] font-semibold text-warning-deep"
+    >
+      {n > 99 ? "99+" : n}
+    </span>
   );
 }

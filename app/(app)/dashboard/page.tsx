@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarPlus, ShieldCheck } from "lucide-react";
+import { ArrowRight, BellRing, CalendarPlus, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -99,6 +99,17 @@ export default function DashboardPage() {
     });
     const secured = month.reduce((sum, a) => sum + (a.deposit ?? 0), 0);
     return { secured, count: month.length };
+  }, [appointments]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pending online bookings (today + future) awaiting confirmation — kept
+  // separate from "upcoming" so a new request can't be missed. Manual bookings
+  // are created confirmed, so every pending one is a client request.
+  const pending = useMemo(() => {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    return appointments
+      .filter((a) => a.status === "pending" && new Date(a.start).getTime() >= start.getTime())
+      .sort((a, b) => (a.start < b.start ? -1 : 1));
   }, [appointments]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -218,6 +229,32 @@ export default function DashboardPage() {
           <Stat label="Expected today" value={formatGBP(expectedToday)} />
           <Stat label="No-show rate" value={`${metrics.noShowRatePct}%`} />
         </div>
+      )}
+
+      {/* Pending online bookings — needs action, so it leads the notices */}
+      {!loading && pending.length > 0 && (
+        <Link
+          href="/appointments?filter=pending"
+          className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-warning-deep/25 bg-warning-soft/50 px-4 py-3.5 shadow-card transition-colors duration-fast hover:bg-warning-soft/70 sm:px-5"
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warning-soft text-warning-deep">
+              <BellRing className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">
+                {pending.length} booking{pending.length === 1 ? "" : "s"} to confirm
+              </p>
+              <p className="truncate text-xs text-ink-muted">
+                New online request{pending.length === 1 ? "" : "s"} waiting for your confirmation.
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-warning-deep">
+            Review
+            <ArrowRight className="h-4 w-4" />
+          </span>
+        </Link>
       )}
 
       {/* Quiet notices — only when there's something to know */}

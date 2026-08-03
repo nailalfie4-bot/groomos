@@ -160,6 +160,11 @@ export interface Settings {
    * a groom" this many weeks before its own due date.
    */
   rebookLeadWeeks: number;
+  /**
+   * Auto-confirm online bookings. Off (default) → online bookings arrive
+   * 'pending' and the groomer confirms each. On → they're created 'confirmed'.
+   */
+  autoConfirmBookings: boolean;
   /** Require a deposit to confirm a booking (no-show protection). */
   depositEnabled: boolean;
   /** Deposit amount (GBP) — applied to the groom, or kept on a no-show. */

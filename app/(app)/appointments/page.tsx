@@ -38,7 +38,14 @@ export default function AppointmentsPage() {
   const loading = useDemoLoad();
   const { appointments, services, getPet, getClient, setAppointmentStatus } =
     useStore();
-  const [filter, setFilter] = useState<Filter>("all");
+  // Honour a ?filter= deep link (e.g. the dashboard's "bookings to confirm").
+  const [filter, setFilter] = useState<Filter>(() => {
+    if (typeof window === "undefined") return "all";
+    const f = new URLSearchParams(window.location.search).get("filter");
+    return (["all", "pending", "confirmed", "completed", "cancelled"] as Filter[]).includes(f as Filter)
+      ? (f as Filter)
+      : "all";
+  });
   const [completing, setCompleting] = useState<string | null>(null);
   const [viewingReport, setViewingReport] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);

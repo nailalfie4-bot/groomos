@@ -11,6 +11,7 @@ import {
   CalendarClock,
   CalendarOff,
   Check,
+  CheckCheck,
   ClipboardList,
   Clock,
   Copy,
@@ -243,6 +244,25 @@ function SettingsForm({
                 leadingIcon={<Clock />}
               />
             </div>
+          </Section>
+
+          <Section
+            icon={<CheckCheck className="h-[18px] w-[18px]" />}
+            title="Confirming online bookings"
+            description="When a client books online, keep it pending so you confirm each one yourself (recommended), or confirm automatically."
+            action={
+              <Toggle
+                checked={s.autoConfirmBookings}
+                onChange={(v) => setSet("autoConfirmBookings", v)}
+                label="Auto-confirm online bookings"
+              />
+            }
+          >
+            <p className="rounded-xl bg-surface-sunken p-3 text-sm text-ink-muted">
+              {s.autoConfirmBookings
+                ? "Online bookings are confirmed automatically and added straight to your calendar. You're still emailed every one."
+                : "Online bookings arrive as pending. You're emailed each one and confirm it from your calendar or the Appointments list."}
+            </p>
           </Section>
         </SettingsGroup>
 
