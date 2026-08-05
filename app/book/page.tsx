@@ -14,6 +14,7 @@ import {
   type PublicBookingResult,
   type PublicBookingSubmit,
 } from "@/components/public-booking";
+import type { MonthAvailability } from "@/components/booking-calendar";
 import { DEFAULT_SETTINGS } from "@/lib/pricing";
 import type { Business, Service, Settings } from "@/lib/types";
 
@@ -89,6 +90,26 @@ async function fetchSlots(date: string, minutes: number): Promise<string[]> {
   return out;
 }
 
+/** Per-day bookability for a month — mirrors the server's month endpoint, with a
+ *  3-month demo window. */
+async function fetchMonth(month: string, minutes: number): Promise<MonthAvailability> {
+  const today = toDateValue(new Date());
+  const n = new Date();
+  const windowLastDate = toDateValue(new Date(n.getFullYear(), n.getMonth() + 3, n.getDate()));
+  const [y, mo] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  const bookable: Record<string, boolean> = {};
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${month}-${String(d).padStart(2, "0")}`;
+    if (dateStr < today || dateStr > windowLastDate) {
+      bookable[dateStr] = false;
+      continue;
+    }
+    bookable[dateStr] = (await fetchSlots(dateStr, minutes)).length > 0;
+  }
+  return { today, windowLastDate, bookable };
+}
+
 async function submitBooking(_input: PublicBookingSubmit): Promise<PublicBookingResult> {
   return { ok: true, depositDue: settings.depositEnabled ? settings.depositAmount : 0 };
 }
@@ -100,6 +121,7 @@ export default function DemoBookingPage() {
       services={services}
       settings={settings}
       fetchSlots={fetchSlots}
+      fetchMonth={fetchMonth}
       submitBooking={submitBooking}
     />
   );

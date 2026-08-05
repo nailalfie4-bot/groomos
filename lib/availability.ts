@@ -19,6 +19,27 @@ export function weekdayOf(dateStr: string): number {
   return new Date(`${dateStr}T12:00:00Z`).getUTCDay();
 }
 
+/** Today's date (UTC), matching the basis the public slots are generated on. */
+export function todayDateUTC(nowMs: number = Date.now()): string {
+  return new Date(nowMs).toISOString().slice(0, 10);
+}
+
+/**
+ * The last date a client may book, `months` ahead of today (day-precise, UTC).
+ * e.g. 15 Aug + 3 months → 15 Nov. Used by the calendar and the server guard so
+ * they agree on exactly one window.
+ */
+export function bookingWindowLastDate(months: number, nowMs: number = Date.now()): string {
+  const d = new Date(nowMs);
+  const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, d.getUTCDate(), 12, 0, 0));
+  return end.toISOString().slice(0, 10);
+}
+
+/** Is this date past the advance-booking window? (Lexicographic on YYYY-MM-DD.) */
+export function isDateBeyondWindow(dateStr: string, months: number, nowMs: number = Date.now()): boolean {
+  return dateStr > bookingWindowLastDate(months, nowMs);
+}
+
 /** Is the business regularly closed on this date's weekday? */
 export function isWeekdayClosed(dateStr: string, closedWeekdays?: number[] | null): boolean {
   return Array.isArray(closedWeekdays) && closedWeekdays.includes(weekdayOf(dateStr));

@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   remindersEnabled: true,
   defaultRebookWeeks: 6,
   rebookLeadWeeks: 4,
+  bookingWindowMonths: 3,
   autoConfirmBookings: false,
   depositEnabled: true,
   depositAmount: 10,

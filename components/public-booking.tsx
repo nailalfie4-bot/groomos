@@ -31,6 +31,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { Logo } from "@/components/logo";
 import { BusinessLogo } from "@/components/business-logo";
+import { BookingCalendar, type MonthAvailability } from "@/components/booking-calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -74,17 +75,6 @@ function toDateValue(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate(),
   ).padStart(2, "0")}`;
-}
-
-/** The next `n` days as YYYY-MM-DD, starting today. */
-function nextDays(n: number): string[] {
-  const base = new Date();
-  base.setHours(12, 0, 0, 0);
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    return toDateValue(d);
-  });
 }
 
 /** "13:00" → "1:00 pm". */
@@ -194,6 +184,7 @@ export function PublicBooking({
   settings,
   deposit,
   fetchSlots,
+  fetchMonth,
   submitBooking,
 }: {
   business: Business;
@@ -201,6 +192,7 @@ export function PublicBooking({
   settings: Settings;
   deposit?: PublicDepositConfig;
   fetchSlots?: (date: string, minutes: number) => Promise<string[]>;
+  fetchMonth?: (month: string, minutes: number) => Promise<MonthAvailability>;
   submitBooking?: (input: PublicBookingSubmit) => Promise<PublicBookingResult>;
 }) {
   // The standalone picker: main services + any add-on the groomer marked
@@ -208,7 +200,6 @@ export function PublicBooking({
   const mainServices = useMemo(() => services.filter((s) => s.active && isBookableAlone(s)), [services]);
   const addOns = useMemo(() => services.filter((s) => s.active && s.isAddon), [services]);
   const slug = business.slug ?? "";
-  const days = useMemo(() => nextDays(14), []);
   const address = [business.addressLine, business.city, business.postcode]
     .filter(Boolean)
     .join(", ");
@@ -216,7 +207,7 @@ export function PublicBooking({
   const [step, setStep] = useState<Step>("service");
   const [serviceId, setServiceId] = useState(mainServices[0]?.id ?? "");
   const [size, setSize] = useState<DogSize>("medium");
-  const [date, setDate] = useState(days[0]);
+  const [date, setDate] = useState(() => toDateValue(new Date()));
   const [time, setTime] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -304,6 +295,22 @@ export function PublicBooking({
         return Array.isArray(j?.slots) ? j.slots : [];
       }),
     [fetchSlots, slug],
+  );
+  const loadMonth = useMemo<(month: string, minutes: number) => Promise<MonthAvailability>>(
+    () =>
+      fetchMonth ??
+      (async (month, minutes) => {
+        const empty: MonthAvailability = { today: "", windowLastDate: "", bookable: {} };
+        if (!slug) return empty;
+        const r = await fetch(
+          `/api/public/availability/month?slug=${encodeURIComponent(slug)}&month=${encodeURIComponent(
+            month,
+          )}&minutes=${minutes}`,
+        );
+        const j = await r.json().catch(() => null);
+        return j && j.bookable ? (j as MonthAvailability) : empty;
+      }),
+    [fetchMonth, slug],
   );
   const sendBooking = useMemo<(input: PublicBookingSubmit) => Promise<PublicBookingResult>>(
     () =>
@@ -624,40 +631,16 @@ export function PublicBooking({
 
               {step === "when" && (
                 <div className="flex flex-col gap-5">
-                  {/* Day picker — a scrollable row of big chips, no fiddly native picker. */}
-                  <div>
-                    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-                      {days.map((d, i) => {
-                        const sel = d === date;
-                        const dt = new Date(`${d}T12:00:00`);
-                        return (
-                          <button
-                            key={d}
-                            type="button"
-                            onClick={() => {
-                              setDate(d);
-                              setTime("");
-                            }}
-                            aria-pressed={sel}
-                            className={cn(
-                              "flex min-w-[64px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 transition-colors",
-                              sel
-                                ? "border-accent bg-accent text-ink-inverse"
-                                : "border-strong bg-surface text-ink hover:border-accent",
-                            )}
-                          >
-                            <span className="text-[11px] font-medium opacity-80">
-                              {i === 0 ? "Today" : dt.toLocaleDateString("en-GB", { weekday: "short" })}
-                            </span>
-                            <span className="text-lg font-semibold tabular-nums leading-tight">{dt.getDate()}</span>
-                            <span className="text-[10px] opacity-80">
-                              {dt.toLocaleDateString("en-GB", { month: "short" })}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  {/* Day picker — month calendar with back/next, capped to the window. */}
+                  <BookingCalendar
+                    value={date}
+                    onSelect={(d) => {
+                      setDate(d);
+                      setTime("");
+                    }}
+                    fetchMonth={loadMonth}
+                    minutes={groomMinutes}
+                  />
 
                   {/* Times */}
                   <div className="flex flex-col gap-2">

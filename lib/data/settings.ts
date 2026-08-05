@@ -20,6 +20,7 @@ interface SettingsRow {
   reminders_enabled: boolean;
   default_rebook_weeks: number;
   rebook_lead_weeks: number | null;
+  booking_window_months: number | null;
   auto_confirm_bookings: boolean | null;
   deposit_enabled: boolean;
   deposit_amount: number | string;
@@ -48,6 +49,7 @@ export function rowToSettings(r: SettingsRow): Settings {
     remindersEnabled: r.reminders_enabled,
     defaultRebookWeeks: r.default_rebook_weeks,
     rebookLeadWeeks: r.rebook_lead_weeks ?? DEFAULT_SETTINGS.rebookLeadWeeks,
+    bookingWindowMonths: r.booking_window_months ?? DEFAULT_SETTINGS.bookingWindowMonths,
     autoConfirmBookings: r.auto_confirm_bookings ?? DEFAULT_SETTINGS.autoConfirmBookings,
     depositEnabled: r.deposit_enabled,
     depositAmount: num(r.deposit_amount),
@@ -89,6 +91,7 @@ export async function updateSettingsRow(
     remindersEnabled: "reminders_enabled",
     defaultRebookWeeks: "default_rebook_weeks",
     rebookLeadWeeks: "rebook_lead_weeks",
+    bookingWindowMonths: "booking_window_months",
     autoConfirmBookings: "auto_confirm_bookings",
     depositEnabled: "deposit_enabled",
     depositAmount: "deposit_amount",

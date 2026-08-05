@@ -85,6 +85,7 @@ export default function RetentionPage() {
       <PageHeader
         title="Due for a groom"
         subtitle="Dogs coming due with no next visit booked — nudged early so you can get them a slot in time."
+        helpPage="/retention"
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3">

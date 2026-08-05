@@ -175,6 +175,12 @@ export interface Settings {
    */
   rebookLeadWeeks: number;
   /**
+   * How far ahead clients can book online, in MONTHS (1, 2, 3, 6 or 12).
+   * Default 3. Applied on the public booking page's calendar and enforced
+   * server-side so it can't be bypassed.
+   */
+  bookingWindowMonths: number;
+  /**
    * Auto-confirm online bookings. Off (default) → online bookings arrive
    * 'pending' and the groomer confirms each. On → they're created 'confirmed'.
    */

@@ -15,7 +15,14 @@ import { rowToAppointment, isClashError } from "@/lib/data/appointments";
 import { rowToTimeOff, type TimeOffRow } from "@/lib/data/time-off";
 import { computeQuote, DEFAULT_SETTINGS, resolveServiceDeposit, isBookableAlone } from "@/lib/pricing";
 import { findClash, SLOT_STEP_MIN } from "@/lib/schedule";
-import { isWeekdayClosed, publicBlockingTimeOff, slotHitsTimeOff } from "@/lib/availability";
+import {
+  isWeekdayClosed,
+  publicBlockingTimeOff,
+  slotHitsTimeOff,
+  bookingWindowLastDate,
+  todayDateUTC,
+  isDateBeyondWindow,
+} from "@/lib/availability";
 import { sendEmail } from "@/lib/email/send";
 import { bookingConfirmationEmail, newBookingGroomerEmail } from "@/lib/email/templates";
 
@@ -24,7 +31,7 @@ import { bookingConfirmationEmail, newBookingGroomerEmail } from "@/lib/email/te
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://groomos.vercel.app").replace(/\/$/, "");
 import { getStripe, isStripeServerConfigured } from "@/lib/stripe/server";
 import { depositModeFor, hasPublishableKey, type DepositMode } from "@/lib/stripe/connect";
-import type { Business, CoatCondition, DogSize, Service, Settings } from "@/lib/types";
+import type { Appointment, Business, CoatCondition, DogSize, Service, Settings, TimeOff } from "@/lib/types";
 
 // The public page's slot math is anchored to UTC wall-clock: the server
 // generates "HH:MM" candidates as instants ending in `Z`, and the client sends
@@ -127,13 +134,22 @@ export async function resolveBookingPage(slug: string): Promise<BookingPageData 
   };
 }
 
-/** Free start times ("HH:MM") on a given YYYY-MM-DD for a groom of `durationMin`. */
-export async function publicAvailableSlots(
-  slug: string,
-  dateStr: string,
-  durationMin: number,
-): Promise<string[] | null> {
-  if (durationMin <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return [];
+/** Everything needed to compute availability for any day of one business. */
+interface AvailabilityCtx {
+  openMin: number;
+  closeMin: number;
+  closedWeekdays: number[];
+  settings: Settings;
+  appointments: Appointment[];
+  blocks: TimeOff[];
+  /** The advance-booking window bounds (inclusive), from the business setting. */
+  windowLastDate: string;
+  todayStr: string;
+  nowMs: number;
+}
+
+/** Load the shared availability context for a slug once (null = no such business). */
+async function loadAvailabilityCtx(slug: string): Promise<AvailabilityCtx | null> {
   const admin = createSupabaseAdminClient();
   const { data: biz, error } = await admin
     .from("businesses")
@@ -143,10 +159,6 @@ export async function publicAvailableSlots(
   if (error) throw error;
   if (!biz) return null;
   const businessId = (biz as { id: string }).id;
-  const closedWeekdays = (biz as { closed_weekdays?: number[] | null }).closed_weekdays ?? [];
-
-  // A regular closed weekday → nothing bookable that day. (Cheap early exit.)
-  if (isWeekdayClosed(dateStr, closedWeekdays)) return [];
 
   const [{ data: setting }, { data: appts }, { data: offRows }, { count: groomerCount }] =
     await Promise.all([
@@ -157,24 +169,81 @@ export async function publicAvailableSlots(
     ]);
 
   const settings = setting ? rowToSettings(setting as never) : defaultishSettings();
-  const appointments = ((appts as unknown[]) ?? []).map((r) => rowToAppointment(r as never));
-  const timeOff = ((offRows as TimeOffRow[] | null) ?? []).map(rowToTimeOff);
-  const blocks = publicBlockingTimeOff(timeOff, groomerCount ?? 0);
-  const openMin = (biz as { open_hour: number }).open_hour * 60;
-  const closeMin = (biz as { close_hour: number }).close_hour * 60;
   const nowMs = Date.now();
+  return {
+    openMin: (biz as { open_hour: number }).open_hour * 60,
+    closeMin: (biz as { close_hour: number }).close_hour * 60,
+    closedWeekdays: (biz as { closed_weekdays?: number[] | null }).closed_weekdays ?? [],
+    settings,
+    appointments: ((appts as unknown[]) ?? []).map((r) => rowToAppointment(r as never)),
+    blocks: publicBlockingTimeOff(((offRows as TimeOffRow[] | null) ?? []).map(rowToTimeOff), groomerCount ?? 0),
+    windowLastDate: bookingWindowLastDate(settings.bookingWindowMonths, nowMs),
+    todayStr: todayDateUTC(nowMs),
+    nowMs,
+  };
+}
 
+/**
+ * Free start times ("HH:MM") for a groom of `durationMin` on ONE day — applying
+ * past times, the advance-booking window, regular closed weekdays, time off and
+ * opening hours. The single source of truth for both the per-day slots and the
+ * per-month calendar, so they can never disagree.
+ */
+function freeSlotsForDay(ctx: AvailabilityCtx, dateStr: string, durationMin: number): string[] {
+  if (durationMin <= 0) return [];
+  if (dateStr < ctx.todayStr || dateStr > ctx.windowLastDate) return []; // past / beyond window
+  if (isWeekdayClosed(dateStr, ctx.closedWeekdays)) return [];
   const out: string[] = [];
-  for (let m = openMin; m + durationMin <= closeMin; m += SLOT_STEP_MIN) {
+  for (let m = ctx.openMin; m + durationMin <= ctx.closeMin; m += SLOT_STEP_MIN) {
     const startIso = utcSlotInstant(dateStr, m);
     const startMs = new Date(startIso).getTime();
-    if (startMs <= nowMs) continue; // never offer a past slot
-    if (findClash(appointments, settings, startIso, durationMin)) continue;
-    // Time off closes the slot the same as an existing booking would.
-    if (slotHitsTimeOff(startMs, startMs + durationMin * 60_000, blocks)) continue;
+    if (startMs <= ctx.nowMs) continue; // never offer a past slot
+    if (findClash(ctx.appointments, ctx.settings, startIso, durationMin)) continue;
+    if (slotHitsTimeOff(startMs, startMs + durationMin * 60_000, ctx.blocks)) continue;
     out.push(startIso.slice(11, 16)); // "HH:MM"
   }
   return out;
+}
+
+/** Free start times ("HH:MM") on a given YYYY-MM-DD for a groom of `durationMin`.
+ *  null = no such business. Respects the business's advance-booking window. */
+export async function publicAvailableSlots(
+  slug: string,
+  dateStr: string,
+  durationMin: number,
+): Promise<string[] | null> {
+  if (durationMin <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return [];
+  const ctx = await loadAvailabilityCtx(slug);
+  if (!ctx) return null;
+  return freeSlotsForDay(ctx, dateStr, durationMin);
+}
+
+/** Per-day bookability for a whole calendar month — powers the public calendar. */
+export interface MonthAvailability {
+  /** Today (UTC) and the last bookable date — the calendar's navigation bounds. */
+  today: string;
+  windowLastDate: string;
+  /** dateStr -> has at least one free slot (only the days of the requested month). */
+  bookable: Record<string, boolean>;
+}
+
+export async function publicMonthAvailability(
+  slug: string,
+  monthStr: string, // YYYY-MM
+  durationMin: number,
+): Promise<MonthAvailability | null> {
+  if (durationMin <= 0 || !/^\d{4}-\d{2}$/.test(monthStr)) return null;
+  const ctx = await loadAvailabilityCtx(slug);
+  if (!ctx) return null;
+
+  const [y, mo] = monthStr.split("-").map(Number); // mo is 1-based
+  const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const bookable: Record<string, boolean> = {};
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${monthStr}-${String(day).padStart(2, "0")}`;
+    bookable[dateStr] = freeSlotsForDay(ctx, dateStr, durationMin).length > 0;
+  }
+  return { today: ctx.todayStr, windowLastDate: ctx.windowLastDate, bookable };
 }
 
 export interface PublicBookingInput {
@@ -321,6 +390,14 @@ export async function createPublicBooking(input: PublicBookingInput): Promise<Cr
   // crafted request that skips the availability UI is rejected here too.
   {
     const dateStr = start.toISOString().slice(0, 10); // UTC date, matching the slots
+    // Advance-booking window (from the business setting — never a hardcoded cap).
+    if (isDateBeyondWindow(dateStr, settings.bookingWindowMonths)) {
+      return {
+        ok: false,
+        error: "unavailable",
+        message: "That date is further ahead than this business is taking bookings.",
+      };
+    }
     const closedWeekdays = (biz as { closed_weekdays?: number[] | null }).closed_weekdays ?? [];
     const [{ data: offRows }, { count: groomerCount }] = await Promise.all([
       admin.from("time_off").select("*").eq("business_id", businessId),

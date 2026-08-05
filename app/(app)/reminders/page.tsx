@@ -48,6 +48,7 @@ export default function RemindersPage() {
       <PageHeader
         title="Send reminders"
         subtitle="Tap to open WhatsApp with the message ready — you send it. Nothing goes automatically."
+        helpPage="/reminders"
       />
 
       {/* Today / Tomorrow toggle */}

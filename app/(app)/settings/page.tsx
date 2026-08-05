@@ -10,6 +10,7 @@ import {
   Building2,
   CalendarClock,
   CalendarOff,
+  CalendarRange,
   Check,
   CheckCheck,
   ClipboardList,
@@ -19,6 +20,7 @@ import {
   FileText,
   Gauge,
   Heart,
+  HelpCircle,
   ImagePlus,
   KeyRound,
   Link2,
@@ -40,6 +42,7 @@ import { BusinessLogo } from "@/components/business-logo";
 import { ChangePassword } from "@/components/account/change-password";
 import { OnboardGroomer } from "@/components/account/onboard-groomer";
 import { ClearRecords } from "@/components/account/clear-records";
+import { HelpCenter } from "@/components/account/help-center";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -224,6 +227,26 @@ function SettingsForm({
           </Section>
 
           <Section
+            icon={<CalendarRange className="h-[18px] w-[18px]" />}
+            title="How far ahead clients can book"
+            description="The furthest into the future a client can pick a date on your booking page. Your existing bookings and reminders aren't affected."
+          >
+            <div className="max-w-xs">
+              <Select
+                label="Clients can book up to"
+                value={String(s.bookingWindowMonths)}
+                onChange={(e) => setSet("bookingWindowMonths", num(e.target.value))}
+              >
+                <option value="1">1 month ahead</option>
+                <option value="2">2 months ahead</option>
+                <option value="3">3 months ahead</option>
+                <option value="6">6 months ahead</option>
+                <option value="12">12 months ahead</option>
+              </Select>
+            </div>
+          </Section>
+
+          <Section
             icon={<CalendarOff className="h-[18px] w-[18px]" />}
             title="Regular closed days"
             description="Days you're always closed (e.g. Sundays and Mondays). Clients can't book these online, and they show as closed on your calendar. For one-off holidays, use “Time off” on the calendar."
@@ -395,6 +418,19 @@ function SettingsForm({
         </SettingsGroup>
 
         {/* ── Account ────────────────────────────────────────────────────── */}
+        {/* ── Help ───────────────────────────────────────────────────────── */}
+        <div id="help" className="scroll-mt-20">
+          <SettingsGroup title="Help">
+            <Section
+              icon={<HelpCircle className="h-[18px] w-[18px]" />}
+              title="Help &amp; how-tos"
+              description="Short answers to the common questions. Search or tap one to read more."
+            >
+              <HelpCenter />
+            </Section>
+          </SettingsGroup>
+        </div>
+
         <SettingsGroup title="Account">
           <Section
             icon={<KeyRound className="h-[18px] w-[18px]" />}

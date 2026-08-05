@@ -55,6 +55,7 @@ export default function ServicesPage() {
       <PageHeader
         title="Services"
         subtitle="What you offer, how long it takes, and what it costs"
+        helpPage="/services"
         actions={
           <Button size="sm" onClick={() => setCreatingKind("service")}>
             <Plus className="h-4 w-4" />

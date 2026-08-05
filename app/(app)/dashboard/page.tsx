@@ -12,6 +12,7 @@ import { BusinessLogo } from "@/components/business-logo";
 import { StatusBadge } from "@/components/status-badge";
 import { BookingForm } from "@/components/booking-form";
 import { AppointmentSheet } from "@/components/appointment-sheet";
+import { HelpButton } from "@/components/help-button";
 import { useStore } from "@/lib/mock/store";
 import { useDemoLoad } from "@/lib/use-demo-load";
 import { computeMetrics } from "@/lib/metrics";
@@ -127,10 +128,13 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-ink">{greeting}</h1>
           </div>
         </div>
-        <Button size="md" onClick={() => setBooking(true)} className="w-full sm:w-auto">
-          <CalendarPlus className="h-4 w-4" />
-          New booking
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="md" onClick={() => setBooking(true)} className="flex-1 sm:flex-none">
+            <CalendarPlus className="h-4 w-4" />
+            New booking
+          </Button>
+          <HelpButton page="/dashboard" />
+        </div>
       </header>
 
       {/* HERO — the one thing that matters between dogs: what's next */}

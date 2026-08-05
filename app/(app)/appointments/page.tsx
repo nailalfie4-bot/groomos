@@ -76,6 +76,7 @@ export default function AppointmentsPage() {
       <PageHeader
         title="Appointments"
         subtitle="Create, confirm and close out every visit"
+        helpPage="/appointments"
         actions={
           <Button size="sm" onClick={() => setBooking(true)}>
             <CalendarPlus className="h-4 w-4" />

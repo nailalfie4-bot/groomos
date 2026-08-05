@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BookingForm } from "@/components/booking-form";
 import { AppointmentSheet } from "@/components/appointment-sheet";
 import { TimeOffSheet } from "@/components/time-off-sheet";
+import { HelpButton } from "@/components/help-button";
 import { useStore } from "@/lib/mock/store";
 import { useDemoLoad } from "@/lib/use-demo-load";
 import { findClash } from "@/lib/schedule";
@@ -245,6 +246,7 @@ export default function CalendarPage() {
             <CalendarPlus className="h-4 w-4" />
             New
           </Button>
+          <HelpButton page="/calendar" />
         </div>
       </header>
 

@@ -45,6 +45,7 @@ export default function ClientsPage() {
       <PageHeader
         title="Clients & pets"
         subtitle={`${clients.length} client${clients.length === 1 ? "" : "s"} · ${pets.length} dog${pets.length === 1 ? "" : "s"}`}
+        helpPage="/clients"
         actions={
           <Button size="md" onClick={() => setOpen(true)} className="w-full sm:w-auto">
             <UserPlus className="h-4 w-4" />
